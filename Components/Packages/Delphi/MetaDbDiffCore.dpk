@@ -1,0 +1,62 @@
+package MetaDbDiffCore;
+
+{$R *.res}
+{$IFDEF IMPLICITBUILDING This IFDEF should not be used by users}
+{$ALIGN 8}
+{$ASSERTIONS ON}
+{$BOOLEVAL OFF}
+{$DEBUGINFO OFF}
+{$EXTENDEDSYNTAX ON}
+{$IMPORTEDDATA ON}
+{$IOCHECKS ON}
+{$LOCALSYMBOLS ON}
+{$LONGSTRINGS ON}
+{$OPENSTRINGS ON}
+{$OPTIMIZATION OFF}
+{$OVERFLOWCHECKS OFF}
+{$RANGECHECKS OFF}
+{$REFERENCEINFO ON}
+{$SAFEDIVIDE OFF}
+{$STACKFRAMES ON}
+{$TYPEDADDRESS OFF}
+{$VARSTRINGCHECKS ON}
+{$WRITEABLECONST OFF}
+{$MINENUMSIZE 1}
+{$IMAGEBASE $400000}
+{$DEFINE DEBUG}
+{$ENDIF IMPLICITBUILDING}
+{$DESCRIPTION 'Database Compare - Core'}
+{$RUNONLY}
+{$IMPLICITBUILD OFF}
+
+requires
+  rtl,
+  dbrtl,
+  DBEBrCore;
+
+contains
+  MetaDbDiff.Database.Abstract in '..\..\..\Source\Core\MetaDbDiff.Database.Abstract.pas',
+  MetaDbDiff.Database.Compare in '..\..\..\Source\Core\MetaDbDiff.Database.Compare.pas',
+  MetaDbDiff.Database.Factory in '..\..\..\Source\Core\MetaDbDiff.Database.Factory.pas',
+  MetaDbDiff.Database.Interfaces in '..\..\..\Source\Core\MetaDbDiff.Database.Interfaces.pas',
+  MetaDbDiff.Database.Mapping in '..\..\..\Source\Core\MetaDbDiff.Database.Mapping.pas',
+  MetaDbDiff.Database.MetaInfo in '..\..\..\Source\Core\MetaDbDiff.Database.MetaInfo.pas',
+  MetaDbDiff.DDL.Commands in '..\..\..\Source\Core\MetaDbDiff.DDL.Commands.pas',
+  MetaDbDiff.DDL.Generator in '..\..\..\Source\Core\MetaDbDiff.DDL.Generator.pas',
+  MetaDbDiff.DDL.Interfaces in '..\..\..\Source\Core\MetaDbDiff.DDL.Interfaces.pas',
+  MetaDbDiff.DDL.Register in '..\..\..\Source\Core\MetaDbDiff.DDL.Register.pas',
+  MetaDbDiff.Mapping.Attributes in '..\..\..\Source\Core\MetaDbDiff.Mapping.Attributes.pas',
+  MetaDbDiff.Mapping.Classes in '..\..\..\Source\Core\MetaDbDiff.Mapping.Classes.pas',
+  MetaDbDiff.Mapping.Exceptions in '..\..\..\Source\Core\MetaDbDiff.Mapping.Exceptions.pas',
+  MetaDbDiff.Mapping.Explorer in '..\..\..\Source\Core\MetaDbDiff.Mapping.Explorer.pas',
+  MetaDbDiff.Mapping.Popular in '..\..\..\Source\Core\MetaDbDiff.Mapping.Popular.pas',
+  MetaDbDiff.Mapping.Register in '..\..\..\Source\Core\MetaDbDiff.Mapping.Register.pas',
+  MetaDbDiff.Mapping.Repository in '..\..\..\Source\Core\MetaDbDiff.Mapping.Repository.pas',
+  MetaDbDiff.Metadata.DB.Factory in '..\..\..\Source\Core\MetaDbDiff.Metadata.DB.Factory.pas',
+  MetaDbDiff.Metadata.Extract in '..\..\..\Source\Core\MetaDbDiff.Metadata.Extract.pas',
+  MetaDbDiff.Metadata.Interfaces in '..\..\..\Source\Core\MetaDbDiff.Metadata.Interfaces.pas',
+  MetaDbDiff.Metadata.Register in '..\..\..\Source\Core\MetaDbDiff.Metadata.Register.pas',
+  MetaDbDiff.RTTI.Helper in '..\..\..\Source\Core\MetaDbDiff.RTTI.Helper.pas',
+  MetaDbDiff.Types.Mapping in '..\..\..\Source\Core\MetaDbDiff.Types.Mapping.pas';
+
+end.
