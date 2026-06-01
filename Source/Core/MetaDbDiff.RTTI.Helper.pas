@@ -101,7 +101,8 @@ type
     function  IsNullIfEmpty: Boolean;
     function  GetAssociation: TArray<Association>;
     function  GetRestriction: TCustomAttribute;
-    function  GetDictionary: Dictionary;
+    function  GetDictionary: Dictionary; overload;
+    function  GetDictionary(const ADictionary: Dictionary): Dictionary; overload;
     function  GetCalcField: TCustomAttribute;
     function  GetColumn: Column;
     function  GetNotNullConstraint: TCustomAttribute;
@@ -193,6 +194,14 @@ begin
          Exit(Dictionary(LAttribute));
    end;
    Exit(nil);
+end;
+
+function TRttiPropertyHelper.GetDictionary(const ADictionary: Dictionary): Dictionary;
+begin
+  if ADictionary <> nil then
+    Result := ADictionary
+  else
+    Result := GetDictionary;
 end;
 
 function TRttiPropertyHelper.GetEnumIntegerValue(const AInstance: TObject;

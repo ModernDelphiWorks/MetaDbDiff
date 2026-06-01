@@ -37,6 +37,14 @@ uses
   MetaDbDiff.Types.Mapping;
 
 type
+  TRESTVerb = (rvGET, rvPOST, rvPUT, rvDELETE);
+  TRESTVerbSet = set of TRESTVerb;
+
+  TRESTAllowVerbCache = record
+    HasAllowList: Boolean;
+    AllowedVerbs: TRESTVerbSet;
+  end;
+
   EFieldNotNull = class(Exception)
   public
     constructor Create(const ADisplayLabel: String);
@@ -62,6 +70,31 @@ type
   end;
 
   NotServerUse = class(TCustomAttribute)
+  public
+    constructor Create;
+  end;
+
+  RESTReadOnly = class(TCustomAttribute)
+  public
+    constructor Create;
+  end;
+
+  RESTAllowGET = class(TCustomAttribute)
+  public
+    constructor Create;
+  end;
+
+  RESTAllowPOST = class(TCustomAttribute)
+  public
+    constructor Create;
+  end;
+
+  RESTAllowPUT = class(TCustomAttribute)
+  public
+    constructor Create;
+  end;
+
+  RESTAllowDELETE = class(TCustomAttribute)
   public
     constructor Create;
   end;
@@ -1047,6 +1080,37 @@ end;
 constructor NotServerUse.Create;
 begin
 
+end;
+
+{ RESTReadOnly }
+
+constructor RESTReadOnly.Create;
+begin
+
+end;
+
+{ RESTAllowGET }
+
+constructor RESTAllowGET.Create;
+begin
+end;
+
+{ RESTAllowPOST }
+
+constructor RESTAllowPOST.Create;
+begin
+end;
+
+{ RESTAllowPUT }
+
+constructor RESTAllowPUT.Create;
+begin
+end;
+
+{ RESTAllowDELETE }
+
+constructor RESTAllowDELETE.Create;
+begin
 end;
 
 { FieldEvents }

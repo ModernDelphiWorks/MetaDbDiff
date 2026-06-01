@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<BorlandProject>
+	<Transactions>
+    <Transaction>2023/08/10 09:16:39.000.828,D:\PROJETOS-Brasil\MetaDbDiff\Source\Core\MetaDbDiff.Metadata.Interfaces.pas=</Transaction>
+    <Transaction>2023/08/10 09:16:39.000.843,D:\PROJETOS-Brasil\MetaDbDiff\Source\Core\MetaDbDiff.Metadata.Register.pas=</Transaction>
+    <Transaction>2023/08/10 09:16:39.000.796,D:\PROJETOS-Brasil\MetaDbDiff\Source\Core\MetaDbDiff.Mapping.Exceptions.pas=</Transaction>
+    <Transaction>2023/08/10 09:16:39.000.796,D:\PROJETOS-Brasil\MetaDbDiff\Source\Core\MetaDbDiff.Mapping.Popular.pas=</Transaction>
+    <Transaction>2023/08/10 09:16:39.000.733,D:\PROJETOS-Brasil\MetaDbDiff\Source\Core\MetaDbDiff.Database.MetaInfo.pas=</Transaction>
+    <Transaction>2023/08/10 09:16:39.000.718,D:\PROJETOS-Brasil\MetaDbDiff\Source\Core\MetaDbDiff.Database.Compare.pas=</Transaction>
+    <Transaction>2023/08/10 09:16:39.000.781,D:\PROJETOS-Brasil\MetaDbDiff\Source\Core\MetaDbDiff.Mapping.Classes.pas=</Transaction>
+    <Transaction>2023/08/10 09:16:39.000.749,D:\PROJETOS-Brasil\MetaDbDiff\Source\Core\MetaDbDiff.DDL.Generator.pas=</Transaction>
+    <Transaction>2023/08/10 09:16:39.000.733,D:\PROJETOS-Brasil\MetaDbDiff\Source\Core\MetaDbDiff.Database.Interfaces.pas=</Transaction>
+    <Transaction>2023/08/10 09:16:39.000.718,D:\PROJETOS-Brasil\MetaDbDiff\Source\Core\MetaDbDiff.Database.Factory.pas=</Transaction>
+    <Transaction>2023/08/10 09:16:39.000.812,D:\PROJETOS-Brasil\MetaDbDiff\Source\Core\MetaDbDiff.Mapping.Register.pas=</Transaction>
+    <Transaction>2023/08/10 09:16:39.000.812,D:\PROJETOS-Brasil\MetaDbDiff\Source\Core\MetaDbDiff.Mapping.Repository.pas=</Transaction>
+    <Transaction>2023/08/10 09:16:39.000.796,D:\PROJETOS-Brasil\MetaDbDiff\Source\Core\MetaDbDiff.Mapping.Explorer.pas=</Transaction>
+    <Transaction>2023/08/10 09:16:39.000.749,D:\PROJETOS-Brasil\MetaDbDiff\Source\Core\MetaDbDiff.DDL.Commands.pas=</Transaction>
+    <Transaction>2023/08/10 09:16:39.000.843,D:\PROJETOS-Brasil\MetaDbDiff\Source\Core\MetaDbDiff.Types.Mapping.pas=</Transaction>
+    <Transaction>2023/08/10 09:16:39.000.749,D:\PROJETOS-Brasil\MetaDbDiff\Source\Core\MetaDbDiff.DDL.Interfaces.pas=</Transaction>
+    <Transaction>2023/08/10 09:16:39.000.781,D:\PROJETOS-Brasil\MetaDbDiff\Source\Core\MetaDbDiff.DDL.Register.pas=</Transaction>
+    <Transaction>2023/08/10 09:16:39.000.843,D:\PROJETOS-Brasil\MetaDbDiff\Source\Core\MetaDbDiff.RTTI.Helper.pas=</Transaction>
+    <Transaction>2023/08/10 09:16:39.000.781,D:\PROJETOS-Brasil\MetaDbDiff\Source\Core\MetaDbDiff.Mapping.Attributes.pas=</Transaction>
+    <Transaction>2023/08/10 09:16:39.000.828,D:\PROJETOS-Brasil\MetaDbDiff\Source\Core\MetaDbDiff.Metadata.DB.Factory.pas=</Transaction>
+    <Transaction>2023/08/10 09:16:39.000.733,D:\PROJETOS-Brasil\MetaDbDiff\Source\Core\MetaDbDiff.Database.Mapping.pas=</Transaction>
+    <Transaction>2023/08/10 09:16:39.000.687,D:\PROJETOS-Brasil\MetaDbDiff\Source\Core\MetaDbDiff.Database.Abstract.pas=</Transaction>
+    <Transaction>2023/08/10 09:16:39.000.828,D:\PROJETOS-Brasil\MetaDbDiff\Source\Core\MetaDbDiff.Metadata.Extract.pas=</Transaction>
+    <Transaction>2023/08/10 09:16:52.000.906,=D:\PROJETOS-Brasil\MetaDbDiff\Source\Core\MetaDbDiff.Database.Mapping.pas</Transaction>
+    <Transaction>2023/08/10 09:16:52.000.796,=D:\PROJETOS-Brasil\MetaDbDiff\Source\Core\MetaDbDiff.Database.Abstract.pas</Transaction>
+    <Transaction>2023/08/10 09:16:52.000.953,=D:\PROJETOS-Brasil\MetaDbDiff\Source\Core\MetaDbDiff.Database.MetaInfo.pas</Transaction>
+    <Transaction>2023/08/10 09:16:52.000.858,=D:\PROJETOS-Brasil\MetaDbDiff\Source\Core\MetaDbDiff.Database.Factory.pas</Transaction>
+    <Transaction>2023/08/10 09:16:52.000.968,=D:\PROJETOS-Brasil\MetaDbDiff\Source\Core\MetaDbDiff.DDL.Commands.pas</Transaction>
+    <Transaction>2023/08/10 09:16:52.000.890,=D:\PROJETOS-Brasil\MetaDbDiff\Source\Core\MetaDbDiff.Database.Interfaces.pas</Transaction>
+    <Transaction>2023/08/10 09:16:52.000.812,=D:\PROJETOS-Brasil\MetaDbDiff\Source\Core\MetaDbDiff.Database.Compare.pas</Transaction>
+    <Transaction>2023/08/10 09:16:53.000.470,=D:\PROJETOS-Brasil\MetaDbDiff\Source\Core\MetaDbDiff.Types.Mapping.pas</Transaction>
+    <Transaction>2023/08/10 09:16:53.000.439,=D:\PROJETOS-Brasil\MetaDbDiff\Source\Core\MetaDbDiff.RTTI.Helper.pas</Transaction>
+    <Transaction>2023/08/10 09:16:53.000.251,=D:\PROJETOS-Brasil\MetaDbDiff\Source\Core\MetaDbDiff.Mapping.Register.pas</Transaction>
+    <Transaction>2023/08/10 09:16:53.000.266,=D:\PROJETOS-Brasil\MetaDbDiff\Source\Core\MetaDbDiff.Mapping.Repository.pas</Transaction>
+    <Transaction>2023/08/10 09:16:53.000.031,=D:\PROJETOS-Brasil\MetaDbDiff\Source\Core\MetaDbDiff.DDL.Interfaces.pas</Transaction>
+    <Transaction>2023/08/10 09:16:53.000.376,=D:\PROJETOS-Brasil\MetaDbDiff\Source\Core\MetaDbDiff.Metadata.Interfaces.pas</Transaction>
+    <Transaction>2023/08/10 09:16:53.000.204,=D:\PROJETOS-Brasil\MetaDbDiff\Source\Core\MetaDbDiff.Mapping.Popular.pas</Transaction>
+    <Transaction>2023/08/10 09:16:53.000.062,=D:\PROJETOS-Brasil\MetaDbDiff\Source\Core\MetaDbDiff.DDL.Register.pas</Transaction>
+    <Transaction>2023/08/10 09:16:53.000.125,=D:\PROJETOS-Brasil\MetaDbDiff\Source\Core\MetaDbDiff.Mapping.Classes.pas</Transaction>
+    <Transaction>2023/08/10 09:16:53.000.361,=D:\PROJETOS-Brasil\MetaDbDiff\Source\Core\MetaDbDiff.Metadata.Extract.pas</Transaction>
+    <Transaction>2023/08/10 09:16:53.000.424,=D:\PROJETOS-Brasil\MetaDbDiff\Source\Core\MetaDbDiff.Metadata.Register.pas</Transaction>
+    <Transaction>2023/08/10 09:16:53.000.078,=D:\PROJETOS-Brasil\MetaDbDiff\Source\Core\MetaDbDiff.Mapping.Attributes.pas</Transaction>
+    <Transaction>2023/08/10 09:16:53.000.188,=D:\PROJETOS-Brasil\MetaDbDiff\Source\Core\MetaDbDiff.Mapping.Explorer.pas</Transaction>
+    <Transaction>2023/08/10 09:16:53.000.015,=D:\PROJETOS-Brasil\MetaDbDiff\Source\Core\MetaDbDiff.DDL.Generator.pas</Transaction>
+    <Transaction>2023/08/10 09:16:53.000.314,=D:\PROJETOS-Brasil\MetaDbDiff\Source\Core\MetaDbDiff.Metadata.DB.Factory.pas</Transaction>
+    <Transaction>2023/08/10 09:16:53.000.141,=D:\PROJETOS-Brasil\MetaDbDiff\Source\Core\MetaDbDiff.Mapping.Exceptions.pas</Transaction>
+  </Transactions>
+</BorlandProject>

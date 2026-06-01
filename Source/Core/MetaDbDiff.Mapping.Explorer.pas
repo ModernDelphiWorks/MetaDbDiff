@@ -38,6 +38,7 @@ uses
   Generics.Collections,
   /// DBCBr
   MetaDbDiff.RTTI.Helper,
+  MetaDbDiff.Mapping.Attributes,
   MetaDbDiff.Mapping.Classes,
   MetaDbDiff.Mapping.Popular,
   MetaDbDiff.Mapping.Repository,
@@ -68,6 +69,8 @@ type
     FPrimaryKeyColumnsMapping: TDictionary<String, TPrimaryKeyColumnsMapping>;
 //    FLazyLoadMapping: TDictionary<String, TLazyMapping>;
     FNotServerUse: TDictionary<String, Boolean>;
+    FRESTReadOnly: TDictionary<String, Boolean>;
+    FRESTAllowVerbs: TDictionary<String, TRESTAllowVerbCache>;
   public
     { Public declarations }
     class procedure ExecuteCreate;
@@ -89,6 +92,8 @@ type
     class function GetMappingEnumeration(const AClass: TClass): TEnumerationMappingList;
     class function GetMappingPrimaryKeyColumns(const AClass: TClass): TPrimaryKeyColumnsMapping;
     class function GetNotServerUse(const AClass: TClass): Boolean;
+    class function GetRESTReadOnly(const AClass: TClass): Boolean;
+    class function GetRESTAllowVerbs(const AClass: TClass): TRESTAllowVerbCache;
     class function GetRepositoryMapping: TMappingRepository;
 //    class procedure GetMappingLazy(const AClass: TClass);
   end;
@@ -118,6 +123,8 @@ begin
   FEnumerationMapping := TObjectDictionary<String, TEnumerationMappingList>.Create([doOwnsValues]);
   FPrimaryKeyColumnsMapping := TObjectDictionary<String, TPrimaryKeyColumnsMapping>.Create([doOwnsValues]);
   FNotServerUse := TDictionary<String, Boolean>.Create();
+  FRESTReadOnly := TDictionary<String, Boolean>.Create();
+  FRESTAllowVerbs := TDictionary<String, TRESTAllowVerbCache>.Create();
 //  FLazyLoadMapping    := TObjectDictionary<String, TLazyMapping>.Create([doOwnsValues]);
 end;
 
@@ -143,6 +150,8 @@ begin
 //  FLazyLoadMapping.Free;
   FPrimaryKeyColumnsMapping.Free;
   FNotServerUse.Free;
+  FRESTReadOnly.Free;
+  FRESTAllowVerbs.Free;
   if Assigned(FRepositoryMapping) then
      FRepositoryMapping.Free;
 end;
@@ -400,8 +409,31 @@ begin
 
   LRttiType := FContext.GetType(AClass);
   Result    := FPopularMapping.PopularNotServerUse(LRttiType);
-  // Add List
   FNotServerUse.Add(AClass.ClassName, Result);
+end;
+
+class function TMappingExplorer.GetRESTReadOnly(const AClass: TClass): Boolean;
+var
+  LRttiType: TRttiType;
+begin
+  if FRESTReadOnly.ContainsKey(AClass.ClassName) then
+    Exit(FRESTReadOnly[AClass.ClassName]);
+
+  LRttiType := FContext.GetType(AClass);
+  Result    := FPopularMapping.PopularRESTReadOnly(LRttiType);
+  FRESTReadOnly.Add(AClass.ClassName, Result);
+end;
+
+class function TMappingExplorer.GetRESTAllowVerbs(const AClass: TClass): TRESTAllowVerbCache;
+var
+  LRttiType: TRttiType;
+begin
+  if FRESTAllowVerbs.ContainsKey(AClass.ClassName) then
+    Exit(FRESTAllowVerbs[AClass.ClassName]);
+
+  LRttiType := FContext.GetType(AClass);
+  Result    := FPopularMapping.PopularRESTAllowVerbs(LRttiType);
+  FRESTAllowVerbs.Add(AClass.ClassName, Result);
 end;
 
 class function TMappingExplorer.GetRepositoryMapping: TMappingRepository;

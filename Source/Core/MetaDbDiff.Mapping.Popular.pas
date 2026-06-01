@@ -50,6 +50,8 @@ type
     function PopularSequence(ARttiType: TRttiType): TSequenceMapping;
     function PopularPrimaryKey(ARttiType: TRttiType): TPrimaryKeyMapping;
     function PopularNotServerUse(ARttiType: TRttiType): Boolean;
+    function PopularRESTReadOnly(ARttiType: TRttiType): Boolean;
+    function PopularRESTAllowVerbs(ARttiType: TRttiType): TRESTAllowVerbCache;
     //
     function PopularForeignKey(ARttiType: TRttiType): TForeignKeyMappingList;
     function PopularIndexe(ARttiType: TRttiType): TIndexeMappingList;
@@ -328,6 +330,51 @@ begin
 
     Result := True;
     Break;
+  end;
+end;
+
+function TMappingPopular.PopularRESTReadOnly(ARttiType: TRttiType): Boolean;
+var
+  LAttrib: TCustomAttribute;
+begin
+  Result := False;
+  for LAttrib in ARttiType.GetAttributes do
+  begin
+    if LAttrib is RESTReadOnly then
+      Exit(True);
+    if LAttrib is View then
+      Exit(True);
+  end;
+end;
+
+function TMappingPopular.PopularRESTAllowVerbs(ARttiType: TRttiType): TRESTAllowVerbCache;
+var
+  LAttrib: TCustomAttribute;
+begin
+  Result.HasAllowList := False;
+  Result.AllowedVerbs := [];
+  for LAttrib in ARttiType.GetAttributes do
+  begin
+    if LAttrib is RESTAllowGET then
+    begin
+      Result.HasAllowList := True;
+      Include(Result.AllowedVerbs, rvGET);
+    end
+    else if LAttrib is RESTAllowPOST then
+    begin
+      Result.HasAllowList := True;
+      Include(Result.AllowedVerbs, rvPOST);
+    end
+    else if LAttrib is RESTAllowPUT then
+    begin
+      Result.HasAllowList := True;
+      Include(Result.AllowedVerbs, rvPUT);
+    end
+    else if LAttrib is RESTAllowDELETE then
+    begin
+      Result.HasAllowList := True;
+      Include(Result.AllowedVerbs, rvDELETE);
+    end;
   end;
 end;
 
