@@ -1,20 +1,14 @@
 {
-      ORM Brasil � um ORM simples e descomplicado para quem utiliza Delphi
+  ------------------------------------------------------------------------------
+  MetaDbDiff
+  Database metadata comparison and DDL migration script generation engine for Delphi and Lazarus.
 
-                   Copyright (c) 2016, Isaque Pinheiro
-                          All rights reserved.
+  SPDX-License-Identifier: MIT
+  Copyright (c) 2025-2026 Isaque Pinheiro
 
-                    GNU Lesser General Public License
-                      Vers�o 3, 29 de junho de 2007
-
-       Copyright (C) 2007 Free Software Foundation, Inc. <http://fsf.org/>
-       A todos � permitido copiar e distribuir c�pias deste documento de
-       licen�a, mas mud�-lo n�o � permitido.
-
-       Esta vers�o da GNU Lesser General Public License incorpora
-       os termos e condi��es da vers�o 3 da GNU General Public License
-       Licen�a, complementado pelas permiss�es adicionais listadas no
-       arquivo LICENSE na pasta principal.
+  Licensed under the MIT License.
+  See the LICENSE file in the project root for full license information.
+  ------------------------------------------------------------------------------
 }
 
 {
