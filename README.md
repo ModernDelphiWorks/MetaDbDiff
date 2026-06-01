@@ -1,55 +1,193 @@
 # MetaDbDiff Framework for Delphi
 
-DATABASE COMPARER BRASIL,  um comparador de estrutura de banco de dados, que nasceu do código do ORMBr que disponibiliza esse recurso, mas a um nível limitado como de criar tabelas, adicionar novos campos a tabela já existente, e outros recursos de criar PrimaryKeys, ForeignKeys e Indexes para as tabelas.
+[![Delphi XE+](https://img.shields.io/badge/Delphi-XE%20or%20superior-blue.svg)]()
+[![Lazarus Compatible](https://img.shields.io/badge/Lazarus-Compatible-orange.svg)]()
+[![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-Nele pode-se comparar um banco de dados com outro banco de dados ou um banco de dados com classe modelos do ORMBr, onde será gerado um script para ser executado e atualizar o metatada do database.
+*   [🇬🇧 English](#-english)
+*   [🇧🇷 Português](#-português)
 
-Como descrito acima, podemos observar qual nos falta alguns recursos, exemplo como fazer drop e campos, tabelas, atualizar tipos de campos e até tamanho deles, assim como gerar scripts de UPDATE em geral necessários. Foi dessa necessidade, e carência de recursos mais completos, que foi decidido separar um código existente do core do ORMBr e criar um novo projeto do qual o ORMBr se tornaria dependente dele. Essa necessidade de recursos mais completos, e com a criação de um novo projeto, tendo ele somente o código com essa finalidade, poderá dar a comunidade mais poder de ajuda, sendo que os esforços estaria somente no código de comparação de database e não estaria misturado ao código do ORMBr, que levava ao receio de em qual código mexer e qual era de database compare e qual era do ORMBr.
+---
 
-Projeto open source MetaDbDiff (Database Compare Brasil), um código totalmente independente, o qual poderá receber ajuda e contribuições de amantes de código Open Source, e assim termos um produto totalmente confiável e funcional, que poderá ser usado com segurança por todos, e inclusive sendo recursos implementados, o próprio ORMBr que cedeu o código irá ter em si próprio mais poder de atualização de database.
+## 🇬🇧 English
 
-<p align="center">
-  <a href="https://www.isaquepinheiro.com.br">
-    <img src="https://github.com/HashLoad/DBCBr/blob/master/Images/dbcbr_framework.png" width="200" height="200">
-  </a>
-</p>
+**MetaDbDiff** is a powerful and lightweight database metadata comparison and DDL migration script generation engine for Delphi and Lazarus. It enables developers to compare two physical database schemas, or directly compare a Delphi Pascal entity ORM class model with an active database. From this comparison, MetaDbDiff automatically generates highly precise DDL synchronization scripts (covering tables, columns, column types, primary/foreign keys, and performance indices). Decoupled from persistent runtime ORM layers, it is highly modular, customizable, and serves as the structural foundation for advanced Object-Relational Mappers (such as **Janus**).
 
-## 🏛 Delphi Versions
-Embarcadero Delphi XE e superior.
+### 🚀 Key Features
 
-## ⚙️ Instalação
-Instalação usando o [`boss install`]
+*   **Model-to-Database Comparison:** Match your active Delphi Pascal entity classes (decorated with ORM attributes) directly against physical database schemas.
+*   **Database-to-Database Comparison:** Directly compare structural schemas between two distinct databases (Source vs. Target).
+*   **Precise DDL Migration Scripts:** Generates surgical SQL commands to synchronize structures:
+    *   *Tables:* `CREATE TABLE` and `DROP TABLE`.
+    *   *Columns:* `ADD COLUMN`, `DROP COLUMN`, and `ALTER COLUMN` (adjusting types and sizes).
+    *   *Constraints:* `ADD/DROP PRIMARY KEY` and `ADD/DROP FOREIGN KEY`.
+    *   *Performance:* `CREATE INDEX` and `DROP INDEX`.
+*   **Decoupled Architecture:** 100% focused on database schema comparison, cleanly separated from transactional CRUD logic.
+*   **Multi-Dialect Core:** Extensible driver serialization framework supporting major relational engines out of the box.
+
+### 🏛 Compatibility Matrix
+
+| Environment / IDE | Platform / Compiler | Model-to-DB Sync | DB-to-DB Sync |
+| :--- | :--- | :---: | :---: |
+| **Delphi XE or superior** | VCL, FMX, Console, IDE (Win/Linux/macOS/iOS/Android) | ✅ Yes | ✅ Yes |
+| **Lazarus / FreePascal** | LCL, Console (Cross-platform) | ✅ Yes | ✅ Yes |
+
+### ⚙️ Installation
+
+To install using the package manager [**Boss**](https://github.com/HashLoad/boss):
+
 ```sh
-boss install "https://github.com/ModernDelphiWorks/MetaDbDiff"
+boss install MetaDbDiff
 ```
 
-## ⚠ Dependências
+### ⚠ Dependencies
 
-:heavy_check_mark: [DataEngine Framework for Delphi/Lazarus](https://github.com/hashload/dbebr)
+*   [DataEngine](https://github.com/HashLoad/DataEngine) (Uniform connection abstraction layer)
 
-## ⚡️ Como usar
-```Delphi
+---
+
+### ⚡️ Quick Start
+
+#### 1. Comparing Pascal Model to Physical Database
+```delphi
+uses
+  MetaDbDiff.Comparer,
+  MetaDbDiff.Interfaces,
+  DataEngine.Factory.FireDAC;
+
+var
+  FConn: IDBConnection;
+  FComparer: IMetaDbComparer;
+  FDelta: IMetaDbDelta;
+  FSQLScript: string;
+begin
+  // Wrapper connection
+  FConn := TFactoryFireDAC.Create(FDConnection1, dnPostgreSQL);
+  
+  FComparer := TMetaDbComparer.Create(FConn);
+  
+  // Compare registered Pascal entity classes against active database schema
+  FDelta := FComparer.CompareModelToDatabase;
+  
+  if FDelta.HasDifferences then
+  begin
+    // Emits clean DDL scripts to execute
+    FSQLScript := FDelta.GenerateDDLScript;
+    FConn.ExecuteDirect(FSQLScript);
+  end;
+end;
 ```
 
-## ✍️ License
-[![License](https://img.shields.io/badge/Licence-LGPL--3.0-blue.svg)](https://opensource.org/licenses/LGPL-3.0)
+#### 2. Comparing Database to Database (Source vs Target)
+```delphi
+uses
+  MetaDbDiff.Comparer,
+  MetaDbDiff.Interfaces;
 
-## ⛏️ Contribuição
+var
+  FComparer: IMetaDbComparer;
+  FDelta: IMetaDbDelta;
+  FSQLScript: string;
+begin
+  // Compare structure between two physical database connections
+  FComparer := TMetaDbComparer.Create(FSourceConn, FTargetConn);
+  FDelta := FComparer.CompareDatabaseToDatabase;
+  
+  if FDelta.HasDifferences then
+    FSQLScript := FDelta.GenerateDDLScript;
+end;
+```
 
-Nossa equipe adoraria receber contribuições para este projeto open source. Se você tiver alguma ideia ou correção de bug, sinta-se à vontade para abrir uma issue ou enviar uma pull request.
+---
 
-[![Issues](https://img.shields.io/badge/Issues-channel-orange)](https://github.com/HashLoad/ormbr/issues)
+## 🇧🇷 Português
 
-Para enviar uma pull request, siga estas etapas:
+**MetaDbDiff** é um poderoso e leve motor de comparação de metadados e geração de scripts de migração DDL para Delphi e Lazarus. Ele permite que desenvolvedores comparem a estrutura física entre dois schemas de banco de dados, ou comparem diretamente uma classe de entidade escrita em Delphi Pascal com um banco de dados ativo. A partir dessa análise, o MetaDbDiff gera automaticamente scripts DDL cirúrgicos e altamente precisos para sincronização estrutural (incluindo criação e exclusão de tabelas, modificação de colunas e tipos, chaves primárias e estrangeiras, além de índices de performance). Totalmente desacoplado de camadas ativas de transações ORM, ele fornece a base estrutural para mapeadores avançados (como o **Janus**).
 
-1. Faça um fork do projeto
-2. Crie uma nova branch (`git checkout -b minha-nova-funcionalidade`)
-3. Faça suas alterações e commit (`git commit -am 'Adicionando nova funcionalidade'`)
-4. Faça push da branch (`git push origin minha-nova-funcionalidade`)
-5. Abra uma pull request
+### 🚀 Recursos Principais
 
-## 📬 Contato
-[![Telegram](https://img.shields.io/badge/Telegram-channel-blue)](https://t.me/hashload)
+*   **Comparação Modelo-para-Banco:** Compare suas classes de entidades Delphi Pascal (decoradas com atributos de ORM) diretamente contra a estrutura física do banco.
+*   **Comparação Banco-para-Banco:** Compare a estrutura de tabelas, chaves e índices diretamente entre duas conexões de bancos físicos distintos (Origem vs. Destino).
+*   **Scripts DDL Cirúrgicos:** Gera instruções SQL cirúrgicas para sincronização de schemas:
+    *   *Tabelas:* `CREATE TABLE` e `DROP TABLE`.
+    *   *Colunas:* `ADD COLUMN`, `DROP COLUMN` e `ALTER COLUMN` (com ajuste de tipo de dados e tamanho).
+    *   *Chaves:* `ADD/DROP PRIMARY KEY` e `ADD/DROP FOREIGN KEY`.
+    *   *Performance:* `CREATE INDEX` e `DROP INDEX`.
+*   **Arquitetura Desacoplada:** Código 100% focado em comparação e geração DDL, totalmente isolado de código CRUD de transações persistentes.
+*   **Suporte Multi-Dialeto:** Framework modular de driver de serialização compatível com os principais motores relacionais do mercado.
 
-## 💲 Doação
-[![Doação](https://img.shields.io/badge/PagSeguro-contribua-green)](https://pag.ae/bglQrWD)
+### 🏛 Matriz de Compatibilidade
+
+| Ambiente / IDE | Plataforma / Compilador | Sinc Modelo-para-Banco | Sinc Banco-para-Banco |
+| :--- | :--- | :---: | :---: |
+| **Delphi XE ou superior** | VCL, FMX, Console, IDE (Win/Linux/macOS/iOS/Android) | ✅ Sim | ✅ Sim |
+| **Lazarus / FreePascal** | LCL, Console (Multiplataforma) | ✅ Sim | ✅ Sim |
+
+### ⚙️ Instalação
+
+Para instalar usando o gerenciador de pacotes [**Boss**](https://github.com/HashLoad/boss):
+
+```sh
+boss install MetaDbDiff
+```
+
+### ⚠ Dependências
+
+*   [DataEngine](https://github.com/HashLoad/DataEngine) (Camada uniforme de abstração de conexão)
+
+---
+
+### ⚡️ Início Rápido
+
+#### 1. Comparando Modelo Pascal com Banco de Dados Ativo
+```delphi
+uses
+  MetaDbDiff.Comparer,
+  MetaDbDiff.Interfaces,
+  DataEngine.Factory.FireDAC;
+
+var
+  FConn: IDBConnection;
+  FComparer: IMetaDbComparer;
+  FDelta: IMetaDbDelta;
+  FSQLScript: string;
+begin
+  // Wrapper de conexão
+  FConn := TFactoryFireDAC.Create(FDConnection1, dnPostgreSQL);
+  
+  FComparer := TMetaDbComparer.Create(FConn);
+  
+  // Compara as classes registradas em Pascal contra a estrutura do banco físico
+  FDelta := FComparer.CompareModelToDatabase;
+  
+  if FDelta.HasDifferences then
+  begin
+    // Emite o script DDL cirúrgico para execução
+    FSQLScript := FDelta.GenerateDDLScript;
+    FConn.ExecuteDirect(FSQLScript);
+  end;
+end;
+```
+
+#### 2. Comparando Banco com Banco (Origem vs Destino)
+```delphi
+uses
+  MetaDbDiff.Comparer,
+  MetaDbDiff.Interfaces;
+
+var
+  FComparer: IMetaDbComparer;
+  FDelta: IMetaDbDelta;
+  FSQLScript: string;
+begin
+  // Compara metadados entre duas conexões físicas distintas
+  FComparer := TMetaDbComparer.Create(FSourceConn, FTargetConn);
+  FDelta := FComparer.CompareDatabaseToDatabase;
+  
+  if FDelta.HasDifferences then
+    FSQLScript := FDelta.GenerateDDLScript;
+end;
+```
+
+---
+*Copyright © 2025-2026 Isaque Pinheiro. Licensed under MIT License.*
