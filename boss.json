@@ -1,0 +1,11 @@
+{
+  "name": "MetaDbDiff",
+  "description": "Database metadata comparison and DDL migration script generation engine for Delphi and Lazarus",
+  "version": "2.0.0",
+  "homepage": "https://github.com/ModernDelphiWorks/MetaDbDiff",
+  "mainsrc": "Source/",
+  "projects": [],
+  "dependencies": {
+    "github.com/ModernDelphiWorks/DataEngine": ""
+  }
+}
