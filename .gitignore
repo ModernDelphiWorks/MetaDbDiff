@@ -6,3 +6,7 @@ __history/
 __recovery/
 Win32/
 /modules
+
+# Boss package manager files
+!boss.json
+!boss-lock.json
