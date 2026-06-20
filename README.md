@@ -30,7 +30,7 @@
 *   **Decoupled Architecture:** 100% focused on database schema comparison, cleanly separated from transactional CRUD logic.
 *   **Multi-Dialect Core:** Extensible driver serialization framework supporting major relational engines out of the box.
 
-### 🏛 Compatibility Matrix
+### 🏛️ Compatibility Matrix
 
 | Environment / IDE | Platform / Compiler | Model-to-DB Sync | DB-to-DB Sync |
 | :--- | :--- | :---: | :---: |
@@ -131,7 +131,7 @@ end;
 *   **Arquitetura Desacoplada:** Código 100% focado em comparação e geração DDL, totalmente isolado de código CRUD de transações persistentes.
 *   **Suporte Multi-Dialeto:** Framework modular de driver de serialização compatível com os principais motores relacionais do mercado.
 
-### 🏛 Matriz de Compatibilidade
+### 🏛️ Matriz de Compatibilidade
 
 | Ambiente / IDE | Plataforma / Compilador | Sinc Modelo-para-Banco | Sinc Banco-para-Banco |
 | :--- | :--- | :---: | :---: |
