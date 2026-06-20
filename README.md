@@ -32,6 +32,12 @@
 | **Delphi XE or superior** | VCL, FMX, Console, IDE (Win/Linux/macOS/iOS/Android) | ✅ Yes | ✅ Yes |
 | **Lazarus / FreePascal** | LCL, Console (Cross-platform) | ✅ Yes | ✅ Yes |
 
+### 🐧 Cross-Platform Build — Win32 / Win64 / Linux64
+
+> **Win32 / Win64:** ✅ verified (2026-06-20, real production backend). **Linux64:** the units used by the backend compile on Linux; a **standalone full-framework Linux build** currently hits an **internal (non-platform) dependency item** — some `DataEngine` interface/type imports (`IDBConnection`, `TDriverName`) need their `uses` reconciled (the `DataEngine.Factory.Interfaces` vs `DataEngine.FactoryInterfaces` naming). Tracked as a follow-up — **not** a platform issue.
+
+**Building a consumer app for Linux64:** install the Linux 64-bit platform (RAD Studio GetIt / `GetItCmd -if=delphi_linux -ae`), provide a Linux SDK (RAD Studio SDK Manager + PAServer, **or** a sysroot assembled from a WSL/Linux toolchain passed to `dcclinux64` via `--syslibroot` / `--libpath`), then compile with `dcclinux64`.
+
 ### ⚙️ Installation
 
 To install using the package manager [**Boss**](https://github.com/HashLoad/boss):
@@ -122,6 +128,12 @@ end;
 | :--- | :--- | :---: | :---: |
 | **Delphi XE ou superior** | VCL, FMX, Console, IDE (Win/Linux/macOS/iOS/Android) | ✅ Sim | ✅ Sim |
 | **Lazarus / FreePascal** | LCL, Console (Multiplataforma) | ✅ Sim | ✅ Sim |
+
+### 🐧 Build Multiplataforma — Win32 / Win64 / Linux64
+
+> **Win32 / Win64:** ✅ verificado (2026-06-20, backend real em produção). **Linux64:** as units usadas pelo backend compilam no Linux; um **build standalone do framework completo** esbarra hoje num **item interno (não-plataforma)** — alguns imports de interface/tipo do `DataEngine` (`IDBConnection`, `TDriverName`) precisam ter o `uses` reconciliado (a nomenclatura `DataEngine.Factory.Interfaces` vs `DataEngine.FactoryInterfaces`). Tracked como follow-up — **não** é problema de plataforma.
+
+**Para buildar um app consumidor no Linux64:** instale a plataforma Linux 64-bit (RAD Studio GetIt / `GetItCmd -if=delphi_linux -ae`), forneça um SDK Linux (SDK Manager do RAD Studio + PAServer, **ou** um sysroot montado de um toolchain WSL/Linux passado ao `dcclinux64` via `--syslibroot` / `--libpath`), e compile com `dcclinux64`.
 
 ### ⚙️ Instalação
 
