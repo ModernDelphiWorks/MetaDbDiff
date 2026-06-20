@@ -22,16 +22,14 @@ The *master* schema is extracted from registered Delphi entity classes via RTTI.
 
 Register classes in one of two ways:
 
-**Implicit** — include the unit containing the entity class in the `uses` clause; the class constructor calls `TMetaDbMappingRegister.RegisterClass` via class registration. <!-- TODO: confirm exact registration mechanism -->
-
-**Explicit**:
+**Explicit** — call `TRegisterClass.RegisterEntity` (from `MetaDbDiff.Mapping.Register`) before `BuildDatabase`. There is no automatic implicit registration triggered by a `uses` clause; classes must be registered manually.
 
 ```delphi
 uses MetaDbDiff.Mapping.Register;
 
-TMetaDbMappingRegister.RegisterClass(TCustomer);
-TMetaDbMappingRegister.RegisterClass(TOrder);
-TMetaDbMappingRegister.RegisterClass(TOrderItem);
+TRegisterClass.RegisterEntity(TCustomer);
+TRegisterClass.RegisterEntity(TOrder);
+TRegisterClass.RegisterEntity(TOrderItem);
 ```
 
 ### Supported ORM attributes

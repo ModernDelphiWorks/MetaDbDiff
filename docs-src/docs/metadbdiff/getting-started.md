@@ -139,4 +139,4 @@ LMapping.ComparerFieldPosition := True;
 LMapping.BuildDatabase;
 ```
 
-> **Note:** Column-position reordering is only supported by dialects that implement `GenerateAlterColumnPosition` (e.g., Firebird). <!-- TODO: confirm full dialect support list -->
+> **Note:** Column-position reordering is only supported by dialects that implement `GenerateAlterColumnPosition`. In the current driver set this is **Firebird** (`TDDLSQLGeneratorFirebird`), **Firebird 3** (`TDDLSQLGeneratorFirebird3`), and **InterBase** (`TDDLSQLGeneratorInterbase`) — the latter two inherit the implementation from the Firebird driver. All other bundled drivers (MySQL, PostgreSQL, MSSQL, Oracle, SQLite, AbsoluteDB) do not override this method, so column reordering has no effect for those dialects.

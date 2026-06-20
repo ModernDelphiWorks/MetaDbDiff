@@ -290,14 +290,18 @@ Internal runtime representation of attributes — populated by RTTI exploration.
 
 Key enumerations used across attributes and MIK objects.
 
-<!-- TODO: confirm full enum member list from MetaDbDiff.Types.Mapping.pas -->
-
-| Type | Members (partial) |
+| Type | Members |
 |:---|:---|
 | `TSortingOrder` | `NoSort`, `Ascending`, `Descending` |
 | `TMultiplicity` | `OneToOne`, `OneToMany`, `ManyToOne`, `ManyToMany` |
-| `TRuleAction` | `None`, `Cascade`, `SetNull`, `SetDefault`, `Restrict` |
-| `TGeneratorType` | `NoneInc`, `SequenceInc`, `TableInc`, `GuidInc` |
+| `TRuleAction` | `None`, `Cascade`, `SetNull`, `SetDefault` |
+| `TGeneratorType` | `NoneInc`, `SequenceInc`, `TableInc`, `GuidInc` _(deprecated)_, `Guid38Inc`, `Guid36Inc`, `Guid32Inc` |
 | `TAutoIncType` | `NotInc`, `AutoInc` |
+| `TGenerated` | `Never`, `Insert`, `Always` |
 | `TJoin` | `InnerJoin`, `LeftJoin`, `RightJoin`, `FullJoin` |
+| `TRestriction` | `NotNull`, `NoInsert`, `NoUpdate`, `NoValidate`, `Unique`, `Hidden`, `VirtualData` |
+| `TCascadeAction` | `CascadeNone`, `CascadeAutoInc`, `CascadeInsert`, `CascadeUpdate`, `CascadeDelete` |
+| `TMasterEvent` | `AutoPost`, `AutoEdit`, `AutoInsert` |
+| `TEnumType` | `etChar`, `etString`, `etInteger`, `etBoolean` |
+| `TFieldEvent` | `onChange`, `onGetText`, `onSetText`, `onValidate` |
 | `TSupportedFeature` | `Sequences`, `ForeignKeys`, `Checks`, `Views`, `Triggers` |

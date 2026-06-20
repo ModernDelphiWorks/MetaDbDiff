@@ -48,7 +48,7 @@ Thrown by `TDatabaseCompare.ExecuteDDLCommands` when a DDL command fails. The ex
 
 **Possible causes:**
 - The dialect does not include `ForeignKeys` in `SupportedFeatures` — check `TDDLSQLGenerator*.GetSupportedFeatures`.
-- The target table for the FK does not exist yet in the target database at the time FK commands run. MetaDbDiff processes FKs last but if the referenced table itself is new it must have been created earlier in the same batch. <!-- TODO: confirm ordering guarantee for new tables -->
+- The target table for the FK does not exist yet in the target database at the time FK commands run. `GenerateDDLCommands` calls `CompareTables` (which emits `CREATE TABLE` and column commands) before `CompareTablesForeignKeys` (which emits all FK commands), so a newly created referenced table is always present in the batch before its FK constraints are added.
 
 ### Columns are not being reordered
 
