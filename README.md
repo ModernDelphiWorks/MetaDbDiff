@@ -7,6 +7,8 @@
 
 > 🔒 **Supply-chain transparency (CRA-ready):** a machine-readable **SBOM** (CycloneDX) is published on the package portal — [pubpascal.dev/packages/metadbdiff](https://www.pubpascal.dev/packages/metadbdiff) · security disclosure policy in **[SECURITY.md](SECURITY.md)**.
 
+📚 **[Documentation](https://moderndelphiworks.github.io/MetaDbDiff/)**
+
 *   [🇬🇧 English](#-english)
 *   [🇧🇷 Português](#-português)
 
