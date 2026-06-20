@@ -32,7 +32,7 @@ uses
   Generics.Collections,
   ABSMain,
   ABSTypes,
-  DataEngine.Factory.Interfaces,
+  DataEngine.FactoryInterfaces,
   MetaDbDiff.Metadata.Register,
   MetaDbDiff.Metadata.Extract,
   MetaDbDiff.Database.Mapping;

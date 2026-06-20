@@ -27,7 +27,7 @@ uses
   MetaDbDiff.Metadata.Firebird,
   MetaDbDiff.Metadata.Register,
   MetaDbDiff.Metadata.Extract,
-  DataEngine.Factory.Interfaces;
+  DataEngine.FactoryInterfaces;
 
 type
   TCatalogMetadataFirebird3 = class(TCatalogMetadataFirebird)

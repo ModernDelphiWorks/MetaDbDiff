@@ -29,7 +29,7 @@ uses
   Variants,
   DB,
   Generics.Collections,
-  DataEngine.Factory.Interfaces,
+  DataEngine.FactoryInterfaces,
   MetaDbDiff.Metadata.Register,
   MetaDbDiff.Metadata.Extract,
   MetaDbDiff.Database.Mapping,

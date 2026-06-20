@@ -30,7 +30,7 @@ uses
   SysUtils,
   StrUtils,
   Generics.Collections,
-  DataEngine.Factory.Interfaces,
+  DataEngine.FactoryInterfaces,
   MetaDbDiff.Metadata.Interfaces,
   MetaDbDiff.Database.Mapping,
   MetaDbDiff.Types.Mapping;

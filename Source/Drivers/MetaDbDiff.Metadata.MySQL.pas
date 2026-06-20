@@ -31,7 +31,7 @@ uses
   MetaDbDiff.Metadata.Register,
   MetaDbDiff.Metadata.Extract,
   MetaDbDiff.Database.Mapping,
-  DataEngine.Factory.Interfaces;
+  DataEngine.FactoryInterfaces;
 
 type
   TCatalogMetadataMySQL = class(TCatalogMetadataAbstract)

@@ -28,7 +28,7 @@ uses
   MetaDbDiff.Database.Mapping,
   MetaDbDiff.Mapping.Classes,
   MetaDbDiff.Mapping.Explorer,
-  DataEngine.Factory.Interfaces;
+  DataEngine.FactoryInterfaces;
 
 type
   TModelMetadata = class(TModelMetadataAbstract)

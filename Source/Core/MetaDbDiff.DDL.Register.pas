@@ -28,7 +28,7 @@ uses
   Generics.Collections,
   MetaDbDiff.DDL.Interfaces,
   MetaDbDiff.DDL.Generator,
-  DataEngine.Factory.Interfaces;
+  DataEngine.FactoryInterfaces;
 
 type
   TSQLDriverRegister = class
@@ -95,4 +95,4 @@ finalization
       TSQLDriverRegister.FInstance.Free;
    end;
 end.
-
+

@@ -24,7 +24,7 @@ interface
 uses
   SysUtils,
   Classes,
-  DataEngine.Factory.Interfaces,
+  DataEngine.FactoryInterfaces,
   MetaDbDiff.Metadata.DB.Factory,
   MetaDbDiff.Database.Factory;
 

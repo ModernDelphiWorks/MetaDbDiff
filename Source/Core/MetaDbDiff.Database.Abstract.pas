@@ -29,7 +29,7 @@ uses
   SysUtils,
   Generics.Collections,
   /// ormbr
-  DataEngine.Factory.Interfaces,
+  DataEngine.FactoryInterfaces,
   MetaDbDiff.Database.Mapping,
   MetaDbDiff.Database.Interfaces,
   MetaDbDiff.DDL.Interfaces,

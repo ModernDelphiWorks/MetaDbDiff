@@ -26,7 +26,7 @@ interface
 uses
   Classes,
   Generics.Collections,
-  DataEngine.Factory.Interfaces,
+  DataEngine.FactoryInterfaces,
   MetaDbDiff.DDL.Interfaces,
   MetaDbDiff.DDL.Commands;
 

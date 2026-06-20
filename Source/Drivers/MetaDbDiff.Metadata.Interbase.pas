@@ -26,7 +26,7 @@ interface
 uses
   MetaDbDiff.Metadata.Register,
   MetaDbDiff.Metadata.Extract,
-  DataEngine.Factory.Interfaces;
+  DataEngine.FactoryInterfaces;
 
 type
   TCatalogMetadataInterbase = class(TCatalogMetadataFirebird)

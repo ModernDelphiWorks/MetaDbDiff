@@ -27,7 +27,7 @@ uses
   SysUtils,
   Variants,
   DB,
-  DataEngine.Factory.Interfaces,
+  DataEngine.FactoryInterfaces,
   MetaDbDiff.Metadata.Register,
   MetaDbDiff.Metadata.Extract,
   MetaDbDiff.Database.Mapping,

@@ -27,7 +27,7 @@ uses
   SysUtils,
   Generics.Collections,
   MetaDbDiff.Metadata.Extract,
-  DataEngine.Factory.Interfaces;
+  DataEngine.FactoryInterfaces;
 
 type
   TMetadataRegister = class
@@ -92,4 +92,4 @@ finalization
      TMetadataRegister.FInstance.Free;
 
 end.
-
+

@@ -25,7 +25,7 @@ uses
   SysUtils,
   Classes,
   Generics.Collections,
-  DataEngine.Factory.Interfaces,
+  DataEngine.FactoryInterfaces,
   MetaDbDiff.Metadata.DB.Factory,
   MetaDbDiff.Database.Mapping;
 

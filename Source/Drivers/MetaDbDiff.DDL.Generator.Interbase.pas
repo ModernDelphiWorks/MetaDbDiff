@@ -24,7 +24,7 @@ unit MetaDbDiff.DDL.Generator.Interbase;
 interface
 
 uses
-  DataEngine.Factory.Interfaces,
+  DataEngine.FactoryInterfaces,
   MetaDbDiff.DDL.Register,
   MetaDbDiff.DDL.Generator,
   MetaDbDiff.DDL.Generator.Firebird;

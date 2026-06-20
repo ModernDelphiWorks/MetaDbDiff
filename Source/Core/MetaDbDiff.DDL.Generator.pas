@@ -27,7 +27,7 @@ uses
   SysUtils,
   Generics.Collections,
   MetaDbDiff.DDL.Interfaces,
-  DataEngine.Factory.Interfaces,
+  DataEngine.FactoryInterfaces,
   MetaDbDiff.Database.Mapping,
   MetaDbDiff.Types.Mapping;
 

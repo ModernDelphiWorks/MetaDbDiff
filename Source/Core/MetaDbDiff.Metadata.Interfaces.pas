@@ -24,7 +24,7 @@ unit MetaDbDiff.Metadata.Interfaces;
 interface
 
 uses
-  DataEngine.Factory.Interfaces,
+  DataEngine.FactoryInterfaces,
   MetaDbDiff.Database.Mapping;
 
 type
