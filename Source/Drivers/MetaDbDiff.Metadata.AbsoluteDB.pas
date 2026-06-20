@@ -21,6 +21,10 @@
 
 unit MetaDbDiff.Metadata.AbsoluteDB;
 
+// Optional driver: depends on the third-party AbsoluteDB component (ABSMain/ABSTypes).
+// Define METADBDIFF_ABSOLUTEDB (and have AbsoluteDB installed) to compile it in.
+{$IFDEF METADBDIFF_ABSOLUTEDB}
+
 interface
 
 uses
@@ -342,6 +346,13 @@ end;
 
 initialization
   TMetadataRegister.GetInstance.RegisterMetadata(dnAbsoluteDB, TCatalogMetadataAbsoluteDB.Create);
+
+{$ELSE}
+
+interface
+implementation
+
+{$ENDIF}
 
 end.
 

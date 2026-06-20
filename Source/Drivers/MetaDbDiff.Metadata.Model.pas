@@ -293,7 +293,7 @@ begin
       LSequence.Description := LSequenceMap.Description;
       LSequence.InitialValue := LSequenceMap.Initial;
       LSequence.Increment := LSequenceMap.Increment;
-      if FConnection.GetDriverName = dnMySQL then
+      if FConnection.GetDriver = dnMySQL then
         FCatalogMetadata.Sequences.Add(UpperCase(LSequence.TableName), LSequence)
       else
         FCatalogMetadata.Sequences.Add(UpperCase(LSequence.Name), LSequence);

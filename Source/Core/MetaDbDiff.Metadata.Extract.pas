@@ -198,7 +198,7 @@ procedure TMetadataAbstract.GetFieldTypeDefinition(const AColumn: TColumnMIK);
 var
   LDriverName: TDriverName;
 begin
-  LDriverName := FConnection.GetDriverName;
+  LDriverName := FConnection.GetDriver;
   case AColumn.FieldType of
     ftBoolean:
     begin

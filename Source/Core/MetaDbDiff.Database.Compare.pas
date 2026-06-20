@@ -63,7 +63,7 @@ begin
   if not FConnTarget.IsConnected then
     raise Exception.Create('N�o foi possivel fazer conex�o com o banco de dados Target');
 
-  inherited Create(AConnMaster.GetDriverName);
+  inherited Create(AConnMaster.GetDriver);
   FMetadataMaster := TMetadataDBFactory.Create(Self, AConnMaster);
   FMetadataTarget := TMetadataDBFactory.Create(Self, AConnTarget);
 end;

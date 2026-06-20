@@ -78,7 +78,7 @@ begin
     raise Exception.Create('Antes de executar a extra��o do metadata, atribua a propriedade o catalogue a set preenchido em "DatabaseMetadata.CatalogMetadata"');
 
   // Extrair database metadata
-  FDatabaseMetadata := TMetadataRegister.GetInstance.GetMetadata(FConnection.GetDriverName);
+  FDatabaseMetadata := TMetadataRegister.GetInstance.GetMetadata(FConnection.GetDriver);
   FDatabaseMetadata.Connection := FConnection;
   FDatabaseMetadata.CatalogMetadata := ACatalogMetadata;
   if FOwner <> nil then

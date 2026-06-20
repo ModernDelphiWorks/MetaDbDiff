@@ -24,6 +24,7 @@ unit MetaDbDiff.Metadata.Interbase;
 interface
 
 uses
+  MetaDbDiff.Metadata.Firebird,
   MetaDbDiff.Metadata.Register,
   MetaDbDiff.Metadata.Extract,
   DataEngine.FactoryInterfaces;
