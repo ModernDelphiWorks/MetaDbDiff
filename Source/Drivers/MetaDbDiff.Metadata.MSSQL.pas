@@ -146,6 +146,10 @@ begin
   FCatalogMetadata.Schema := '';
   GetSequences;
   GetTables;
+  // Views ligadas (F10): GetSelectViews/GetViews do MSSQL sao reais (sys.views +
+  // sys.sql_modules.definition) e leem as mesmas colunas view_name/view_script/
+  // view_description. Sem isto o diff de views nunca entrava no catalogo MSSQL.
+  GetViews;
 end;
 
 procedure TCatalogMetadataMSSQL.GetTables;
