@@ -144,6 +144,8 @@ end;
 
 function TDDLSQLGeneratorFirebird.GenerateCreateView(AView: TViewMIK): String;
 begin
+  Result := 'CREATE VIEW %s AS %s;';
+  Result := Format(Result, [AView.Name, AView.Script]);
 end;
 
 function TDDLSQLGeneratorFirebird.GenerateDropColumn(AColumn: TColumnMIK): String;
@@ -194,20 +196,26 @@ end;
 
 function TDDLSQLGeneratorFirebird.GenerateEnableForeignKeys(AEnable: Boolean): String;
 begin
-  if AEnable then
-    Result := ''
-  else
-    Result := '';
+  // Firebird nao possui comando para habilitar/desabilitar FKs em bloco nem
+  // por sessao (a unica alternativa seria DROP/CREATE de cada constraint).
+  // Retorna vazio; comandos vazios sao descartados pelo pipeline
+  // (MetaDbDiff.Database.Compare -> Length(LCommand) > 0).
+  Result := '';
 end;
 
 function TDDLSQLGeneratorFirebird.GenerateEnableTriggers(AEnable: Boolean): String;
 begin
+  // Atualiza somente triggers de usuario: RDB$SYSTEM_FLAG = 0/NULL exclui as
+  // triggers de sistema e o NOT EXISTS em RDB$CHECK_CONSTRAINTS garante que as
+  // triggers internas de constraint (CHECK) nunca sejam desativadas.
   if AEnable then
     Result := 'UPDATE RDB$TRIGGERS SET RDB$TRIGGER_INACTIVE = 0 ' +
-              'WHERE RDB$TRIGGER_SOURCE IS NOT NULL AND ((RDB$SYSTEM_FLAG = 0) OR (RDB$SYSTEM_FLAG IS NULL));'
+              'WHERE RDB$TRIGGER_SOURCE IS NOT NULL AND ((RDB$SYSTEM_FLAG = 0) OR (RDB$SYSTEM_FLAG IS NULL)) ' +
+              'AND NOT EXISTS (SELECT 1 FROM RDB$CHECK_CONSTRAINTS CK WHERE CK.RDB$TRIGGER_NAME = RDB$TRIGGERS.RDB$TRIGGER_NAME);'
   else
     Result := 'UPDATE RDB$TRIGGERS SET RDB$TRIGGER_INACTIVE = 1 ' +
-              'WHERE RDB$TRIGGER_SOURCE IS NOT NULL AND ((RDB$SYSTEM_FLAG = 0) OR (RDB$SYSTEM_FLAG IS NULL));';
+              'WHERE RDB$TRIGGER_SOURCE IS NOT NULL AND ((RDB$SYSTEM_FLAG = 0) OR (RDB$SYSTEM_FLAG IS NULL)) ' +
+              'AND NOT EXISTS (SELECT 1 FROM RDB$CHECK_CONSTRAINTS CK WHERE CK.RDB$TRIGGER_NAME = RDB$TRIGGERS.RDB$TRIGGER_NAME);';
 end;
 
 initialization
