@@ -40,6 +40,7 @@ type
     procedure SetComparerFieldPosition(const Value: Boolean = False);
   {$ENDREGION}
     procedure BuildDatabase;
+    procedure ExecuteCommands;
     function GetCommandList: TArray<TDDLCommand>;
     function GeneratorCommand: IDDLGeneratorCommand;
     property CommandsAutoExecute: Boolean read GetCommandsAutoExecute write SetCommandsAutoExecute;
