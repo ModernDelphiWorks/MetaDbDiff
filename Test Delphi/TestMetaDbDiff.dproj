@@ -101,6 +101,11 @@
         <DCCReference Include="Test.MetaDbDiff.DDL.Generator.pas"/>
         <DCCReference Include="Test.MetaDbDiff.Metadata.Model.pas"/>
         <DCCReference Include="Test.MetaDbDiff.Policy.pas"/>
+        <DCCReference Include="Test.MetaDbDiff.Snapshot.pas"/>
+        <DCCReference Include="..\Source\Core\MetaDbDiff.Metadata.Snapshot.pas"/>
+        <DCCReference Include="..\Source\Core\MetaDbDiff.Metadata.Snapshot.Factory.pas"/>
+        <DCCReference Include="..\Source\Core\MetaDbDiff.Metadata.Snapshot.Export.pas"/>
+        <DCCReference Include="..\Source\Core\MetaDbDiff.Database.SnapshotCompare.pas"/>
         <DCCReference Include="..\Source\Core\MetaDbDiff.Compare.Options.pas"/>
         <DCCReference Include="Test.MetaDbDiff.Fakes.pas"/>
         <DCCReference Include="Test.MetaDbDiff.Sequencer.pas"/>
