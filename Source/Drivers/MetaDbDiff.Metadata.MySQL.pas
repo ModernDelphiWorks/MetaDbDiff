@@ -312,35 +312,49 @@ var
   oForeignKey: TForeignKeyMIK;
   oFromField: TColumnMIK;
   oToField: TColumnMIK;
+  LFKName: String;
+  LLastFKName: String;
 begin
   inherited;
+  oForeignKey := nil;
+  LLastFKName := '';
   FSQLText := GetSelectForeignKey(ATable.Name);
   oDBResultSet := Execute;
   while oDBResultSet.NotEof do
   begin
-    oForeignKey := TForeignKeyMIK.Create(ATable);
-    oForeignKey.Name := VarToStr(oDBResultSet.GetFieldValue('fk_name'));
-    oForeignKey.FromTable := VarToStr(oDBResultSet.GetFieldValue('table_reference'));
-    oForeignKey.OnUpdate := GetRuleAction(VarAsType(oDBResultSet.GetFieldValue('fk_updateaction'), varInteger));
-    oForeignKey.OnDelete := GetRuleAction(VarAsType(oDBResultSet.GetFieldValue('fk_deleteaction'), varInteger));
-    oForeignKey.Description :=  VarToStr(oDBResultSet.GetFieldValue('fk_description'));
-    ATable.ForeignKeys.Add(oForeignKey.Name, oForeignKey);
+    // Uma FK composta gera uma linha por coluna em
+    // information_schema.KEY_COLUMN_USAGE; agrupa por CONSTRAINT_NAME para nao
+    // duplicar a FK (o .Add lancaria erro de chave duplicada) nem perder colunas.
+    LFKName := VarToStr(oDBResultSet.GetFieldValue('fk_name'));
+    if LFKName <> LLastFKName then
+    begin
+      oForeignKey := TForeignKeyMIK.Create(ATable);
+      oForeignKey.Name := LFKName;
+      oForeignKey.FromTable := VarToStr(oDBResultSet.GetFieldValue('table_reference'));
+      // information_schema.REFERENTIAL_CONSTRAINTS.UPDATE_RULE/DELETE_RULE sao
+      // textuais ('CASCADE','SET NULL','NO ACTION','RESTRICT'); usar a sobrecarga
+      // String (o cast varInteger anterior lancava excecao de conversao).
+      oForeignKey.OnUpdate := GetRuleAction(VarToStr(oDBResultSet.GetFieldValue('fk_updateaction')));
+      oForeignKey.OnDelete := GetRuleAction(VarToStr(oDBResultSet.GetFieldValue('fk_deleteaction')));
+      oForeignKey.Description := VarToStr(oDBResultSet.GetFieldValue('fk_description'));
+      ATable.ForeignKeys.Add(oForeignKey.Name, oForeignKey);
+      LLastFKName := LFKName;
+    end;
     /// <summary>
-    ///   Coluna tabela master
+    ///   Coluna tabela master (KEY_COLUMN_USAGE.ORDINAL_POSITION garante a ordem
+    ///   da chave composta)
     /// </summary>
     oFromField := TColumnMIK.Create(ATable);
     oFromField.Name := VarToStr(oDBResultSet.GetFieldValue('column_name'));
-    oForeignKey.FromFields.Add(oFromField.Name, oFromField);
+    oFromField.Position := VarAsType(oDBResultSet.GetFieldValue('column_position'), varInteger) - 1;
+    oForeignKey.FromFields.Add(FormatFloat('000000', oFromField.Position), oFromField);
     /// <summary>
-    ///   Coluna tabela referencia
+    ///   Coluna tabela referencia (POSITION_IN_UNIQUE_CONSTRAINT)
     /// </summary>
     oToField := TColumnMIK.Create(ATable);
     oToField.Name := VarToStr(oDBResultSet.GetFieldValue('column_reference'));
-    oForeignKey.ToFields.Add(oToField.Name, oToField);
-    /// <summary>
-    ///   Gera a lista de campos do foreignkey
-    /// </summary>
-//    GetForeignKeyColumns(oForeignKey);
+    oToField.Position := VarAsType(oDBResultSet.GetFieldValue('column_referenceposition'), varInteger) - 1;
+    oForeignKey.ToFields.Add(FormatFloat('000000', oToField.Position), oToField);
   end;
 end;
 
@@ -357,21 +371,12 @@ begin
 end;
 
 procedure TCatalogMetadataMySQL.GetSequences;
-var
-  oDBResultSet: IDBResultSet;
-  oSequence: TSequenceMIK;
 begin
-  inherited;
-  FSQLText := GetSelectSequences;
-  oDBResultSet := Execute;
-  while oDBResultSet.NotEof do
-  begin
-    oSequence := TSequenceMIK.Create(FCatalogMetadata);
-    oSequence.TableName := VarToStr(oDBResultSet.GetFieldValue('name'));
-    oSequence.Name := VarToStr(oDBResultSet.GetFieldValue('name'));
-    oSequence.Description := VarToStr(oDBResultSet.GetFieldValue('description'));
-    FCatalogMetadata.Sequences.Add(UpperCase(oSequence.Name), oSequence);
-  end;
+  // MySQL nao possui objetos SEQUENCE: a auto-numeracao e por coluna
+  // (AUTO_INCREMENT), extraida junto com a coluna. A extracao anterior mapeava
+  // toda tabela com AUTO_INCREMENT como se fosse uma "sequence", produzindo
+  // CREATE SEQUENCE espurio no diff (sintaxe inexistente no MySQL). Deixado
+  // vazio intencionalmente. Ver GetSelectSequences (mantido apenas como doc).
 end;
 
 procedure TCatalogMetadataMySQL.GetTriggers(ATable: TTableMIK);
