@@ -86,7 +86,11 @@ end;
 
 destructor TDatabaseAbstract.Destroy;
 begin
+  // The commands are freed before the catalogs because they reference the
+  // metadata objects owned by the catalogs (see TDatabaseFactory.BuildDatabase).
   FDDLCommands.Free;
+  FCatalogMaster.Free;
+  FCatalogTarget.Free;
   inherited;
 end;
 

@@ -97,20 +97,21 @@ implementation
 procedure TDatabaseFactory.BuildDatabase;
 begin
   inherited;
+  // The catalogs are kept alive after BuildDatabase (released on the next
+  // call or on destroy) because the generated DDL commands hold references
+  // to their metadata objects, which descendant ExecuteDDLCommands overrides
+  // still dereference when ExecuteCommands rebuilds the command text later.
+  FreeAndNil(FCatalogMaster);
+  FreeAndNil(FCatalogTarget);
   FCatalogMaster := TCatalogMetadataMIK.Create;
   FCatalogTarget := TCatalogMetadataMIK.Create;
-  try
-    // Extrai o metadata com base nos modelos existentes e no banco de dados
-    ExtractDatabase;
-    // Gera os comandos DDL para atualiza��o do banco da dados.
-    GenerateDDLCommands(FCatalogMaster, FCatalogTarget);
-    // Execute the generated commands only when auto execution is enabled.
-    if FCommandsAutoExecute then
-      ExecuteDDLCommands;
-  finally
-    FCatalogMaster.Free;
-    FCatalogTarget.Free;
-  end;
+  // Extrai o metadata com base nos modelos existentes e no banco de dados
+  ExtractDatabase;
+  // Generates the DDL commands to update the target database.
+  GenerateDDLCommands(FCatalogMaster, FCatalogTarget);
+  // Execute the generated commands only when auto execution is enabled.
+  if FCommandsAutoExecute then
+    ExecuteDDLCommands;
 end;
 
 function TDatabaseFactory.DeepEqualsColumn(AMasterColumn, ATargetColumn: TColumnMIK): Boolean;
@@ -170,6 +171,8 @@ begin
 end;
 
 procedure TDatabaseFactory.GenerateDDLCommands(AMasterDB, ATargetDB: TCatalogMetadataMIK);
+var
+  LDDLCommand: TDDLCommand;
 begin
   inherited;
   FDDLCommands.Clear;
@@ -189,6 +192,12 @@ begin
   ActionEnableForeignKeys(True);
   // Gera script que habilita todas as Triggers
   ActionEnableTriggers(True);
+  // Build the command text right after generation so GetCommandList exposes
+  // the SQL even when the commands are not executed (preview mode).
+  // BuildCommand is deterministic, so rebuilding it again inside descendant
+  // ExecuteDDLCommands overrides just reassigns the same text.
+  for LDDLCommand in FDDLCommands do
+    LDDLCommand.BuildCommand(FGeneratorCommand);
 end;
 
 function TDatabaseFactory.GetFieldTypeValid(AFieldType: TFieldType): TFieldType;
@@ -278,6 +287,7 @@ procedure TDatabaseFactory.CompareTriggers(AMasterTable, ATargetTable: TTableMIK
 var
   LTriggerMaster: TPair<String, TTriggerMIK>;
   LTriggerTarget: TPair<String, TTriggerMIK>;
+  LTrigger: TTriggerMIK;
 begin
   if TSupportedFeature.Triggers in FGeneratorCommand.SupportedFeatures then
   begin
@@ -292,11 +302,11 @@ begin
     begin
       if ATargetTable.Triggers.ContainsKey(LTriggerMaster.Key) then
       begin
-        LTriggerTarget.Value := ATargetTable.Triggers.Items[LTriggerMaster.Key];
+        LTrigger := ATargetTable.Triggers.Items[LTriggerMaster.Key];
         // Recreate the trigger when the script differs from the model.
-        if CompareText(LTriggerMaster.Value.Script, LTriggerTarget.Value.Script) <> 0 then
+        if CompareText(LTriggerMaster.Value.Script, LTrigger.Script) <> 0 then
         begin
-          ActionDropTrigger(LTriggerTarget.Value);
+          ActionDropTrigger(LTrigger);
           ActionCreateTrigger(LTriggerMaster.Value);
         end;
       end
@@ -310,6 +320,7 @@ procedure TDatabaseFactory.CompareViews(AMasterDB, ATargetDB: TCatalogMetadataMI
 var
   LViewMaster: TPair<String, TViewMIK>;
   LViewTarget: TPair<String, TViewMIK>;
+  LView: TViewMIK;
 begin
   if TSupportedFeature.Views in FGeneratorCommand.SupportedFeatures then
   begin
@@ -324,11 +335,11 @@ begin
     begin
       if ATargetDB.Views.ContainsKey(LViewMaster.Key) then
       begin
-        LViewTarget.Value := ATargetDB.Views.Items[LViewMaster.Key];
+        LView := ATargetDB.Views.Items[LViewMaster.Key];
         // Recreate the view when the script differs from the model.
-        if CompareText(LViewMaster.Value.Script, LViewTarget.Value.Script) <> 0 then
+        if CompareText(LViewMaster.Value.Script, LView.Script) <> 0 then
         begin
-          ActionDropView(LViewTarget.Value);
+          ActionDropView(LView);
           ActionCreateView(LViewMaster.Value);
         end;
       end
@@ -342,6 +353,7 @@ procedure TDatabaseFactory.CompareChecks(AMasterTable, ATargetTable: TTableMIK);
 var
   LCheckMaster: TPair<String, TCheckMIK>;
   LCheckTarget: TPair<String, TCheckMIK>;
+  LCheck: TCheckMIK;
 begin
   if TSupportedFeature.Checks in FGeneratorCommand.SupportedFeatures then
   begin
@@ -356,8 +368,8 @@ begin
     begin
       if ATargetTable.Checks.ContainsKey(LCheckMaster.Key) then
       begin
-        LCheckTarget.Value := ATargetTable.Checks.Items[LCheckMaster.Key];
-        if CompareText(LCheckMaster.Value.Condition, LCheckTarget.Value.Condition) <> 0 then
+        LCheck := ATargetTable.Checks.Items[LCheckMaster.Key];
+        if CompareText(LCheckMaster.Value.Condition, LCheck.Condition) <> 0 then
           ActionAlterCheck(LCheckMaster.Value);
       end
       else
