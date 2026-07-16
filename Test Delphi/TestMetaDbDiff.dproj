@@ -102,6 +102,7 @@
         <DCCReference Include="Test.MetaDbDiff.Metadata.Model.pas"/>
         <DCCReference Include="Test.MetaDbDiff.Policy.pas"/>
         <DCCReference Include="..\Source\Core\MetaDbDiff.Compare.Options.pas"/>
+        <DCCReference Include="Test.MetaDbDiff.Sequencer.pas"/>
         <DCCReference Include="..\Source\Core\MetaDbDiff.Mapping.Attributes.pas"/>
         <DCCReference Include="..\Source\Core\MetaDbDiff.Mapping.Classes.pas"/>
         <DCCReference Include="..\Source\Core\MetaDbDiff.Mapping.Exceptions.pas"/>
@@ -119,6 +120,8 @@
         <DCCReference Include="..\Source\Core\MetaDbDiff.Database.Mapping.pas"/>
         <DCCReference Include="..\Source\Core\MetaDbDiff.Database.MetaInfo.pas"/>
         <DCCReference Include="..\Source\Core\MetaDbDiff.DDL.Commands.pas"/>
+        <DCCReference Include="..\Source\Core\MetaDbDiff.DDL.Sequencer.pas"/>
+        <DCCReference Include="..\Source\Core\MetaDbDiff.Migration.Executor.pas"/>
         <DCCReference Include="..\Source\Core\MetaDbDiff.DDL.Generator.pas"/>
         <DCCReference Include="..\Source\Core\MetaDbDiff.DDL.Interfaces.pas"/>
         <DCCReference Include="..\Source\Core\MetaDbDiff.DDL.Register.pas"/>
