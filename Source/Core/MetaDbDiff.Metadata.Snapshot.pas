@@ -34,7 +34,7 @@
     - GeneratedAt:        string, e.g. "2026-07-16T10:00:00" (ISO 8601).
     - SourceDescription:  string, free text set by the caller.
     - Catalog:            object, the serialized TCatalogMetadataMIK - see
-                           CatalogToJson for its own shape.
+                           _CatalogToJson for its own shape.
 
   Serialization decisions:
     - Enums (TFieldType, TRuleAction, TSortingOrder) are stored by NAME (via
@@ -59,7 +59,7 @@
       name) work correctly between a loaded snapshot and a freshly extracted
       live catalog - see MetaDbDiff.Database.Factory.pas, e.g. CompareTables.
     - JSON arrays are written in a deterministic (key-sorted) order, mirroring
-      TDatabaseFactory.SortedPairs / TTableMIK.FieldsSort, so re-saving an
+      TDatabaseFactory._SortedPairs / TTableMIK.FieldsSort, so re-saving an
       unchanged catalog produces byte-identical output - useful for diffing
       snapshot files under version control.
 
@@ -119,34 +119,44 @@ type
   /// </summary>
   TMetadataSnapshot = class
   private
-    class function PosKey(APosition: Integer): String; static;
-    class function JsonArrayOrNil(AJson: TJSONObject; const AKey: String): TJSONArray; static;
-    class function JsonObjectOrNil(AJson: TJSONObject; const AKey: String): TJSONObject; static;
-    class function SortedPairs<T>(ADictionary: TObjectDictionary<String, T>): TArray<TPair<String, T>>; static;
+    { --- enum/driver name <-> string helpers --- }
+    class function _FieldTypeToName(AValue: TFieldType): String; static;
+    class function _NameToFieldType(const AName: String): TFieldType; static;
+    class function _RuleActionToName(AValue: TRuleAction): String; static;
+    class function _NameToRuleAction(const AName: String): TRuleAction; static;
+    class function _SortingOrderToName(AValue: TSortingOrder): String; static;
+    class function _NameToSortingOrder(const AName: String): TSortingOrder; static;
+    class function _DriverNameToStr(ADriverName: TDriverName): String; static;
+    class function _StrToDriverNameChecked(const AValue: String): TDriverName; static;
+
+    class function _PosKey(APosition: Integer): String; static;
+    class function _JsonArrayOrNil(AJson: TJSONObject; const AKey: String): TJSONArray; static;
+    class function _JsonObjectOrNil(AJson: TJSONObject; const AKey: String): TJSONObject; static;
+    class function _SortedPairs<T>(ADictionary: TObjectDictionary<String, T>): TArray<TPair<String, T>>; static;
 
     { --- MIK -> JSON --- }
-    class function ColumnToJson(AColumn: TColumnMIK): TJSONObject; static;
-    class function PrimaryKeyToJson(APrimaryKey: TPrimaryKeyMIK): TJSONObject; static;
-    class function ForeignKeyToJson(AForeignKey: TForeignKeyMIK): TJSONObject; static;
-    class function IndexeKeyToJson(AIndexeKey: TIndexeKeyMIK): TJSONObject; static;
-    class function CheckToJson(ACheck: TCheckMIK): TJSONObject; static;
-    class function TriggerToJson(ATrigger: TTriggerMIK): TJSONObject; static;
-    class function TableToJson(ATable: TTableMIK): TJSONObject; static;
-    class function ViewToJson(AView: TViewMIK): TJSONObject; static;
-    class function SequenceToJson(ASequence: TSequenceMIK): TJSONObject; static;
-    class function CatalogToJson(ACatalog: TCatalogMetadataMIK): TJSONObject; static;
+    class function _ColumnToJson(AColumn: TColumnMIK): TJSONObject; static;
+    class function _PrimaryKeyToJson(APrimaryKey: TPrimaryKeyMIK): TJSONObject; static;
+    class function _ForeignKeyToJson(AForeignKey: TForeignKeyMIK): TJSONObject; static;
+    class function _IndexeKeyToJson(AIndexeKey: TIndexeKeyMIK): TJSONObject; static;
+    class function _CheckToJson(ACheck: TCheckMIK): TJSONObject; static;
+    class function _TriggerToJson(ATrigger: TTriggerMIK): TJSONObject; static;
+    class function _TableToJson(ATable: TTableMIK): TJSONObject; static;
+    class function _ViewToJson(AView: TViewMIK): TJSONObject; static;
+    class function _SequenceToJson(ASequence: TSequenceMIK): TJSONObject; static;
+    class function _CatalogToJson(ACatalog: TCatalogMetadataMIK): TJSONObject; static;
 
     { --- JSON -> MIK --- }
-    class function JsonToColumn(AJson: TJSONObject; AOwnerTable: TTableMIK): TColumnMIK; static;
-    class procedure JsonToPrimaryKey(AJson: TJSONObject; ATable: TTableMIK); static;
-    class function JsonToForeignKey(AJson: TJSONObject; ATable: TTableMIK): TForeignKeyMIK; static;
-    class function JsonToIndexeKey(AJson: TJSONObject; ATable: TTableMIK): TIndexeKeyMIK; static;
-    class function JsonToCheck(AJson: TJSONObject; ATable: TTableMIK): TCheckMIK; static;
-    class function JsonToTrigger(AJson: TJSONObject; ATable: TTableMIK): TTriggerMIK; static;
-    class function JsonToTable(AJson: TJSONObject; ACatalog: TCatalogMetadataMIK): TTableMIK; static;
-    class function JsonToView(AJson: TJSONObject; ACatalog: TCatalogMetadataMIK): TViewMIK; static;
-    class function JsonToSequence(AJson: TJSONObject; ACatalog: TCatalogMetadataMIK): TSequenceMIK; static;
-    class procedure JsonToCatalog(AJson: TJSONObject; ACatalog: TCatalogMetadataMIK); static;
+    class function _JsonToColumn(AJson: TJSONObject; AOwnerTable: TTableMIK): TColumnMIK; static;
+    class procedure _JsonToPrimaryKey(AJson: TJSONObject; ATable: TTableMIK); static;
+    class function _JsonToForeignKey(AJson: TJSONObject; ATable: TTableMIK): TForeignKeyMIK; static;
+    class function _JsonToIndexeKey(AJson: TJSONObject; ATable: TTableMIK): TIndexeKeyMIK; static;
+    class function _JsonToCheck(AJson: TJSONObject; ATable: TTableMIK): TCheckMIK; static;
+    class function _JsonToTrigger(AJson: TJSONObject; ATable: TTableMIK): TTriggerMIK; static;
+    class function _JsonToTable(AJson: TJSONObject; ACatalog: TCatalogMetadataMIK): TTableMIK; static;
+    class function _JsonToView(AJson: TJSONObject; ACatalog: TCatalogMetadataMIK): TViewMIK; static;
+    class function _JsonToSequence(AJson: TJSONObject; ACatalog: TCatalogMetadataMIK): TSequenceMIK; static;
+    class procedure _JsonToCatalog(AJson: TJSONObject; ACatalog: TCatalogMetadataMIK); static;
   public
     /// <summary>
     ///   Builds the full envelope (FormatVersion + DriverName + GeneratedAt +
@@ -199,12 +209,12 @@ implementation
   their TypeInfo. Serializing by NAME (not Ord) is deliberate - see the unit
   header comment. }
 
-function FieldTypeToName(AValue: TFieldType): String;
+class function TMetadataSnapshot._FieldTypeToName(AValue: TFieldType): String;
 begin
   Result := GetEnumName(TypeInfo(TFieldType), Ord(AValue));
 end;
 
-function NameToFieldType(const AName: String): TFieldType;
+class function TMetadataSnapshot._NameToFieldType(const AName: String): TFieldType;
 var
   LOrdinal: Integer;
 begin
@@ -215,12 +225,12 @@ begin
   Result := TFieldType(LOrdinal);
 end;
 
-function RuleActionToName(AValue: TRuleAction): String;
+class function TMetadataSnapshot._RuleActionToName(AValue: TRuleAction): String;
 begin
   Result := GetEnumName(TypeInfo(TRuleAction), Ord(AValue));
 end;
 
-function NameToRuleAction(const AName: String): TRuleAction;
+class function TMetadataSnapshot._NameToRuleAction(const AName: String): TRuleAction;
 var
   LOrdinal: Integer;
 begin
@@ -231,12 +241,12 @@ begin
   Result := TRuleAction(LOrdinal);
 end;
 
-function SortingOrderToName(AValue: TSortingOrder): String;
+class function TMetadataSnapshot._SortingOrderToName(AValue: TSortingOrder): String;
 begin
   Result := GetEnumName(TypeInfo(TSortingOrder), Ord(AValue));
 end;
 
-function NameToSortingOrder(const AName: String): TSortingOrder;
+class function TMetadataSnapshot._NameToSortingOrder(const AName: String): TSortingOrder;
 var
   LOrdinal: Integer;
 begin
@@ -247,12 +257,12 @@ begin
   Result := TSortingOrder(LOrdinal);
 end;
 
-function DriverNameToStr(ADriverName: TDriverName): String;
+class function TMetadataSnapshot._DriverNameToStr(ADriverName: TDriverName): String;
 begin
   Result := TStrDriverName[ADriverName];
 end;
 
-function StrToDriverNameChecked(const AValue: String): TDriverName;
+class function TMetadataSnapshot._StrToDriverNameChecked(const AValue: String): TDriverName;
 var
   LDriver: TDriverName;
 begin
@@ -265,12 +275,12 @@ end;
 
 { TMetadataSnapshot }
 
-class function TMetadataSnapshot.PosKey(APosition: Integer): String;
+class function TMetadataSnapshot._PosKey(APosition: Integer): String;
 begin
   Result := FormatFloat('000000', APosition);
 end;
 
-class function TMetadataSnapshot.JsonArrayOrNil(AJson: TJSONObject; const AKey: String): TJSONArray;
+class function TMetadataSnapshot._JsonArrayOrNil(AJson: TJSONObject; const AKey: String): TJSONArray;
 var
   LValue: TJSONValue;
 begin
@@ -281,7 +291,7 @@ begin
     Result := nil;
 end;
 
-class function TMetadataSnapshot.JsonObjectOrNil(AJson: TJSONObject; const AKey: String): TJSONObject;
+class function TMetadataSnapshot._JsonObjectOrNil(AJson: TJSONObject; const AKey: String): TJSONObject;
 var
   LValue: TJSONValue;
 begin
@@ -292,12 +302,12 @@ begin
     Result := nil;
 end;
 
-class function TMetadataSnapshot.SortedPairs<T>(ADictionary: TObjectDictionary<String, T>): TArray<TPair<String, T>>;
+class function TMetadataSnapshot._SortedPairs<T>(ADictionary: TObjectDictionary<String, T>): TArray<TPair<String, T>>;
 var
   LPair: TPair<String, T>;
   LIndex: Integer;
 begin
-  // Deterministic (key-sorted) order - mirrors TDatabaseFactory.SortedPairs,
+  // Deterministic (key-sorted) order - mirrors TDatabaseFactory._SortedPairs,
   // so re-saving an unchanged catalog yields byte-identical JSON.
   SetLength(Result, ADictionary.Count);
   LIndex := 0;
@@ -317,26 +327,26 @@ end;
 
 { --- MIK -> JSON --- }
 
-class function TMetadataSnapshot.ColumnToJson(AColumn: TColumnMIK): TJSONObject;
+class function TMetadataSnapshot._ColumnToJson(AColumn: TColumnMIK): TJSONObject;
 begin
   Result := TJSONObject.Create;
   Result.AddPair('Name', AColumn.Name);
   Result.AddPair('Description', AColumn.Description);
   Result.AddPair('Position', AColumn.Position);
-  Result.AddPair('FieldType', FieldTypeToName(AColumn.FieldType));
+  Result.AddPair('FieldType', _FieldTypeToName(AColumn.FieldType));
   Result.AddPair('TypeName', AColumn.TypeName);
   Result.AddPair('Size', AColumn.Size);
   Result.AddPair('Precision', AColumn.Precision);
   Result.AddPair('Scale', AColumn.Scale);
   Result.AddPair('NotNull', AColumn.NotNull);
   Result.AddPair('AutoIncrement', AColumn.AutoIncrement);
-  Result.AddPair('SortingOrder', SortingOrderToName(AColumn.SortingOrder));
+  Result.AddPair('SortingOrder', _SortingOrderToName(AColumn.SortingOrder));
   Result.AddPair('DefaultValue', AColumn.DefaultValue);
   Result.AddPair('IsPrimaryKey', AColumn.IsPrimaryKey);
   Result.AddPair('CharSet', AColumn.CharSet);
 end;
 
-class function TMetadataSnapshot.PrimaryKeyToJson(APrimaryKey: TPrimaryKeyMIK): TJSONObject;
+class function TMetadataSnapshot._PrimaryKeyToJson(APrimaryKey: TPrimaryKeyMIK): TJSONObject;
 var
   LArr: TJSONArray;
   LPair: TPair<String, TColumnMIK>;
@@ -347,11 +357,11 @@ begin
   Result.AddPair('AutoIncrement', APrimaryKey.AutoIncrement);
   LArr := TJSONArray.Create;
   for LPair in APrimaryKey.FieldsSort do
-    LArr.Add(ColumnToJson(LPair.Value));
+    LArr.Add(_ColumnToJson(LPair.Value));
   Result.AddPair('Fields', LArr);
 end;
 
-class function TMetadataSnapshot.ForeignKeyToJson(AForeignKey: TForeignKeyMIK): TJSONObject;
+class function TMetadataSnapshot._ForeignKeyToJson(AForeignKey: TForeignKeyMIK): TJSONObject;
 var
   LArr: TJSONArray;
   LPair: TPair<String, TColumnMIK>;
@@ -360,19 +370,19 @@ begin
   Result.AddPair('Name', AForeignKey.Name);
   Result.AddPair('Description', AForeignKey.Description);
   Result.AddPair('FromTable', AForeignKey.FromTable);
-  Result.AddPair('OnUpdate', RuleActionToName(AForeignKey.OnUpdate));
-  Result.AddPair('OnDelete', RuleActionToName(AForeignKey.OnDelete));
+  Result.AddPair('OnUpdate', _RuleActionToName(AForeignKey.OnUpdate));
+  Result.AddPair('OnDelete', _RuleActionToName(AForeignKey.OnDelete));
   LArr := TJSONArray.Create;
   for LPair in AForeignKey.FromFieldsSort do
-    LArr.Add(ColumnToJson(LPair.Value));
+    LArr.Add(_ColumnToJson(LPair.Value));
   Result.AddPair('FromFields', LArr);
   LArr := TJSONArray.Create;
   for LPair in AForeignKey.ToFieldsSort do
-    LArr.Add(ColumnToJson(LPair.Value));
+    LArr.Add(_ColumnToJson(LPair.Value));
   Result.AddPair('ToFields', LArr);
 end;
 
-class function TMetadataSnapshot.IndexeKeyToJson(AIndexeKey: TIndexeKeyMIK): TJSONObject;
+class function TMetadataSnapshot._IndexeKeyToJson(AIndexeKey: TIndexeKeyMIK): TJSONObject;
 var
   LArr: TJSONArray;
   LPair: TPair<String, TColumnMIK>;
@@ -383,11 +393,11 @@ begin
   Result.AddPair('Unique', AIndexeKey.Unique);
   LArr := TJSONArray.Create;
   for LPair in AIndexeKey.FieldsSort do
-    LArr.Add(ColumnToJson(LPair.Value));
+    LArr.Add(_ColumnToJson(LPair.Value));
   Result.AddPair('Fields', LArr);
 end;
 
-class function TMetadataSnapshot.CheckToJson(ACheck: TCheckMIK): TJSONObject;
+class function TMetadataSnapshot._CheckToJson(ACheck: TCheckMIK): TJSONObject;
 begin
   Result := TJSONObject.Create;
   Result.AddPair('Name', ACheck.Name);
@@ -395,7 +405,7 @@ begin
   Result.AddPair('Condition', ACheck.Condition);
 end;
 
-class function TMetadataSnapshot.TriggerToJson(ATrigger: TTriggerMIK): TJSONObject;
+class function TMetadataSnapshot._TriggerToJson(ATrigger: TTriggerMIK): TJSONObject;
 begin
   Result := TJSONObject.Create;
   Result.AddPair('Name', ATrigger.Name);
@@ -403,7 +413,7 @@ begin
   Result.AddPair('Script', ATrigger.Script);
 end;
 
-class function TMetadataSnapshot.TableToJson(ATable: TTableMIK): TJSONObject;
+class function TMetadataSnapshot._TableToJson(ATable: TTableMIK): TJSONObject;
 var
   LArr: TJSONArray;
   LColPair: TPair<String, TColumnMIK>;
@@ -415,35 +425,35 @@ begin
   Result := TJSONObject.Create;
   Result.AddPair('Name', ATable.Name);
   Result.AddPair('Description', ATable.Description);
-  Result.AddPair('PrimaryKey', PrimaryKeyToJson(ATable.PrimaryKey));
+  Result.AddPair('PrimaryKey', _PrimaryKeyToJson(ATable.PrimaryKey));
 
   LArr := TJSONArray.Create;
   for LColPair in ATable.FieldsSort do
-    LArr.Add(ColumnToJson(LColPair.Value));
+    LArr.Add(_ColumnToJson(LColPair.Value));
   Result.AddPair('Fields', LArr);
 
   LArr := TJSONArray.Create;
-  for LIdxPair in SortedPairs<TIndexeKeyMIK>(ATable.IndexeKeys) do
-    LArr.Add(IndexeKeyToJson(LIdxPair.Value));
+  for LIdxPair in _SortedPairs<TIndexeKeyMIK>(ATable.IndexeKeys) do
+    LArr.Add(_IndexeKeyToJson(LIdxPair.Value));
   Result.AddPair('IndexeKeys', LArr);
 
   LArr := TJSONArray.Create;
-  for LFkPair in SortedPairs<TForeignKeyMIK>(ATable.ForeignKeys) do
-    LArr.Add(ForeignKeyToJson(LFkPair.Value));
+  for LFkPair in _SortedPairs<TForeignKeyMIK>(ATable.ForeignKeys) do
+    LArr.Add(_ForeignKeyToJson(LFkPair.Value));
   Result.AddPair('ForeignKeys', LArr);
 
   LArr := TJSONArray.Create;
-  for LChkPair in SortedPairs<TCheckMIK>(ATable.Checks) do
-    LArr.Add(CheckToJson(LChkPair.Value));
+  for LChkPair in _SortedPairs<TCheckMIK>(ATable.Checks) do
+    LArr.Add(_CheckToJson(LChkPair.Value));
   Result.AddPair('Checks', LArr);
 
   LArr := TJSONArray.Create;
-  for LTrgPair in SortedPairs<TTriggerMIK>(ATable.Triggers) do
-    LArr.Add(TriggerToJson(LTrgPair.Value));
+  for LTrgPair in _SortedPairs<TTriggerMIK>(ATable.Triggers) do
+    LArr.Add(_TriggerToJson(LTrgPair.Value));
   Result.AddPair('Triggers', LArr);
 end;
 
-class function TMetadataSnapshot.ViewToJson(AView: TViewMIK): TJSONObject;
+class function TMetadataSnapshot._ViewToJson(AView: TViewMIK): TJSONObject;
 var
   LArr: TJSONArray;
   LPair: TPair<String, TColumnMIK>;
@@ -453,12 +463,12 @@ begin
   Result.AddPair('Description', AView.Description);
   Result.AddPair('Script', AView.Script);
   LArr := TJSONArray.Create;
-  for LPair in SortedPairs<TColumnMIK>(AView.Fields) do
-    LArr.Add(ColumnToJson(LPair.Value));
+  for LPair in _SortedPairs<TColumnMIK>(AView.Fields) do
+    LArr.Add(_ColumnToJson(LPair.Value));
   Result.AddPair('Fields', LArr);
 end;
 
-class function TMetadataSnapshot.SequenceToJson(ASequence: TSequenceMIK): TJSONObject;
+class function TMetadataSnapshot._SequenceToJson(ASequence: TSequenceMIK): TJSONObject;
 begin
   Result := TJSONObject.Create;
   Result.AddPair('Name', ASequence.Name);
@@ -468,7 +478,7 @@ begin
   Result.AddPair('Increment', ASequence.Increment);
 end;
 
-class function TMetadataSnapshot.CatalogToJson(ACatalog: TCatalogMetadataMIK): TJSONObject;
+class function TMetadataSnapshot._CatalogToJson(ACatalog: TCatalogMetadataMIK): TJSONObject;
 var
   LArr: TJSONArray;
   LTablePair: TPair<String, TTableMIK>;
@@ -482,37 +492,37 @@ begin
 
   LArr := TJSONArray.Create;
   for LTablePair in ACatalog.TablesSort do
-    LArr.Add(TableToJson(LTablePair.Value));
+    LArr.Add(_TableToJson(LTablePair.Value));
   Result.AddPair('Tables', LArr);
 
   LArr := TJSONArray.Create;
-  for LSeqPair in SortedPairs<TSequenceMIK>(ACatalog.Sequences) do
-    LArr.Add(SequenceToJson(LSeqPair.Value));
+  for LSeqPair in _SortedPairs<TSequenceMIK>(ACatalog.Sequences) do
+    LArr.Add(_SequenceToJson(LSeqPair.Value));
   Result.AddPair('Sequences', LArr);
 
   LArr := TJSONArray.Create;
-  for LViewPair in SortedPairs<TViewMIK>(ACatalog.Views) do
-    LArr.Add(ViewToJson(LViewPair.Value));
+  for LViewPair in _SortedPairs<TViewMIK>(ACatalog.Views) do
+    LArr.Add(_ViewToJson(LViewPair.Value));
   Result.AddPair('Views', LArr);
 end;
 
 { --- JSON -> MIK --- }
 
-class function TMetadataSnapshot.JsonToColumn(AJson: TJSONObject; AOwnerTable: TTableMIK): TColumnMIK;
+class function TMetadataSnapshot._JsonToColumn(AJson: TJSONObject; AOwnerTable: TTableMIK): TColumnMIK;
 begin
   Result := TColumnMIK.Create(AOwnerTable);
   try
     Result.Name := AJson.GetValue<String>('Name');
     Result.Description := AJson.GetValue<String>('Description', '');
     Result.Position := AJson.GetValue<Integer>('Position', 0);
-    Result.FieldType := NameToFieldType(AJson.GetValue<String>('FieldType'));
+    Result.FieldType := _NameToFieldType(AJson.GetValue<String>('FieldType'));
     Result.TypeName := AJson.GetValue<String>('TypeName', '');
     Result.Size := AJson.GetValue<Integer>('Size', 0);
     Result.Precision := AJson.GetValue<Integer>('Precision', 0);
     Result.Scale := AJson.GetValue<Integer>('Scale', 0);
     Result.NotNull := AJson.GetValue<Boolean>('NotNull', False);
     Result.AutoIncrement := AJson.GetValue<Boolean>('AutoIncrement', False);
-    Result.SortingOrder := NameToSortingOrder(AJson.GetValue<String>('SortingOrder', 'NoSort'));
+    Result.SortingOrder := _NameToSortingOrder(AJson.GetValue<String>('SortingOrder', 'NoSort'));
     Result.DefaultValue := AJson.GetValue<String>('DefaultValue', '');
     Result.IsPrimaryKey := AJson.GetValue<Boolean>('IsPrimaryKey', False);
     Result.CharSet := AJson.GetValue<String>('CharSet', '');
@@ -522,7 +532,7 @@ begin
   end;
 end;
 
-class procedure TMetadataSnapshot.JsonToPrimaryKey(AJson: TJSONObject; ATable: TTableMIK);
+class procedure TMetadataSnapshot._JsonToPrimaryKey(AJson: TJSONObject; ATable: TTableMIK);
 var
   LPkJson: TJSONObject;
   LArr: TJSONArray;
@@ -531,22 +541,22 @@ var
 begin
   // ATable.PrimaryKey already exists (auto-created by TTableMIK.Create) -
   // populate it in place instead of replacing the reference.
-  LPkJson := JsonObjectOrNil(AJson, 'PrimaryKey');
+  LPkJson := _JsonObjectOrNil(AJson, 'PrimaryKey');
   if LPkJson = nil then
     Exit;
   ATable.PrimaryKey.Name := LPkJson.GetValue<String>('Name', '');
   ATable.PrimaryKey.Description := LPkJson.GetValue<String>('Description', '');
   ATable.PrimaryKey.AutoIncrement := LPkJson.GetValue<Boolean>('AutoIncrement', False);
-  LArr := JsonArrayOrNil(LPkJson, 'Fields');
+  LArr := _JsonArrayOrNil(LPkJson, 'Fields');
   if LArr <> nil then
     for LFor := 0 to LArr.Count - 1 do
     begin
-      LColumn := JsonToColumn(TJSONObject(LArr.Items[LFor]), ATable);
-      ATable.PrimaryKey.Fields.AddOrSetValue(PosKey(LColumn.Position), LColumn);
+      LColumn := _JsonToColumn(TJSONObject(LArr.Items[LFor]), ATable);
+      ATable.PrimaryKey.Fields.AddOrSetValue(_PosKey(LColumn.Position), LColumn);
     end;
 end;
 
-class function TMetadataSnapshot.JsonToForeignKey(AJson: TJSONObject; ATable: TTableMIK): TForeignKeyMIK;
+class function TMetadataSnapshot._JsonToForeignKey(AJson: TJSONObject; ATable: TTableMIK): TForeignKeyMIK;
 var
   LArr: TJSONArray;
   LFor: Integer;
@@ -557,23 +567,23 @@ begin
     Result.Name := AJson.GetValue<String>('Name');
     Result.Description := AJson.GetValue<String>('Description', '');
     Result.FromTable := AJson.GetValue<String>('FromTable', '');
-    Result.OnUpdate := NameToRuleAction(AJson.GetValue<String>('OnUpdate', 'None'));
-    Result.OnDelete := NameToRuleAction(AJson.GetValue<String>('OnDelete', 'None'));
+    Result.OnUpdate := _NameToRuleAction(AJson.GetValue<String>('OnUpdate', 'None'));
+    Result.OnDelete := _NameToRuleAction(AJson.GetValue<String>('OnDelete', 'None'));
 
-    LArr := JsonArrayOrNil(AJson, 'FromFields');
+    LArr := _JsonArrayOrNil(AJson, 'FromFields');
     if LArr <> nil then
       for LFor := 0 to LArr.Count - 1 do
       begin
-        LColumn := JsonToColumn(TJSONObject(LArr.Items[LFor]), ATable);
-        Result.FromFields.AddOrSetValue(PosKey(LColumn.Position), LColumn);
+        LColumn := _JsonToColumn(TJSONObject(LArr.Items[LFor]), ATable);
+        Result.FromFields.AddOrSetValue(_PosKey(LColumn.Position), LColumn);
       end;
 
-    LArr := JsonArrayOrNil(AJson, 'ToFields');
+    LArr := _JsonArrayOrNil(AJson, 'ToFields');
     if LArr <> nil then
       for LFor := 0 to LArr.Count - 1 do
       begin
-        LColumn := JsonToColumn(TJSONObject(LArr.Items[LFor]), ATable);
-        Result.ToFields.AddOrSetValue(PosKey(LColumn.Position), LColumn);
+        LColumn := _JsonToColumn(TJSONObject(LArr.Items[LFor]), ATable);
+        Result.ToFields.AddOrSetValue(_PosKey(LColumn.Position), LColumn);
       end;
   except
     Result.Free;
@@ -581,7 +591,7 @@ begin
   end;
 end;
 
-class function TMetadataSnapshot.JsonToIndexeKey(AJson: TJSONObject; ATable: TTableMIK): TIndexeKeyMIK;
+class function TMetadataSnapshot._JsonToIndexeKey(AJson: TJSONObject; ATable: TTableMIK): TIndexeKeyMIK;
 var
   LArr: TJSONArray;
   LFor: Integer;
@@ -592,12 +602,12 @@ begin
     Result.Name := AJson.GetValue<String>('Name');
     Result.Description := AJson.GetValue<String>('Description', '');
     Result.Unique := AJson.GetValue<Boolean>('Unique', False);
-    LArr := JsonArrayOrNil(AJson, 'Fields');
+    LArr := _JsonArrayOrNil(AJson, 'Fields');
     if LArr <> nil then
       for LFor := 0 to LArr.Count - 1 do
       begin
-        LColumn := JsonToColumn(TJSONObject(LArr.Items[LFor]), ATable);
-        Result.Fields.AddOrSetValue(PosKey(LColumn.Position), LColumn);
+        LColumn := _JsonToColumn(TJSONObject(LArr.Items[LFor]), ATable);
+        Result.Fields.AddOrSetValue(_PosKey(LColumn.Position), LColumn);
       end;
   except
     Result.Free;
@@ -605,7 +615,7 @@ begin
   end;
 end;
 
-class function TMetadataSnapshot.JsonToCheck(AJson: TJSONObject; ATable: TTableMIK): TCheckMIK;
+class function TMetadataSnapshot._JsonToCheck(AJson: TJSONObject; ATable: TTableMIK): TCheckMIK;
 begin
   Result := TCheckMIK.Create(ATable);
   try
@@ -618,7 +628,7 @@ begin
   end;
 end;
 
-class function TMetadataSnapshot.JsonToTrigger(AJson: TJSONObject; ATable: TTableMIK): TTriggerMIK;
+class function TMetadataSnapshot._JsonToTrigger(AJson: TJSONObject; ATable: TTableMIK): TTriggerMIK;
 begin
   Result := TTriggerMIK.Create(ATable);
   try
@@ -631,7 +641,7 @@ begin
   end;
 end;
 
-class function TMetadataSnapshot.JsonToTable(AJson: TJSONObject; ACatalog: TCatalogMetadataMIK): TTableMIK;
+class function TMetadataSnapshot._JsonToTable(AJson: TJSONObject; ACatalog: TCatalogMetadataMIK): TTableMIK;
 var
   LArr: TJSONArray;
   LFor: Integer;
@@ -646,45 +656,45 @@ begin
     Result.Name := AJson.GetValue<String>('Name');
     Result.Description := AJson.GetValue<String>('Description', '');
 
-    JsonToPrimaryKey(AJson, Result);
+    _JsonToPrimaryKey(AJson, Result);
 
-    LArr := JsonArrayOrNil(AJson, 'Fields');
+    LArr := _JsonArrayOrNil(AJson, 'Fields');
     if LArr <> nil then
       for LFor := 0 to LArr.Count - 1 do
       begin
-        LColumn := JsonToColumn(TJSONObject(LArr.Items[LFor]), Result);
-        Result.Fields.AddOrSetValue(PosKey(LColumn.Position), LColumn);
+        LColumn := _JsonToColumn(TJSONObject(LArr.Items[LFor]), Result);
+        Result.Fields.AddOrSetValue(_PosKey(LColumn.Position), LColumn);
       end;
 
-    LArr := JsonArrayOrNil(AJson, 'IndexeKeys');
+    LArr := _JsonArrayOrNil(AJson, 'IndexeKeys');
     if LArr <> nil then
       for LFor := 0 to LArr.Count - 1 do
       begin
-        LIndexeKey := JsonToIndexeKey(TJSONObject(LArr.Items[LFor]), Result);
+        LIndexeKey := _JsonToIndexeKey(TJSONObject(LArr.Items[LFor]), Result);
         Result.IndexeKeys.AddOrSetValue(UpperCase(LIndexeKey.Name), LIndexeKey);
       end;
 
-    LArr := JsonArrayOrNil(AJson, 'ForeignKeys');
+    LArr := _JsonArrayOrNil(AJson, 'ForeignKeys');
     if LArr <> nil then
       for LFor := 0 to LArr.Count - 1 do
       begin
-        LForeignKey := JsonToForeignKey(TJSONObject(LArr.Items[LFor]), Result);
+        LForeignKey := _JsonToForeignKey(TJSONObject(LArr.Items[LFor]), Result);
         Result.ForeignKeys.AddOrSetValue(UpperCase(LForeignKey.Name), LForeignKey);
       end;
 
-    LArr := JsonArrayOrNil(AJson, 'Checks');
+    LArr := _JsonArrayOrNil(AJson, 'Checks');
     if LArr <> nil then
       for LFor := 0 to LArr.Count - 1 do
       begin
-        LCheck := JsonToCheck(TJSONObject(LArr.Items[LFor]), Result);
+        LCheck := _JsonToCheck(TJSONObject(LArr.Items[LFor]), Result);
         Result.Checks.AddOrSetValue(UpperCase(LCheck.Name), LCheck);
       end;
 
-    LArr := JsonArrayOrNil(AJson, 'Triggers');
+    LArr := _JsonArrayOrNil(AJson, 'Triggers');
     if LArr <> nil then
       for LFor := 0 to LArr.Count - 1 do
       begin
-        LTrigger := JsonToTrigger(TJSONObject(LArr.Items[LFor]), Result);
+        LTrigger := _JsonToTrigger(TJSONObject(LArr.Items[LFor]), Result);
         Result.Triggers.AddOrSetValue(UpperCase(LTrigger.Name), LTrigger);
       end;
   except
@@ -693,7 +703,7 @@ begin
   end;
 end;
 
-class function TMetadataSnapshot.JsonToView(AJson: TJSONObject; ACatalog: TCatalogMetadataMIK): TViewMIK;
+class function TMetadataSnapshot._JsonToView(AJson: TJSONObject; ACatalog: TCatalogMetadataMIK): TViewMIK;
 var
   LArr: TJSONArray;
   LFor: Integer;
@@ -704,13 +714,13 @@ begin
     Result.Name := AJson.GetValue<String>('Name');
     Result.Description := AJson.GetValue<String>('Description', '');
     Result.Script := AJson.GetValue<String>('Script', '');
-    LArr := JsonArrayOrNil(AJson, 'Fields');
+    LArr := _JsonArrayOrNil(AJson, 'Fields');
     if LArr <> nil then
       for LFor := 0 to LArr.Count - 1 do
       begin
         // View columns carry no owning table, matching the live extractors
         // (MetaDbDiff.Metadata.Firebird.pas: TColumnMIK.Create with no arg).
-        LColumn := JsonToColumn(TJSONObject(LArr.Items[LFor]), nil);
+        LColumn := _JsonToColumn(TJSONObject(LArr.Items[LFor]), nil);
         Result.Fields.AddOrSetValue(UpperCase(LColumn.Name), LColumn);
       end;
   except
@@ -719,7 +729,7 @@ begin
   end;
 end;
 
-class function TMetadataSnapshot.JsonToSequence(AJson: TJSONObject; ACatalog: TCatalogMetadataMIK): TSequenceMIK;
+class function TMetadataSnapshot._JsonToSequence(AJson: TJSONObject; ACatalog: TCatalogMetadataMIK): TSequenceMIK;
 begin
   Result := TSequenceMIK.Create(ACatalog);
   try
@@ -734,7 +744,7 @@ begin
   end;
 end;
 
-class procedure TMetadataSnapshot.JsonToCatalog(AJson: TJSONObject; ACatalog: TCatalogMetadataMIK);
+class procedure TMetadataSnapshot._JsonToCatalog(AJson: TJSONObject; ACatalog: TCatalogMetadataMIK);
 var
   LArr: TJSONArray;
   LFor: Integer;
@@ -749,27 +759,27 @@ begin
   ACatalog.Schema := AJson.GetValue<String>('Schema', '');
   ACatalog.Description := AJson.GetValue<String>('Description', '');
 
-  LArr := JsonArrayOrNil(AJson, 'Tables');
+  LArr := _JsonArrayOrNil(AJson, 'Tables');
   if LArr <> nil then
     for LFor := 0 to LArr.Count - 1 do
     begin
-      LTable := JsonToTable(TJSONObject(LArr.Items[LFor]), ACatalog);
+      LTable := _JsonToTable(TJSONObject(LArr.Items[LFor]), ACatalog);
       ACatalog.Tables.AddOrSetValue(UpperCase(LTable.Name), LTable);
     end;
 
-  LArr := JsonArrayOrNil(AJson, 'Sequences');
+  LArr := _JsonArrayOrNil(AJson, 'Sequences');
   if LArr <> nil then
     for LFor := 0 to LArr.Count - 1 do
     begin
-      LSequence := JsonToSequence(TJSONObject(LArr.Items[LFor]), ACatalog);
+      LSequence := _JsonToSequence(TJSONObject(LArr.Items[LFor]), ACatalog);
       ACatalog.Sequences.AddOrSetValue(UpperCase(LSequence.Name), LSequence);
     end;
 
-  LArr := JsonArrayOrNil(AJson, 'Views');
+  LArr := _JsonArrayOrNil(AJson, 'Views');
   if LArr <> nil then
     for LFor := 0 to LArr.Count - 1 do
     begin
-      LView := JsonToView(TJSONObject(LArr.Items[LFor]), ACatalog);
+      LView := _JsonToView(TJSONObject(LArr.Items[LFor]), ACatalog);
       ACatalog.Views.AddOrSetValue(UpperCase(LView.Name), LView);
     end;
 end;
@@ -784,10 +794,10 @@ begin
   Result := TJSONObject.Create;
   try
     Result.AddPair('FormatVersion', MetadataSnapshotFormatVersion);
-    Result.AddPair('DriverName', DriverNameToStr(ADriverName));
+    Result.AddPair('DriverName', _DriverNameToStr(ADriverName));
     Result.AddPair('GeneratedAt', DateToISO8601(Now, False));
     Result.AddPair('SourceDescription', ADescription);
-    Result.AddPair('Catalog', CatalogToJson(ACatalog));
+    Result.AddPair('Catalog', _CatalogToJson(ACatalog));
   except
     Result.Free;
     raise;
@@ -829,13 +839,13 @@ begin
       [AFormatVersion]);
 
   try
-    ADriverName := StrToDriverNameChecked(AJson.GetValue<String>('DriverName'));
+    ADriverName := _StrToDriverNameChecked(AJson.GetValue<String>('DriverName'));
     ADescription := AJson.GetValue<String>('SourceDescription', '');
     AGeneratedAt := AJson.GetValue<String>('GeneratedAt', '');
-    LCatalogJson := JsonObjectOrNil(AJson, 'Catalog');
+    LCatalogJson := _JsonObjectOrNil(AJson, 'Catalog');
     if LCatalogJson = nil then
       raise EMetadataSnapshotError.Create('MetaDbDiff snapshot: campo "Catalog" ausente.');
-    JsonToCatalog(LCatalogJson, ACatalogMetadata);
+    _JsonToCatalog(LCatalogJson, ACatalogMetadata);
   except
     on E: EMetadataSnapshotError do
       raise;

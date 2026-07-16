@@ -69,7 +69,7 @@ type
 
   TRttiPropertyHelper = class helper for TRttiProperty
   private
-    function ResolveNullableValue(AObject: TObject): Boolean;
+    function _ResolveNullableValue(AObject: TObject): Boolean;
   public
     function  IsNoUpdate: Boolean;
     function  IsNoInsert: Boolean;
@@ -640,7 +640,7 @@ begin
    Exit(False);
 end;
 
-function TRttiPropertyHelper.ResolveNullableValue(AObject: TObject): Boolean;
+function TRttiPropertyHelper._ResolveNullableValue(AObject: TObject): Boolean;
 var
   LValue: TValue;
 begin
@@ -697,13 +697,13 @@ function TRttiPropertyHelper.IsNullValue(AObject: TObject): Boolean;
 begin
   Result := False;
 //  if (not Self.IsNotNull) and (Self.IsNullable) then
-//    Exit(ResolveNullableValue(AObject));
+//    Exit(_ResolveNullableValue(AObject));
 
   if Self.IsNotNull then
     Exit(False);
 
   if (Self.IsNullable) or (Self.IsNullIfEmpty) then
-    Exit(ResolveNullableValue(AObject));
+    Exit(_ResolveNullableValue(AObject));
 end;
 
 function TRttiPropertyHelper.IsPrimaryKey(AClass: TClass): Boolean;

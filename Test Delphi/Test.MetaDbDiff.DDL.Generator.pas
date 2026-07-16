@@ -35,18 +35,18 @@ type
   TTestDDLGenerator = class
   private
     FCatalog: TCatalogMetadataMIK;
-    function Firebird: IDDLGeneratorCommand;
-    function MSSQL: IDDLGeneratorCommand;
+    function _Firebird: IDDLGeneratorCommand;
+    function _MSSQL: IDDLGeneratorCommand;
     /// <summary>Colapsa CR/LF e espacos repetidos num unico espaco e faz Trim.</summary>
-    function NormalizeSQL(const ASQL: String): String;
-    function AddColumn(ATable: TTableMIK; const AName, ATypeName: String;
+    function _NormalizeSQL(const ASQL: String): String;
+    function _AddColumn(ATable: TTableMIK; const AName, ATypeName: String;
       APosition: Integer; ANotNull: Boolean = False; ASize: Integer = 0;
       APrecision: Integer = 0; AScale: Integer = 0;
       const ADefaultValue: String = ''): TColumnMIK;
     /// <summary>CLIENTE: ID <inttype> NOT NULL, NOME VARCHAR(60), PK(ID).</summary>
-    function BuildClienteTable(const AIntTypeName: String): TTableMIK;
+    function _BuildClienteTable(const AIntTypeName: String): TTableMIK;
     /// <summary>PEDIDO com PK composta e FK para CLIENTE.</summary>
-    function BuildPedidoTable(ARuleDelete, ARuleUpdate: TRuleAction): TTableMIK;
+    function _BuildPedidoTable(ARuleDelete, ARuleUpdate: TRuleAction): TTableMIK;
   public
     [Setup]
     procedure Setup;
@@ -104,17 +104,17 @@ begin
   FCatalog.Free;
 end;
 
-function TTestDDLGenerator.Firebird: IDDLGeneratorCommand;
+function TTestDDLGenerator._Firebird: IDDLGeneratorCommand;
 begin
   Result := TSQLDriverRegister.GetInstance.GetDriver(dnFirebird);
 end;
 
-function TTestDDLGenerator.MSSQL: IDDLGeneratorCommand;
+function TTestDDLGenerator._MSSQL: IDDLGeneratorCommand;
 begin
   Result := TSQLDriverRegister.GetInstance.GetDriver(dnMSSQL);
 end;
 
-function TTestDDLGenerator.NormalizeSQL(const ASQL: String): String;
+function TTestDDLGenerator._NormalizeSQL(const ASQL: String): String;
 begin
   Result := StringReplace(ASQL, #13, ' ', [rfReplaceAll]);
   Result := StringReplace(Result, #10, ' ', [rfReplaceAll]);
@@ -124,7 +124,7 @@ begin
   Result := Trim(Result);
 end;
 
-function TTestDDLGenerator.AddColumn(ATable: TTableMIK; const AName,
+function TTestDDLGenerator._AddColumn(ATable: TTableMIK; const AName,
   ATypeName: String; APosition: Integer; ANotNull: Boolean; ASize: Integer;
   APrecision: Integer; AScale: Integer; const ADefaultValue: String): TColumnMIK;
 begin
@@ -140,14 +140,14 @@ begin
   ATable.Fields.Add(FormatFloat('000000', APosition), Result);
 end;
 
-function TTestDDLGenerator.BuildClienteTable(const AIntTypeName: String): TTableMIK;
+function TTestDDLGenerator._BuildClienteTable(const AIntTypeName: String): TTableMIK;
 var
   LPkColumn: TColumnMIK;
 begin
   Result := TTableMIK.Create(FCatalog);
   Result.Name := 'CLIENTE';
-  AddColumn(Result, 'ID', AIntTypeName, 0, True);
-  AddColumn(Result, 'NOME', 'VARCHAR(%l)', 1, False, 60);
+  _AddColumn(Result, 'ID', AIntTypeName, 0, True);
+  _AddColumn(Result, 'NOME', 'VARCHAR(%l)', 1, False, 60);
   Result.PrimaryKey.Name := 'PK_CLIENTE';
   LPkColumn := TColumnMIK.Create(Result);
   LPkColumn.Name := 'ID';
@@ -155,7 +155,7 @@ begin
   FCatalog.Tables.Add(Result.Name, Result);
 end;
 
-function TTestDDLGenerator.BuildPedidoTable(ARuleDelete,
+function TTestDDLGenerator._BuildPedidoTable(ARuleDelete,
   ARuleUpdate: TRuleAction): TTableMIK;
 var
   LColumn: TColumnMIK;
@@ -163,9 +163,9 @@ var
 begin
   Result := TTableMIK.Create(FCatalog);
   Result.Name := 'PEDIDO';
-  AddColumn(Result, 'ID_EMPRESA', 'INTEGER', 0, True);
-  AddColumn(Result, 'ID_PEDIDO', 'INTEGER', 1, True);
-  AddColumn(Result, 'ID_CLIENTE', 'INTEGER', 2);
+  _AddColumn(Result, 'ID_EMPRESA', 'INTEGER', 0, True);
+  _AddColumn(Result, 'ID_PEDIDO', 'INTEGER', 1, True);
+  _AddColumn(Result, 'ID_CLIENTE', 'INTEGER', 2);
   // PK composta
   Result.PrimaryKey.Name := 'PK_PEDIDO';
   LColumn := TColumnMIK.Create(Result);
@@ -215,11 +215,11 @@ procedure TTestDDLGenerator.Firebird_CreateTable;
 var
   LTable: TTableMIK;
 begin
-  LTable := BuildClienteTable('INTEGER');
+  LTable := _BuildClienteTable('INTEGER');
   Assert.AreEqual(
     'CREATE TABLE CLIENTE ( ID INTEGER NOT NULL, NOME VARCHAR(60), ' +
     'CONSTRAINT PK_CLIENTE PRIMARY KEY (ID) );',
-    NormalizeSQL(Firebird.GenerateCreateTable(LTable)));
+    _NormalizeSQL(_Firebird.GenerateCreateTable(LTable)));
 end;
 
 procedure TTestDDLGenerator.Firebird_CreateTable_WithCheckAndIndex;
@@ -229,7 +229,7 @@ var
   LIndexe: TIndexeKeyMIK;
   LColumn: TColumnMIK;
 begin
-  LTable := BuildClienteTable('INTEGER');
+  LTable := _BuildClienteTable('INTEGER');
   LCheck := TCheckMIK.Create(LTable);
   LCheck.Name := 'CK_CLIENTE_NOME';
   LCheck.Condition := 'NOME <> ''''';
@@ -247,17 +247,17 @@ begin
     'CONSTRAINT PK_CLIENTE PRIMARY KEY (ID), ' +
     'CONSTRAINT CK_CLIENTE_NOME CHECK (NOME <> '''') ); ' +
     'CREATE INDEX IDX_CLIENTE_NOME ON CLIENTE (NOME);',
-    NormalizeSQL(Firebird.GenerateCreateTable(LTable)));
+    _NormalizeSQL(_Firebird.GenerateCreateTable(LTable)));
 end;
 
 procedure TTestDDLGenerator.Firebird_CreateColumn;
 var
   LTable: TTableMIK;
 begin
-  LTable := BuildClienteTable('INTEGER');
+  LTable := _BuildClienteTable('INTEGER');
   Assert.AreEqual(
     'ALTER TABLE CLIENTE ADD NOME VARCHAR(60);',
-    NormalizeSQL(Firebird.GenerateCreateColumn(LTable.Fields['000001'])));
+    _NormalizeSQL(_Firebird.GenerateCreateColumn(LTable.Fields['000001'])));
 end;
 
 procedure TTestDDLGenerator.Firebird_CreateColumn_WithDefaultAndNotNull;
@@ -265,32 +265,32 @@ var
   LTable: TTableMIK;
   LColumn: TColumnMIK;
 begin
-  LTable := BuildClienteTable('INTEGER');
-  LColumn := AddColumn(LTable, 'SALDO', 'NUMERIC(%p,%s)', 2, True, 0, 18, 2, '0');
+  LTable := _BuildClienteTable('INTEGER');
+  LColumn := _AddColumn(LTable, 'SALDO', 'NUMERIC(%p,%s)', 2, True, 0, 18, 2, '0');
   Assert.AreEqual(
     'ALTER TABLE CLIENTE ADD SALDO NUMERIC(18,2) DEFAULT 0 NOT NULL;',
-    NormalizeSQL(Firebird.GenerateCreateColumn(LColumn)));
+    _NormalizeSQL(_Firebird.GenerateCreateColumn(LColumn)));
 end;
 
 procedure TTestDDLGenerator.Firebird_CreatePrimaryKey_Simple;
 var
   LTable: TTableMIK;
 begin
-  LTable := BuildClienteTable('INTEGER');
+  LTable := _BuildClienteTable('INTEGER');
   // Fragmento usado dentro do CREATE TABLE (sem ponto e virgula final).
   Assert.AreEqual(
     'CONSTRAINT PK_CLIENTE PRIMARY KEY (ID)',
-    NormalizeSQL(Firebird.GenerateCreatePrimaryKey(LTable.PrimaryKey)));
+    _NormalizeSQL(_Firebird.GenerateCreatePrimaryKey(LTable.PrimaryKey)));
 end;
 
 procedure TTestDDLGenerator.Firebird_CreatePrimaryKey_Composite;
 var
   LTable: TTableMIK;
 begin
-  LTable := BuildPedidoTable(TRuleAction.None, TRuleAction.None);
+  LTable := _BuildPedidoTable(TRuleAction.None, TRuleAction.None);
   Assert.AreEqual(
     'CONSTRAINT PK_PEDIDO PRIMARY KEY (ID_EMPRESA, ID_PEDIDO)',
-    NormalizeSQL(Firebird.GenerateCreatePrimaryKey(LTable.PrimaryKey)));
+    _NormalizeSQL(_Firebird.GenerateCreatePrimaryKey(LTable.PrimaryKey)));
 end;
 
 procedure TTestDDLGenerator.Firebird_CreateForeignKey_WithRules;
@@ -298,12 +298,12 @@ var
   LTable: TTableMIK;
   LForeignKey: TForeignKeyMIK;
 begin
-  LTable := BuildPedidoTable(TRuleAction.Cascade, TRuleAction.SetNull);
+  LTable := _BuildPedidoTable(TRuleAction.Cascade, TRuleAction.SetNull);
   LForeignKey := LTable.ForeignKeys['FK_PEDIDO_CLIENTE'];
   Assert.AreEqual(
     'ALTER TABLE PEDIDO ADD CONSTRAINT FK_PEDIDO_CLIENTE FOREIGN KEY (ID_CLIENTE) ' +
     'REFERENCES CLIENTE(ID) ON DELETE CASCADE ON UPDATE SET NULL;',
-    NormalizeSQL(Firebird.GenerateCreateForeignKey(LForeignKey)));
+    _NormalizeSQL(_Firebird.GenerateCreateForeignKey(LForeignKey)));
 end;
 
 procedure TTestDDLGenerator.Firebird_CreateSequence_UsesGenerator;
@@ -316,51 +316,51 @@ begin
   LSequence.Increment := 1;
   FCatalog.Sequences.Add(LSequence.Name, LSequence);
   Assert.AreEqual('CREATE GENERATOR SEQ_CLIENTE;',
-    NormalizeSQL(Firebird.GenerateCreateSequence(LSequence)));
+    _NormalizeSQL(_Firebird.GenerateCreateSequence(LSequence)));
 end;
 
 procedure TTestDDLGenerator.MSSQL_CreateTable;
 var
   LTable: TTableMIK;
 begin
-  LTable := BuildClienteTable('INT');
+  LTable := _BuildClienteTable('INT');
   Assert.AreEqual(
     'CREATE TABLE CLIENTE ( ID INT NOT NULL, NOME VARCHAR(60), ' +
     'CONSTRAINT PK_CLIENTE PRIMARY KEY (ID) );',
-    NormalizeSQL(MSSQL.GenerateCreateTable(LTable)));
+    _NormalizeSQL(_MSSQL.GenerateCreateTable(LTable)));
 end;
 
 procedure TTestDDLGenerator.MSSQL_CreateColumn;
 var
   LTable: TTableMIK;
 begin
-  LTable := BuildClienteTable('INT');
+  LTable := _BuildClienteTable('INT');
   Assert.AreEqual(
     'ALTER TABLE CLIENTE ADD ID INT NOT NULL;',
-    NormalizeSQL(MSSQL.GenerateCreateColumn(LTable.Fields['000000'])));
+    _NormalizeSQL(_MSSQL.GenerateCreateColumn(LTable.Fields['000000'])));
 end;
 
 procedure TTestDDLGenerator.MSSQL_CreatePrimaryKey_Composite;
 var
   LTable: TTableMIK;
 begin
-  LTable := BuildPedidoTable(TRuleAction.None, TRuleAction.None);
+  LTable := _BuildPedidoTable(TRuleAction.None, TRuleAction.None);
   Assert.AreEqual(
     'CONSTRAINT PK_PEDIDO PRIMARY KEY (ID_EMPRESA, ID_PEDIDO)',
-    NormalizeSQL(MSSQL.GenerateCreatePrimaryKey(LTable.PrimaryKey)));
+    _NormalizeSQL(_MSSQL.GenerateCreatePrimaryKey(LTable.PrimaryKey)));
 end;
 
 procedure TTestDDLGenerator.MSSQL_CreateForeignKey_NoRules;
 var
   LTable: TTableMIK;
 begin
-  LTable := BuildPedidoTable(TRuleAction.None, TRuleAction.None);
+  LTable := _BuildPedidoTable(TRuleAction.None, TRuleAction.None);
   // Implementacao base (TDDLSQLGenerator) - com regras None o SQL termina
   // logo apos a lista de colunas referenciadas.
   Assert.AreEqual(
     'ALTER TABLE PEDIDO ADD CONSTRAINT FK_PEDIDO_CLIENTE FOREIGN KEY (ID_CLIENTE) ' +
     'REFERENCES CLIENTE(ID);',
-    NormalizeSQL(MSSQL.GenerateCreateForeignKey(LTable.ForeignKeys['FK_PEDIDO_CLIENTE'])));
+    _NormalizeSQL(_MSSQL.GenerateCreateForeignKey(LTable.ForeignKeys['FK_PEDIDO_CLIENTE'])));
 end;
 
 procedure TTestDDLGenerator.MSSQL_CreateSequence;
@@ -373,7 +373,7 @@ begin
   LSequence.Increment := 5;
   FCatalog.Sequences.Add(LSequence.Name, LSequence);
   Assert.AreEqual('CREATE SEQUENCE SEQ_PEDIDO AS int START WITH 10 INCREMENT BY 5;',
-    NormalizeSQL(MSSQL.GenerateCreateSequence(LSequence)));
+    _NormalizeSQL(_MSSQL.GenerateCreateSequence(LSequence)));
 end;
 
 initialization

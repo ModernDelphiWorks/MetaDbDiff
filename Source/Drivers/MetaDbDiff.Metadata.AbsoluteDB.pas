@@ -44,7 +44,7 @@ uses
 type
   TCatalogMetadataAbsoluteDB = class(TCatalogMetadataAbstract)
   strict private
-    procedure ResolveFieldType(AColumn: TColumnMIK; ADataType: TABSAdvancedFieldType);
+    procedure _ResolveFieldType(AColumn: TColumnMIK; ADataType: TABSAdvancedFieldType);
   protected
     function Execute: IDBResultSet;
   public
@@ -166,7 +166,7 @@ begin
     /// LColumn.Precision: Integer;
     /// LColumn.Scale: Integer;
     /// </remarks>
-    ResolveFieldType(LColumn, LABSTable.AdvFieldDefs[LFor].DataType);
+    _ResolveFieldType(LColumn, LABSTable.AdvFieldDefs[LFor].DataType);
     ///
     LColumn.Size := LABSTable.AdvFieldDefs[LFor].Size;
     LColumn.NotNull := LABSTable.AdvFieldDefs[LFor].Required;
@@ -297,7 +297,7 @@ begin
 }
 end;
 
-procedure TCatalogMetadataAbsoluteDB.ResolveFieldType(AColumn: TColumnMIK;
+procedure TCatalogMetadataAbsoluteDB._ResolveFieldType(AColumn: TColumnMIK;
   ADataType: TABSAdvancedFieldType);
 var
   LTypeName: String;

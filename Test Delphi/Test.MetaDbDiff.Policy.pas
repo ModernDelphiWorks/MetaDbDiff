@@ -69,21 +69,21 @@ type
   TTestComparePolicy = class
   private
     FFactory: TTestableFactory;
-    function AddTable(ACatalog: TCatalogMetadataMIK; const AName: String): TTableMIK;
-    function AddColumn(ATable: TTableMIK; const AName: String; APosition: Integer;
+    function _AddTable(ACatalog: TCatalogMetadataMIK; const AName: String): TTableMIK;
+    function _AddColumn(ATable: TTableMIK; const AName: String; APosition: Integer;
       const ATypeName: String; ASize: Integer = 0; ANotNull: Boolean = False): TColumnMIK;
-    procedure SetPrimaryKey(ATable: TTableMIK; const AName, AColumnName: String);
-    procedure AddIndexe(ATable: TTableMIK; const AName, AColumnName: String;
+    procedure _SetPrimaryKey(ATable: TTableMIK; const AName, AColumnName: String);
+    procedure _AddIndexe(ATable: TTableMIK; const AName, AColumnName: String;
       AUnique: Boolean);
-    function CountCommands(AClass: TClass): Integer;
-    function HasCommand(AClass: TClass): Boolean;
-    function SuppressedContains(const AText: String): Boolean;
+    function _CountCommands(AClass: TClass): Integer;
+    function _HasCommand(AClass: TClass): Boolean;
+    function _SuppressedContains(const AText: String): Boolean;
     // Cen�rio "coluna": CLIENTE com create/alter/drop de coluna e create de PK.
-    procedure BuildColumnScenario(out AMaster, ATarget: TCatalogMetadataMIK);
+    procedure _BuildColumnScenario(out AMaster, ATarget: TCatalogMetadataMIK);
     // Cen�rio "par": PEDIDO com �ndice divergente (recreate = drop+create).
-    procedure BuildIndexRecreateScenario(out AMaster, ATarget: TCatalogMetadataMIK);
+    procedure _BuildIndexRecreateScenario(out AMaster, ATarget: TCatalogMetadataMIK);
     // Cen�rio "PK-rename": PK nos dois lados com nomes diferentes.
-    procedure BuildPrimaryKeyRenameScenario(out AMaster, ATarget: TCatalogMetadataMIK);
+    procedure _BuildPrimaryKeyRenameScenario(out AMaster, ATarget: TCatalogMetadataMIK);
   public
     [TearDown]
     procedure TearDown;
@@ -164,7 +164,7 @@ begin
   FreeAndNil(FFactory);
 end;
 
-function TTestComparePolicy.AddTable(ACatalog: TCatalogMetadataMIK;
+function TTestComparePolicy._AddTable(ACatalog: TCatalogMetadataMIK;
   const AName: String): TTableMIK;
 begin
   Result := TTableMIK.Create(ACatalog);
@@ -172,7 +172,7 @@ begin
   ACatalog.Tables.Add(AName, Result);
 end;
 
-function TTestComparePolicy.AddColumn(ATable: TTableMIK; const AName: String;
+function TTestComparePolicy._AddColumn(ATable: TTableMIK; const AName: String;
   APosition: Integer; const ATypeName: String; ASize: Integer;
   ANotNull: Boolean): TColumnMIK;
 begin
@@ -186,7 +186,7 @@ begin
   ATable.Fields.Add(FormatFloat('000000', APosition), Result);
 end;
 
-procedure TTestComparePolicy.SetPrimaryKey(ATable: TTableMIK;
+procedure TTestComparePolicy._SetPrimaryKey(ATable: TTableMIK;
   const AName, AColumnName: String);
 var
   LColumn: TColumnMIK;
@@ -200,7 +200,7 @@ begin
   ATable.PrimaryKey.Fields.Add('000000', LColumn);
 end;
 
-procedure TTestComparePolicy.AddIndexe(ATable: TTableMIK;
+procedure TTestComparePolicy._AddIndexe(ATable: TTableMIK;
   const AName, AColumnName: String; AUnique: Boolean);
 var
   LIndexe: TIndexeKeyMIK;
@@ -216,7 +216,7 @@ begin
   ATable.IndexeKeys.Add(AName, LIndexe);
 end;
 
-function TTestComparePolicy.CountCommands(AClass: TClass): Integer;
+function TTestComparePolicy._CountCommands(AClass: TClass): Integer;
 var
   LCommand: TDDLCommand;
 begin
@@ -226,12 +226,12 @@ begin
       Inc(Result);
 end;
 
-function TTestComparePolicy.HasCommand(AClass: TClass): Boolean;
+function TTestComparePolicy._HasCommand(AClass: TClass): Boolean;
 begin
-  Result := CountCommands(AClass) > 0;
+  Result := _CountCommands(AClass) > 0;
 end;
 
-function TTestComparePolicy.SuppressedContains(const AText: String): Boolean;
+function TTestComparePolicy._SuppressedContains(const AText: String): Boolean;
 var
   LItem: String;
 begin
@@ -241,46 +241,46 @@ begin
       Exit(True);
 end;
 
-procedure TTestComparePolicy.BuildColumnScenario(out AMaster,
+procedure TTestComparePolicy._BuildColumnScenario(out AMaster,
   ATarget: TCatalogMetadataMIK);
 var
   LTable: TTableMIK;
 begin
   // MASTER: CLIENTE(ID, NOME(60), EMAIL(100)) + PK_CLIENTE(ID).
   AMaster := TCatalogMetadataMIK.Create;
-  LTable := AddTable(AMaster, 'CLIENTE');
-  AddColumn(LTable, 'ID', 0, 'INTEGER', 0, True);
-  AddColumn(LTable, 'NOME', 1, 'VARCHAR(%l)', 60, True);
-  AddColumn(LTable, 'EMAIL', 2, 'VARCHAR(%l)', 100, False);
-  SetPrimaryKey(LTable, 'PK_CLIENTE', 'ID');
+  LTable := _AddTable(AMaster, 'CLIENTE');
+  _AddColumn(LTable, 'ID', 0, 'INTEGER', 0, True);
+  _AddColumn(LTable, 'NOME', 1, 'VARCHAR(%l)', 60, True);
+  _AddColumn(LTable, 'EMAIL', 2, 'VARCHAR(%l)', 100, False);
+  _SetPrimaryKey(LTable, 'PK_CLIENTE', 'ID');
 
   // TARGET: CLIENTE(ID, NOME(30 -> ALTER), OBSOLETO(10 -> DROP)) e SEM PK.
   ATarget := TCatalogMetadataMIK.Create;
-  LTable := AddTable(ATarget, 'CLIENTE');
-  AddColumn(LTable, 'ID', 0, 'INTEGER', 0, True);
-  AddColumn(LTable, 'NOME', 1, 'VARCHAR(%l)', 30, True);
-  AddColumn(LTable, 'OBSOLETO', 2, 'VARCHAR(%l)', 10, False);
+  LTable := _AddTable(ATarget, 'CLIENTE');
+  _AddColumn(LTable, 'ID', 0, 'INTEGER', 0, True);
+  _AddColumn(LTable, 'NOME', 1, 'VARCHAR(%l)', 30, True);
+  _AddColumn(LTable, 'OBSOLETO', 2, 'VARCHAR(%l)', 10, False);
 end;
 
-procedure TTestComparePolicy.BuildIndexRecreateScenario(out AMaster,
+procedure TTestComparePolicy._BuildIndexRecreateScenario(out AMaster,
   ATarget: TCatalogMetadataMIK);
 var
   LTable: TTableMIK;
 begin
   // MASTER: PEDIDO(ID) + IDX_PEDIDO UNIQUE.
   AMaster := TCatalogMetadataMIK.Create;
-  LTable := AddTable(AMaster, 'PEDIDO');
-  AddColumn(LTable, 'ID', 0, 'INTEGER', 0, True);
-  AddIndexe(LTable, 'IDX_PEDIDO', 'ID', True);
+  LTable := _AddTable(AMaster, 'PEDIDO');
+  _AddColumn(LTable, 'ID', 0, 'INTEGER', 0, True);
+  _AddIndexe(LTable, 'IDX_PEDIDO', 'ID', True);
 
   // TARGET: PEDIDO(ID) + IDX_PEDIDO N�O UNIQUE -> diverge -> recreate (par).
   ATarget := TCatalogMetadataMIK.Create;
-  LTable := AddTable(ATarget, 'PEDIDO');
-  AddColumn(LTable, 'ID', 0, 'INTEGER', 0, True);
-  AddIndexe(LTable, 'IDX_PEDIDO', 'ID', False);
+  LTable := _AddTable(ATarget, 'PEDIDO');
+  _AddColumn(LTable, 'ID', 0, 'INTEGER', 0, True);
+  _AddIndexe(LTable, 'IDX_PEDIDO', 'ID', False);
 end;
 
-procedure TTestComparePolicy.BuildPrimaryKeyRenameScenario(out AMaster,
+procedure TTestComparePolicy._BuildPrimaryKeyRenameScenario(out AMaster,
   ATarget: TCatalogMetadataMIK);
 var
   LTable: TTableMIK;
@@ -290,14 +290,14 @@ begin
   // (par). No perfil Janus o par inteiro deve ser suprimido para nunca deixar a
   // tabela sem chave prim�ria.
   AMaster := TCatalogMetadataMIK.Create;
-  LTable := AddTable(AMaster, 'PEDIDO');
-  AddColumn(LTable, 'ID', 0, 'INTEGER', 0, True);
-  SetPrimaryKey(LTable, 'PK_PEDIDO_NEW', 'ID');
+  LTable := _AddTable(AMaster, 'PEDIDO');
+  _AddColumn(LTable, 'ID', 0, 'INTEGER', 0, True);
+  _SetPrimaryKey(LTable, 'PK_PEDIDO_NEW', 'ID');
 
   ATarget := TCatalogMetadataMIK.Create;
-  LTable := AddTable(ATarget, 'PEDIDO');
-  AddColumn(LTable, 'ID', 0, 'INTEGER', 0, True);
-  SetPrimaryKey(LTable, 'PK_PEDIDO_OLD', 'ID');
+  LTable := _AddTable(ATarget, 'PEDIDO');
+  _AddColumn(LTable, 'ID', 0, 'INTEGER', 0, True);
+  _SetPrimaryKey(LTable, 'PK_PEDIDO_OLD', 'ID');
 end;
 
 procedure TTestComparePolicy.Policy_FullProfile_AllowsEverything;
@@ -334,25 +334,25 @@ procedure TTestComparePolicy.Janus_SuppressesDropAndAlter_EmitsCreates;
 var
   LMaster, LTarget: TCatalogMetadataMIK;
 begin
-  BuildColumnScenario(LMaster, LTarget);
+  _BuildColumnScenario(LMaster, LTarget);
   FFactory := TTestableFactory.Create(dnFirebird);
   FFactory.Policy := TComparePolicy.JanusOrmProfile;
   FFactory.Generate(LMaster, LTarget);
 
   // Cria��es aditivas s�o emitidas.
-  Assert.IsTrue(HasCommand(TDDLCommandCreateColumn),
+  Assert.IsTrue(_HasCommand(TDDLCommandCreateColumn),
     'CREATE COLUMN EMAIL deveria ser emitido');
-  Assert.IsTrue(HasCommand(TDDLCommandCreatePrimaryKey),
+  Assert.IsTrue(_HasCommand(TDDLCommandCreatePrimaryKey),
     'CREATE PRIMARY KEY deveria ser emitido (target sem PK)');
   // Muta��es destrutivas s�o suprimidas.
-  Assert.IsFalse(HasCommand(TDDLCommandDropColumn),
+  Assert.IsFalse(_HasCommand(TDDLCommandDropColumn),
     'DROP COLUMN nunca deve ser emitido no perfil Janus');
-  Assert.IsFalse(HasCommand(TDDLCommandAlterColumn),
+  Assert.IsFalse(_HasCommand(TDDLCommandAlterColumn),
     'ALTER COLUMN nunca deve ser emitido no perfil Janus');
   // Relat�rio de auditoria registra o que foi bloqueado.
-  Assert.IsTrue(SuppressedContains('DROP COLUMN'),
+  Assert.IsTrue(_SuppressedContains('DROP COLUMN'),
     'SuppressedCommands deveria relatar o DROP COLUMN');
-  Assert.IsTrue(SuppressedContains('ALTER COLUMN'),
+  Assert.IsTrue(_SuppressedContains('ALTER COLUMN'),
     'SuppressedCommands deveria relatar o ALTER COLUMN');
 end;
 
@@ -360,17 +360,17 @@ procedure TTestComparePolicy.Janus_DropCreatePair_SuppressedEntirely;
 var
   LMaster, LTarget: TCatalogMetadataMIK;
 begin
-  BuildIndexRecreateScenario(LMaster, LTarget);
+  _BuildIndexRecreateScenario(LMaster, LTarget);
   FFactory := TTestableFactory.Create(dnFirebird);
   FFactory.Policy := TComparePolicy.JanusOrmProfile;
   FFactory.Generate(LMaster, LTarget);
 
   // O par inteiro � suprimido: nem drop nem create do �ndice.
-  Assert.IsFalse(HasCommand(TDDLCommandDropIndexe),
+  Assert.IsFalse(_HasCommand(TDDLCommandDropIndexe),
     'DROP INDEXE do par n�o deveria ser emitido');
-  Assert.IsFalse(HasCommand(TDDLCommandCreateIndexe),
+  Assert.IsFalse(_HasCommand(TDDLCommandCreateIndexe),
     'CREATE INDEXE do par n�o deveria ser emitido (sem create �rf�o)');
-  Assert.IsTrue(SuppressedContains('RECREATE INDEXE'),
+  Assert.IsTrue(_SuppressedContains('RECREATE INDEXE'),
     'SuppressedCommands deveria relatar o par suprimido');
 end;
 
@@ -378,14 +378,14 @@ procedure TTestComparePolicy.Full_DropCreatePair_BothEmitted;
 var
   LMaster, LTarget: TCatalogMetadataMIK;
 begin
-  BuildIndexRecreateScenario(LMaster, LTarget);
+  _BuildIndexRecreateScenario(LMaster, LTarget);
   FFactory := TTestableFactory.Create(dnFirebird);
   // Policy default = FullProfile.
   FFactory.Generate(LMaster, LTarget);
 
-  Assert.IsTrue(HasCommand(TDDLCommandDropIndexe),
+  Assert.IsTrue(_HasCommand(TDDLCommandDropIndexe),
     'FullProfile deveria emitir o DROP INDEXE do par');
-  Assert.IsTrue(HasCommand(TDDLCommandCreateIndexe),
+  Assert.IsTrue(_HasCommand(TDDLCommandCreateIndexe),
     'FullProfile deveria emitir o CREATE INDEXE do par');
   Assert.AreEqual(0, Length(FFactory.SuppressedCommands),
     'FullProfile n�o deveria suprimir nada');
@@ -395,15 +395,15 @@ procedure TTestComparePolicy.Full_MatchesCurrentBehavior_NoSuppression;
 var
   LMaster, LTarget: TCatalogMetadataMIK;
 begin
-  BuildColumnScenario(LMaster, LTarget);
+  _BuildColumnScenario(LMaster, LTarget);
   FFactory := TTestableFactory.Create(dnFirebird);
   // Policy default = FullProfile (comportamento hist�rico).
   FFactory.Generate(LMaster, LTarget);
 
-  Assert.IsTrue(HasCommand(TDDLCommandCreateColumn), 'CREATE COLUMN');
-  Assert.IsTrue(HasCommand(TDDLCommandAlterColumn), 'ALTER COLUMN');
-  Assert.IsTrue(HasCommand(TDDLCommandDropColumn), 'DROP COLUMN');
-  Assert.IsTrue(HasCommand(TDDLCommandCreatePrimaryKey), 'CREATE PRIMARY KEY');
+  Assert.IsTrue(_HasCommand(TDDLCommandCreateColumn), 'CREATE COLUMN');
+  Assert.IsTrue(_HasCommand(TDDLCommandAlterColumn), 'ALTER COLUMN');
+  Assert.IsTrue(_HasCommand(TDDLCommandDropColumn), 'DROP COLUMN');
+  Assert.IsTrue(_HasCommand(TDDLCommandCreatePrimaryKey), 'CREATE PRIMARY KEY');
   Assert.AreEqual(0, Length(FFactory.SuppressedCommands),
     'FullProfile n�o deveria suprimir nada');
 end;
@@ -412,18 +412,18 @@ procedure TTestComparePolicy.Janus_PrimaryKeyRename_SuppressesAllPkCommands;
 var
   LMaster, LTarget: TCatalogMetadataMIK;
 begin
-  BuildPrimaryKeyRenameScenario(LMaster, LTarget);
+  _BuildPrimaryKeyRenameScenario(LMaster, LTarget);
   FFactory := TTestableFactory.Create(dnFirebird);
   FFactory.Policy := TComparePolicy.JanusOrmProfile;
   FFactory.Generate(LMaster, LTarget);
 
   // NENHUM comando de PK deve ser emitido (nem drop da antiga, nem create da nova).
-  Assert.IsFalse(HasCommand(TDDLCommandDropPrimaryKey),
+  Assert.IsFalse(_HasCommand(TDDLCommandDropPrimaryKey),
     'DROP PRIMARY KEY nunca deve ser emitido no perfil Janus');
-  Assert.IsFalse(HasCommand(TDDLCommandCreatePrimaryKey),
+  Assert.IsFalse(_HasCommand(TDDLCommandCreatePrimaryKey),
     'CREATE PRIMARY KEY do par renomeado n�o deve ser emitido (sem create �rf�o)');
   // A supress�o do par � registrada na auditoria.
-  Assert.IsTrue(SuppressedContains('RECREATE PRIMARYKEY'),
+  Assert.IsTrue(_SuppressedContains('RECREATE PRIMARYKEY'),
     'SuppressedCommands deveria relatar o par de PK suprimido');
 end;
 
@@ -446,7 +446,7 @@ begin
     end,
     Exception,
     'ExecuteCommands deveria recusar comando desconhecido (fail-closed)');
-  Assert.IsTrue(SuppressedContains('unknown command class'),
+  Assert.IsTrue(_SuppressedContains('unknown command class'),
     'a auditoria deveria registrar a classe desconhecida negada');
 end;
 
@@ -455,10 +455,10 @@ var
   LMaster, LTarget: TCatalogMetadataMIK;
 begin
   // Gera com FullProfile (lista cont�m DROP/ALTER COLUMN)...
-  BuildColumnScenario(LMaster, LTarget);
+  _BuildColumnScenario(LMaster, LTarget);
   FFactory := TTestableFactory.Create(dnFirebird);
   FFactory.Generate(LMaster, LTarget);
-  Assert.IsTrue(HasCommand(TDDLCommandDropColumn),
+  Assert.IsTrue(_HasCommand(TDDLCommandDropColumn),
     'pr�-condi��o: a lista deveria conter um DROP COLUMN');
 
   // ...depois aperta a policy e tenta executar: dupla checagem deve recusar.

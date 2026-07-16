@@ -36,7 +36,7 @@ type
     FInstance: TMetadataRegister;
   private
     FDriver: TDictionary<TDriverName, TCatalogMetadataAbstract>;
-    constructor CreatePrivate;
+    constructor _CreatePrivate;
   public
     { Public declarations }
     constructor Create;
@@ -53,7 +53,7 @@ begin
   raise Exception.Create('Para usar o MetadataRegister use o m�todo TMetadataRegister.GetInstance()');
 end;
 
-constructor TMetadataRegister.CreatePrivate;
+constructor TMetadataRegister._CreatePrivate;
 begin
   FDriver := TObjectDictionary<TDriverName, TCatalogMetadataAbstract>.Create([doOwnsValues]);
 end;
@@ -67,7 +67,7 @@ end;
 class function TMetadataRegister.GetInstance: TMetadataRegister;
 begin
    if not Assigned(FInstance) then
-      FInstance := TMetadataRegister.CreatePrivate;
+      FInstance := TMetadataRegister._CreatePrivate;
 
    Result := FInstance;
 end;

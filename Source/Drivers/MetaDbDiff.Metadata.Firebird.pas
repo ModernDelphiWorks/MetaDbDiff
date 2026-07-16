@@ -37,8 +37,8 @@ uses
 type
   TCatalogMetadataFirebird = class(TCatalogMetadataAbstract)
   private
-    procedure ResolveFieldType(AColumn: TColumnMIK; AColumnType: Integer; AColumnSubType: Variant);
-    function GetSelectViewsColumns(AViewName: String): String;
+    procedure _ResolveFieldType(AColumn: TColumnMIK; AColumnType: Integer; AColumnSubType: Variant);
+    function _GetSelectViewsColumns(AViewName: String): String;
   protected
     function GetSelectTables: String; override;
     function GetSelectTableColumns(ATableName: String): String; override;
@@ -215,7 +215,7 @@ begin
     LColumn.DefaultValue := ExtractDefaultValue(VarToStr(LDBResultSet.GetFieldValue('column_defaultvalue')));
     LColumn.Description := VarToStr(LDBResultSet.GetFieldValue('column_description'));
     LColumn.CharSet := VarToStr(LDBResultSet.GetFieldValue('column_charset'));
-    ResolveFieldType(LColumn,
+    _ResolveFieldType(LColumn,
                      VarAsType(LDBResultSet.GetFieldValue('column_type'), varInteger),
                      ResolveIntegerNullValue(LDBResultSet.GetFieldValue('column_subtype')));
     // Resolve Field Type
@@ -398,7 +398,7 @@ var
     LColumn: TColumnMIK;
   begin
     inherited;
-    FSQLText := GetSelectViewsColumns(AView.Name);
+    FSQLText := _GetSelectViewsColumns(AView.Name);
     LDBResultSet := Execute;
     while LDBResultSet.NotEof do
     begin
@@ -424,7 +424,7 @@ begin
   end;
 end;
 
-procedure TCatalogMetadataFirebird.ResolveFieldType(AColumn: TColumnMIK;
+procedure TCatalogMetadataFirebird._ResolveFieldType(AColumn: TColumnMIK;
   AColumnType: Integer; AColumnSubType: Variant);
 begin
   case AColumnType of
@@ -620,7 +620,7 @@ begin
              ' and not (rl.rdb$view_blr is null) and (rl.rdb$flags = 1) ';
 end;
 
-function TCatalogMetadataFirebird.GetSelectViewsColumns(AViewName: String): String;
+function TCatalogMetadataFirebird._GetSelectViewsColumns(AViewName: String): String;
 begin
   Result := ' select ' +
             '        rf.rdb$field_name           as column_name ' +

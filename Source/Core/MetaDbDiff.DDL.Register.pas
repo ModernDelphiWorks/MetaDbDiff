@@ -37,7 +37,7 @@ type
     FInstance: TSQLDriverRegister;
   private
     FDriver: TDictionary<TDriverName, IDDLGeneratorCommand>;
-    constructor CreatePrivate;
+    constructor _CreatePrivate;
   public
     { Public declarations }
     constructor Create;
@@ -54,7 +54,7 @@ begin
   raise Exception.Create('Para usar o SQLDriverRegister. use o m�todo TSQLDriverRegister.GetInstance()');
 end;
 
-constructor TSQLDriverRegister.CreatePrivate;
+constructor TSQLDriverRegister._CreatePrivate;
 begin
   inherited;
   FDriver := TDictionary<TDriverName, IDDLGeneratorCommand>.Create;
@@ -82,7 +82,7 @@ end;
 class function TSQLDriverRegister.GetInstance: TSQLDriverRegister;
 begin
    if not Assigned(FInstance) then
-      FInstance := TSQLDriverRegister.CreatePrivate;
+      FInstance := TSQLDriverRegister._CreatePrivate;
 
    Result := FInstance;
 end;
@@ -94,5 +94,6 @@ finalization
    begin
       TSQLDriverRegister.FInstance.Free;
    end;
-end.
+
+end.
 

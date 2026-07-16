@@ -38,55 +38,55 @@ uses
 type
   TDatabaseFactory = class(TDatabaseAbstract)
   private
-    procedure CompareTables(AMasterDB, ATargetDB: TCatalogMetadataMIK);
-    procedure CompareViews(AMasterDB, ATargetDB: TCatalogMetadataMIK);
-    procedure CompareSequences(AMasterDB, ATargetDB: TCatalogMetadataMIK);
-    procedure CompareTablesForeignKeys(AMasterDB, ATargetDB: TCatalogMetadataMIK);
-    procedure CompareForeignKeys(AMasterTable, ATargetTable: TTableMIK);
-    procedure CompareColumns(AMasterTable, ATargetTable: TTableMIK);
-    procedure ComparePrimaryKey(AMasterTable, ATargetTable: TTableMIK);
-    procedure CompareIndexes(AMasterTable, ATargetTable: TTableMIK);
-    procedure CompareTriggers(AMasterTable, ATargetTable: TTableMIK);
-    procedure CompareChecks(AMasterTable, ATargetTable: TTableMIK);
-    procedure ActionCreateTable(ATable: TTableMIK);
-    procedure ActionCreateIndexe(AIndexe: TIndexeKeyMIK);
-    procedure ActionCreateCheck(ACheck: TCheckMIK);
-    procedure ActionCreatePrimaryKey(APrimaryKey: TPrimaryKeyMIK);
-    procedure ActionCreateColumn(AColumn: TColumnMIK);
-    procedure ActionCreateSequence(ASequence: TSequenceMIK);
+    procedure _CompareTables(AMasterDB, ATargetDB: TCatalogMetadataMIK);
+    procedure _CompareViews(AMasterDB, ATargetDB: TCatalogMetadataMIK);
+    procedure _CompareSequences(AMasterDB, ATargetDB: TCatalogMetadataMIK);
+    procedure _CompareTablesForeignKeys(AMasterDB, ATargetDB: TCatalogMetadataMIK);
+    procedure _CompareForeignKeys(AMasterTable, ATargetTable: TTableMIK);
+    procedure _CompareColumns(AMasterTable, ATargetTable: TTableMIK);
+    procedure _ComparePrimaryKey(AMasterTable, ATargetTable: TTableMIK);
+    procedure _CompareIndexes(AMasterTable, ATargetTable: TTableMIK);
+    procedure _CompareTriggers(AMasterTable, ATargetTable: TTableMIK);
+    procedure _CompareChecks(AMasterTable, ATargetTable: TTableMIK);
+    procedure _ActionCreateTable(ATable: TTableMIK);
+    procedure _ActionCreateIndexe(AIndexe: TIndexeKeyMIK);
+    procedure _ActionCreateCheck(ACheck: TCheckMIK);
+    procedure _ActionCreatePrimaryKey(APrimaryKey: TPrimaryKeyMIK);
+    procedure _ActionCreateColumn(AColumn: TColumnMIK);
+    procedure _ActionCreateSequence(ASequence: TSequenceMIK);
     // Estilo do dono: metodo private novo desta frente leva prefixo '_'.
     procedure _ActionAlterSequence(ASequence: TSequenceMIK);
-    procedure ActionCreateForeignKey(AForeignKey: TForeignKeyMIK);
-    procedure ActionCreateView(AView: TViewMIK);
-    procedure ActionCreateTrigger(ATrigger: TTriggerMIK);
-    procedure ActionDropTable(ATable: TTableMIK);
-    procedure ActionDropColumn(AColumn: TColumnMIK);
-    procedure ActionDropPrimaryKey(APrimaryKey: TPrimaryKeyMIK);
-    procedure ActionDropSequence(ASequence: TSequenceMIK);
-    procedure ActionDropIndexe(AIndexe: TIndexeKeyMIK);
-    procedure ActionDropForeignKey(AForeignKey: TForeignKeyMIK);
-    procedure ActionDropCheck(ACheck: TCheckMIK);
-    procedure ActionDropView(AView: TViewMIK);
-    procedure ActionDropTrigger(ATrigger: TTriggerMIK);
-    procedure ActionAlterColumn(AColumn: TColumnMIK);
-    procedure ActionAlterColumnPosition(AColumn: TColumnMIK);
-    procedure ActionDropDefaultValue(AColumn: TColumnMIK);
-    procedure ActionAlterDefaultValue(AColumn: TColumnMIK);
-    procedure ActionAlterCheck(ACheck: TCheckMIK);
+    procedure _ActionCreateForeignKey(AForeignKey: TForeignKeyMIK);
+    procedure _ActionCreateView(AView: TViewMIK);
+    procedure _ActionCreateTrigger(ATrigger: TTriggerMIK);
+    procedure _ActionDropTable(ATable: TTableMIK);
+    procedure _ActionDropColumn(AColumn: TColumnMIK);
+    procedure _ActionDropPrimaryKey(APrimaryKey: TPrimaryKeyMIK);
+    procedure _ActionDropSequence(ASequence: TSequenceMIK);
+    procedure _ActionDropIndexe(AIndexe: TIndexeKeyMIK);
+    procedure _ActionDropForeignKey(AForeignKey: TForeignKeyMIK);
+    procedure _ActionDropCheck(ACheck: TCheckMIK);
+    procedure _ActionDropView(AView: TViewMIK);
+    procedure _ActionDropTrigger(ATrigger: TTriggerMIK);
+    procedure _ActionAlterColumn(AColumn: TColumnMIK);
+    procedure _ActionAlterColumnPosition(AColumn: TColumnMIK);
+    procedure _ActionDropDefaultValue(AColumn: TColumnMIK);
+    procedure _ActionAlterDefaultValue(AColumn: TColumnMIK);
+    procedure _ActionAlterCheck(ACheck: TCheckMIK);
     /// <summary>
     /// Gera script que desabilita todas as ForeignKeys
     /// </summary>
-    procedure ActionEnableForeignKeys(AEnable: Boolean);
-    procedure ActionEnableTriggers(AEnable: Boolean);
-    function DeepEqualsColumn(AMasterColumn, ATargetColumn: TColumnMIK): Boolean;
-    function KeepEqualsPosition(AMasterColumn, ATargetColumn: TColumnMIK): Boolean;
-    function DeepEqualsDefaultValue(AMasterColumn, ATargetColumn: TColumnMIK): Boolean;
-    function DeepEqualsForeignKey(AMasterForeignKey, ATargetForeignKey: TForeignKeyMIK): Boolean;
-    function DeepEqualsForeignKeyFromColumns(AMasterForeignKey, ATargetForeignKey: TForeignKeyMIK): Boolean;
-    function DeepEqualsForeignKeyToColumns(AMasterForeignKey, ATargetForeignKey: TForeignKeyMIK): Boolean;
-    function DeepEqualsIndexe(AMasterIndexe, ATargetIndexe: TIndexeKeyMIK): Boolean;
-    function DeepEqualsIndexeColumns(AMasterIndexe, ATargetIndexe: TIndexeKeyMIK): Boolean;
-    function SortedPairs<T>(ADictionary: TObjectDictionary<String, T>): TArray<TPair<String, T>>;
+    procedure _ActionEnableForeignKeys(AEnable: Boolean);
+    procedure _ActionEnableTriggers(AEnable: Boolean);
+    function _DeepEqualsColumn(AMasterColumn, ATargetColumn: TColumnMIK): Boolean;
+    function _KeepEqualsPosition(AMasterColumn, ATargetColumn: TColumnMIK): Boolean;
+    function _DeepEqualsDefaultValue(AMasterColumn, ATargetColumn: TColumnMIK): Boolean;
+    function _DeepEqualsForeignKey(AMasterForeignKey, ATargetForeignKey: TForeignKeyMIK): Boolean;
+    function _DeepEqualsForeignKeyFromColumns(AMasterForeignKey, ATargetForeignKey: TForeignKeyMIK): Boolean;
+    function _DeepEqualsForeignKeyToColumns(AMasterForeignKey, ATargetForeignKey: TForeignKeyMIK): Boolean;
+    function _DeepEqualsIndexe(AMasterIndexe, ATargetIndexe: TIndexeKeyMIK): Boolean;
+    function _DeepEqualsIndexeColumns(AMasterIndexe, ATargetIndexe: TIndexeKeyMIK): Boolean;
+    function _SortedPairs<T>(ADictionary: TObjectDictionary<String, T>): TArray<TPair<String, T>>;
   protected
     function GetFieldTypeValid(AFieldType: TFieldType): TFieldType; override;
     procedure GenerateDDLCommands(AMasterDB, ATargetDB: TCatalogMetadataMIK); override;
@@ -122,7 +122,7 @@ begin
   end;
 end;
 
-function TDatabaseFactory.DeepEqualsColumn(AMasterColumn, ATargetColumn: TColumnMIK): Boolean;
+function TDatabaseFactory._DeepEqualsColumn(AMasterColumn, ATargetColumn: TColumnMIK): Boolean;
 begin
   Result := True;
   if AMasterColumn.TypeName <> ATargetColumn.TypeName then
@@ -149,14 +149,14 @@ begin
 //    Exit(False);
 end;
 
-function TDatabaseFactory.DeepEqualsDefaultValue(AMasterColumn, ATargetColumn: TColumnMIK): Boolean;
+function TDatabaseFactory._DeepEqualsDefaultValue(AMasterColumn, ATargetColumn: TColumnMIK): Boolean;
 begin
   Result := True;
   if AMasterColumn.DefaultValue <> ATargetColumn.DefaultValue then
     Exit(False);
 end;
 
-function TDatabaseFactory.DeepEqualsForeignKey(AMasterForeignKey, ATargetForeignKey: TForeignKeyMIK): Boolean;
+function TDatabaseFactory._DeepEqualsForeignKey(AMasterForeignKey, ATargetForeignKey: TForeignKeyMIK): Boolean;
 begin
   Result := True;
   if not SameText(AMasterForeignKey.FromTable, ATargetForeignKey.FromTable) then
@@ -169,7 +169,7 @@ begin
 //    Exit(False);
 end;
 
-function TDatabaseFactory.DeepEqualsIndexe(AMasterIndexe, ATargetIndexe: TIndexeKeyMIK): Boolean;
+function TDatabaseFactory._DeepEqualsIndexe(AMasterIndexe, ATargetIndexe: TIndexeKeyMIK): Boolean;
 begin
   Result := True;
   if AMasterIndexe.Unique <> ATargetIndexe.Unique then
@@ -187,21 +187,21 @@ begin
   // Zera o relat�rio de auditoria: cada gera��o parte de um estado limpo.
   FSuppressedCommands.Clear;
   // Gera script que desabilita todas as ForeignKeys
-  ActionEnableForeignKeys(False);
+  _ActionEnableForeignKeys(False);
   // Gera script que desabilita todas as Triggers
-  ActionEnableTriggers(False);
+  _ActionEnableTriggers(False);
   // Compara Tabelas
-  CompareTables(AMasterDB, ATargetDB);
+  _CompareTables(AMasterDB, ATargetDB);
   // Compara Views
-  CompareViews(AMasterDB, ATargetDB);
+  _CompareViews(AMasterDB, ATargetDB);
   // Compara Sequences
-  CompareSequences(AMasterDB, ATargetDB);
+  _CompareSequences(AMasterDB, ATargetDB);
   // Compara ForeingKeys
-  CompareTablesForeignKeys(AMasterDB, ATargetDB);
+  _CompareTablesForeignKeys(AMasterDB, ATargetDB);
   // Gera script que habilita todas as ForeignKeys
-  ActionEnableForeignKeys(True);
+  _ActionEnableForeignKeys(True);
   // Gera script que habilita todas as Triggers
-  ActionEnableTriggers(True);
+  _ActionEnableTriggers(True);
   // Build the command text right after generation so GetCommandList exposes
   // the SQL even when the commands are not executed (preview mode).
   // BuildCommand is deterministic, so rebuilding it again inside descendant
@@ -236,7 +236,7 @@ begin
     Result := AFieldType;
 end;
 
-function TDatabaseFactory.KeepEqualsPosition(AMasterColumn,
+function TDatabaseFactory._KeepEqualsPosition(AMasterColumn,
   ATargetColumn: TColumnMIK): Boolean;
 begin
   Result := True;
@@ -244,7 +244,7 @@ begin
     Exit(False);
 end;
 
-function TDatabaseFactory.SortedPairs<T>(ADictionary: TObjectDictionary<String, T>): TArray<TPair<String, T>>;
+function TDatabaseFactory._SortedPairs<T>(ADictionary: TObjectDictionary<String, T>): TArray<TPair<String, T>>;
 begin
   // Returns the dictionary pairs sorted by key so the generated script
   // keeps a stable, deterministic order between executions.
@@ -258,7 +258,7 @@ begin
     );
 end;
 
-procedure TDatabaseFactory.CompareTables(AMasterDB, ATargetDB: TCatalogMetadataMIK);
+procedure TDatabaseFactory._CompareTables(AMasterDB, ATargetDB: TCatalogMetadataMIK);
 var
   LTableMaster: TPair<String, TTableMIK>;
   LTableTarget: TPair<String, TTableMIK>;
@@ -267,7 +267,7 @@ begin
   for LTableTarget in ATargetDB.TablesSort do
   begin
     if not AMasterDB.Tables.ContainsKey(LTableTarget.Key) then
-      ActionDropTable(LTableTarget.Value);
+      _ActionDropTable(LTableTarget.Value);
   end;
   // Gera script de cria��o de tabela, caso a tabela do modelo n�o exista no banco.
   for LTableMaster in AMasterDB.TablesSort do
@@ -275,34 +275,34 @@ begin
     if ATargetDB.Tables.ContainsKey(LTableMaster.Key) then
     begin
       // Table Columns
-      CompareColumns(LTableMaster.Value, ATargetDB.Tables.Items[LTableMaster.Key]);
+      _CompareColumns(LTableMaster.Value, ATargetDB.Tables.Items[LTableMaster.Key]);
 
       // Table PrimaryKey
       if (LTableMaster.Value.PrimaryKey.Fields.Count > 0) or
          (ATargetDB.Tables.Items[LTableMaster.Key].PrimaryKey.Fields.Count > 0) then
-        ComparePrimaryKey(LTableMaster.Value, ATargetDB.Tables.Items[LTableMaster.Key]);
+        _ComparePrimaryKey(LTableMaster.Value, ATargetDB.Tables.Items[LTableMaster.Key]);
 
       // Table Indexes
       if (LTableMaster.Value.IndexeKeys.Count > 0) or
          (ATargetDB.Tables.Items[LTableMaster.Key].IndexeKeys.Count > 0) then
-        CompareIndexes(LTableMaster.Value, ATargetDB.Tables.Items[LTableMaster.Key]);
+        _CompareIndexes(LTableMaster.Value, ATargetDB.Tables.Items[LTableMaster.Key]);
 
       // Table Checks
       if (LTableMaster.Value.Checks.Count > 0) or
          (ATargetDB.Tables.Items[LTableMaster.Key].Checks.Count > 0) then
-        CompareChecks(LTableMaster.Value, ATargetDB.Tables.Items[LTableMaster.Key]);
+        _CompareChecks(LTableMaster.Value, ATargetDB.Tables.Items[LTableMaster.Key]);
 
       // Table Triggers
       if (LTableMaster.Value.Triggers.Count > 0) or
          (ATargetDB.Tables.Items[LTableMaster.Key].Triggers.Count > 0) then
-        CompareTriggers(LTableMaster.Value, ATargetDB.Tables.Items[LTableMaster.Key]);
+        _CompareTriggers(LTableMaster.Value, ATargetDB.Tables.Items[LTableMaster.Key]);
     end
     else
-      ActionCreateTable(LTableMaster.Value);
+      _ActionCreateTable(LTableMaster.Value);
   end;
 end;
 
-procedure TDatabaseFactory.CompareTriggers(AMasterTable, ATargetTable: TTableMIK);
+procedure TDatabaseFactory._CompareTriggers(AMasterTable, ATargetTable: TTableMIK);
 var
   LTriggerMaster: TPair<String, TTriggerMIK>;
   LTriggerTarget: TPair<String, TTriggerMIK>;
@@ -311,13 +311,13 @@ begin
   if TSupportedFeature.Triggers in FGeneratorCommand.SupportedFeatures then
   begin
     // Remove trigger que n�o existe no modelo.
-    for LTriggerTarget in SortedPairs<TTriggerMIK>(ATargetTable.Triggers) do
+    for LTriggerTarget in _SortedPairs<TTriggerMIK>(ATargetTable.Triggers) do
     begin
       if not AMasterTable.Triggers.ContainsKey(LTriggerTarget.Key) then
-        ActionDropTrigger(LTriggerTarget.Value);
+        _ActionDropTrigger(LTriggerTarget.Value);
     end;
     // Gera script de cria��o de trigger, caso a trigger do modelo n�o exista no banco.
-    for LTriggerMaster in SortedPairs<TTriggerMIK>(AMasterTable.Triggers) do
+    for LTriggerMaster in _SortedPairs<TTriggerMIK>(AMasterTable.Triggers) do
     begin
       if ATargetTable.Triggers.ContainsKey(LTriggerMaster.Key) then
       begin
@@ -334,8 +334,8 @@ begin
           if FPolicy.Allows(TDDLOperation.DropTrigger) and
              FPolicy.Allows(TDDLOperation.CreateTrigger) then
           begin
-            ActionDropTrigger(LTrigger);
-            ActionCreateTrigger(LTriggerMaster.Value);
+            _ActionDropTrigger(LTrigger);
+            _ActionCreateTrigger(LTriggerMaster.Value);
           end
           else
             AddSuppressed(Format('RECREATE TRIGGER %s.%s suppressed by policy',
@@ -343,12 +343,12 @@ begin
         end;
       end
       else
-        ActionCreateTrigger(LTriggerMaster.Value);
+        _ActionCreateTrigger(LTriggerMaster.Value);
     end;
   end;
 end;
 
-procedure TDatabaseFactory.CompareViews(AMasterDB, ATargetDB: TCatalogMetadataMIK);
+procedure TDatabaseFactory._CompareViews(AMasterDB, ATargetDB: TCatalogMetadataMIK);
 var
   LViewMaster: TPair<String, TViewMIK>;
   LViewTarget: TPair<String, TViewMIK>;
@@ -363,13 +363,13 @@ begin
     // massa das views nao modeladas. O diff completo de views (drop de orfas) fica
     // para DB-vs-DB/snapshot, onde ambos os lados tem o catalogo real.
     if not FModelForDatabase then
-      for LViewTarget in SortedPairs<TViewMIK>(ATargetDB.Views) do
+      for LViewTarget in _SortedPairs<TViewMIK>(ATargetDB.Views) do
       begin
         if not AMasterDB.Views.ContainsKey(LViewTarget.Key) then
-          ActionDropView(LViewTarget.Value);
+          _ActionDropView(LViewTarget.Value);
       end;
     // Gera script de cria��o da view, caso a view do modelo n�o exista no banco.
-    for LViewMaster in SortedPairs<TViewMIK>(AMasterDB.Views) do
+    for LViewMaster in _SortedPairs<TViewMIK>(AMasterDB.Views) do
     begin
       // Em model-mode o atributo [View] NAO carrega Script (Popular forca ''):
       // sem corpo nao da para comparar nem (re)criar (CREATE VIEW AS <vazio> e
@@ -390,8 +390,8 @@ begin
           if FPolicy.Allows(TDDLOperation.DropView) and
              FPolicy.Allows(TDDLOperation.CreateView) then
           begin
-            ActionDropView(LView);
-            ActionCreateView(LViewMaster.Value);
+            _ActionDropView(LView);
+            _ActionCreateView(LViewMaster.Value);
           end
           else
             AddSuppressed(Format('RECREATE VIEW %s suppressed by policy',
@@ -399,12 +399,12 @@ begin
         end;
       end
       else
-        ActionCreateView(LViewMaster.Value);
+        _ActionCreateView(LViewMaster.Value);
     end;
   end;
 end;
 
-procedure TDatabaseFactory.CompareChecks(AMasterTable, ATargetTable: TTableMIK);
+procedure TDatabaseFactory._CompareChecks(AMasterTable, ATargetTable: TTableMIK);
 var
   LCheckMaster: TPair<String, TCheckMIK>;
   LCheckTarget: TPair<String, TCheckMIK>;
@@ -413,13 +413,13 @@ begin
   if TSupportedFeature.Checks in FGeneratorCommand.SupportedFeatures then
   begin
     // Drop checks that exist in the database but not in the model.
-    for LCheckTarget in SortedPairs<TCheckMIK>(ATargetTable.Checks) do
+    for LCheckTarget in _SortedPairs<TCheckMIK>(ATargetTable.Checks) do
     begin
       if not AMasterTable.Checks.ContainsKey(LCheckTarget.Key) then
-        ActionDropCheck(LCheckTarget.Value);
+        _ActionDropCheck(LCheckTarget.Value);
     end;
     // Create checks missing in the database; alter when the condition differs.
-    for LCheckMaster in SortedPairs<TCheckMIK>(AMasterTable.Checks) do
+    for LCheckMaster in _SortedPairs<TCheckMIK>(AMasterTable.Checks) do
     begin
       if ATargetTable.Checks.ContainsKey(LCheckMaster.Key) then
       begin
@@ -431,15 +431,15 @@ begin
         // ALTER CHECK espurio. Canonizar o target de novo e idempotente.
         if CompareText(TMetadataNormalizer.CanonicalizeCheckCondition(LCheckMaster.Value.Condition),
                        TMetadataNormalizer.CanonicalizeCheckCondition(LCheck.Condition)) <> 0 then
-          ActionAlterCheck(LCheckMaster.Value);
+          _ActionAlterCheck(LCheckMaster.Value);
       end
       else
-        ActionCreateCheck(LCheckMaster.Value);
+        _ActionCreateCheck(LCheckMaster.Value);
     end;
   end;
 end;
 
-procedure TDatabaseFactory.CompareColumns(AMasterTable, ATargetTable: TTableMIK);
+procedure TDatabaseFactory._CompareColumns(AMasterTable, ATargetTable: TTableMIK);
 var
   LColumnMaster: TPair<String, TColumnMIK>;
   LColumnTarget: TPair<String, TColumnMIK>;
@@ -472,7 +472,7 @@ begin
   begin
     LColumn := ExistMasterColumn(LColumnTarget.Value.Name);
     if LColumn = nil then
-      ActionDropColumn(LColumnTarget.Value);
+      _ActionDropColumn(LColumnTarget.Value);
   end;
   // Adiciona coluna do modelo que n�o exista no banco
   // Compara coluna que exista no modelo e no banco
@@ -481,33 +481,33 @@ begin
   begin
     LColumn := ExistTargetColumn(LColumnMaster.Value.Name);
     if LColumn = nil then
-      ActionCreateColumn(LColumnMaster.Value)
+      _ActionCreateColumn(LColumnMaster.Value)
     else
     begin
-      if not DeepEqualsColumn(LColumnMaster.Value, LColumn) then
-        ActionAlterColumn(LColumnMaster.Value);
+      if not _DeepEqualsColumn(LColumnMaster.Value, LColumn) then
+        _ActionAlterColumn(LColumnMaster.Value);
 
-      if not KeepEqualsPosition(LColumnMaster.Value, LColumn) then
+      if not _KeepEqualsPosition(LColumnMaster.Value, LColumn) then
         LReorderColumns := True;
 
       // Compara DefaultValue
-      if not DeepEqualsDefaultValue(LColumnMaster.Value, LColumn) then
+      if not _DeepEqualsDefaultValue(LColumnMaster.Value, LColumn) then
       begin
         if Length(LColumnMaster.Value.DefaultValue) > 0 then
-          ActionAlterDefaultValue(LColumnMaster.Value)
+          _ActionAlterDefaultValue(LColumnMaster.Value)
         else
-          ActionDropDefaultValue(LColumn);
+          _ActionDropDefaultValue(LColumn);
       end;
     end;
   end;
   if ComparerFieldPosition and LReorderColumns then
     for LColumnMaster in AMasterTable.FieldsSort do
     begin
-      ActionAlterColumnPosition(LColumnMaster.Value);
+      _ActionAlterColumnPosition(LColumnMaster.Value);
     end;
 end;
 
-procedure TDatabaseFactory.CompareTablesForeignKeys(AMasterDB, ATargetDB: TCatalogMetadataMIK);
+procedure TDatabaseFactory._CompareTablesForeignKeys(AMasterDB, ATargetDB: TCatalogMetadataMIK);
 var
   LTableMaster: TPair<String, TTableMIK>;
   LForeignKeyMaster: TPair<String, TForeignKeyMIK>;
@@ -520,19 +520,19 @@ begin
       // Table ForeignKeys
       if (LTableMaster.Value.ForeignKeys.Count > 0) or
          (ATargetDB.Tables.Items[LTableMaster.Key].ForeignKeys.Count > 0) then
-        CompareForeignKeys(LTableMaster.Value, ATargetDB.Tables.Items[LTableMaster.Key]);
+        _CompareForeignKeys(LTableMaster.Value, ATargetDB.Tables.Items[LTableMaster.Key]);
     end
     else
     begin
       // Gera script de cria��o dos ForeignKey da nova tabela.
       if FDriverName <> dnSQLite then
-        for LForeignKeyMaster in SortedPairs<TForeignKeyMIK>(LTableMaster.Value.ForeignKeys) do
-          ActionCreateForeignKey(LForeignKeyMaster.Value);
+        for LForeignKeyMaster in _SortedPairs<TForeignKeyMIK>(LTableMaster.Value.ForeignKeys) do
+          _ActionCreateForeignKey(LForeignKeyMaster.Value);
     end;
   end;
 end;
 
-function TDatabaseFactory.DeepEqualsForeignKeyFromColumns(AMasterForeignKey, ATargetForeignKey: TForeignKeyMIK): Boolean;
+function TDatabaseFactory._DeepEqualsForeignKeyFromColumns(AMasterForeignKey, ATargetForeignKey: TForeignKeyMIK): Boolean;
 var
   LColumnMaster: TPair<String, TColumnMIK>;
   LColumnTarget: TPair<String, TColumnMIK>;
@@ -575,13 +575,13 @@ begin
       Exit(False)
     else
     begin
-      if not DeepEqualsColumn(LColumnMaster.Value, LColumn) then
+      if not _DeepEqualsColumn(LColumnMaster.Value, LColumn) then
         Exit(False);
     end;
   end;
 end;
 
-procedure TDatabaseFactory.CompareForeignKeys(AMasterTable, ATargetTable: TTableMIK);
+procedure TDatabaseFactory._CompareForeignKeys(AMasterTable, ATargetTable: TTableMIK);
 var
   LForeignKeyMaster: TPair<String, TForeignKeyMIK>;
   LForeignKeyTarget: TPair<String, TForeignKeyMIK>;
@@ -589,29 +589,29 @@ begin
   if TSupportedFeature.ForeignKeys in FGeneratorCommand.SupportedFeatures then
   begin
     // Remove indexe que n�o existe no modelo.
-    for LForeignKeyTarget in SortedPairs<TForeignKeyMIK>(ATargetTable.ForeignKeys) do
+    for LForeignKeyTarget in _SortedPairs<TForeignKeyMIK>(ATargetTable.ForeignKeys) do
     begin
       if not AMasterTable.ForeignKeys.ContainsKey(LForeignKeyTarget.Key) then
-        ActionDropForeignKey(LForeignKeyTarget.Value);
+        _ActionDropForeignKey(LForeignKeyTarget.Value);
     end;
     // Gera script de cria��o de indexe, caso a indexe do modelo n�o exista no banco.
-    for LForeignKeyMaster in SortedPairs<TForeignKeyMIK>(AMasterTable.ForeignKeys) do
+    for LForeignKeyMaster in _SortedPairs<TForeignKeyMIK>(AMasterTable.ForeignKeys) do
     begin
       if ATargetTable.ForeignKeys.ContainsKey(LForeignKeyMaster.Key) then
       begin
         // Checa diferen�a do ForeignKey
         LForeignKeyTarget.Value := ATargetTable.ForeignKeys.Items[LForeignKeyMaster.Key];
 
-        if (not DeepEqualsForeignKey(LForeignKeyMaster.Value, LForeignKeyTarget.Value)) or
-           (not DeepEqualsForeignKeyFromColumns(LForeignKeyMaster.Value, LForeignKeyTarget.Value)) or
-           (not DeepEqualsForeignKeyToColumns  (LForeignKeyMaster.Value, LForeignKeyTarget.Value)) then
+        if (not _DeepEqualsForeignKey(LForeignKeyMaster.Value, LForeignKeyTarget.Value)) or
+           (not _DeepEqualsForeignKeyFromColumns(LForeignKeyMaster.Value, LForeignKeyTarget.Value)) or
+           (not _DeepEqualsForeignKeyToColumns  (LForeignKeyMaster.Value, LForeignKeyTarget.Value)) then
         begin
           // Par DROP+CREATE: s� emite se AMBAS as opera��es forem permitidas.
           if FPolicy.Allows(TDDLOperation.DropForeignKey) and
              FPolicy.Allows(TDDLOperation.CreateForeignKey) then
           begin
-            ActionDropForeignKey(LForeignKeyTarget.Value);
-            ActionCreateForeignKey(LForeignKeyMaster.Value);
+            _ActionDropForeignKey(LForeignKeyTarget.Value);
+            _ActionCreateForeignKey(LForeignKeyMaster.Value);
           end
           else
             AddSuppressed(Format('RECREATE FOREIGNKEY %s.%s suppressed by policy',
@@ -619,12 +619,12 @@ begin
         end;
       end
       else
-        ActionCreateForeignKey(LForeignKeyMaster.Value);
+        _ActionCreateForeignKey(LForeignKeyMaster.Value);
     end;
   end;
 end;
 
-function TDatabaseFactory.DeepEqualsForeignKeyToColumns(AMasterForeignKey, ATargetForeignKey: TForeignKeyMIK): Boolean;
+function TDatabaseFactory._DeepEqualsForeignKeyToColumns(AMasterForeignKey, ATargetForeignKey: TForeignKeyMIK): Boolean;
 var
   LColumnMaster: TPair<String, TColumnMIK>;
   LColumnTarget: TPair<String, TColumnMIK>;
@@ -667,13 +667,13 @@ begin
       Exit(False)
     else
     begin
-      if not DeepEqualsColumn(LColumnMaster.Value, LColumn) then
+      if not _DeepEqualsColumn(LColumnMaster.Value, LColumn) then
         Exit(False);
     end;
   end;
 end;
 
-function TDatabaseFactory.DeepEqualsIndexeColumns(AMasterIndexe, ATargetIndexe: TIndexeKeyMIK): Boolean;
+function TDatabaseFactory._DeepEqualsIndexeColumns(AMasterIndexe, ATargetIndexe: TIndexeKeyMIK): Boolean;
 var
   LColumnMaster: TPair<String, TColumnMIK>;
   LColumnTarget: TPair<String, TColumnMIK>;
@@ -716,38 +716,38 @@ begin
       Exit(False)
     else
     begin
-      if not DeepEqualsColumn(LColumnMaster.Value, LColumn) then
+      if not _DeepEqualsColumn(LColumnMaster.Value, LColumn) then
         Exit(False);
     end;
   end;
 end;
 
-procedure TDatabaseFactory.CompareIndexes(AMasterTable, ATargetTable: TTableMIK);
+procedure TDatabaseFactory._CompareIndexes(AMasterTable, ATargetTable: TTableMIK);
 var
   LIndexeMaster: TPair<String, TIndexeKeyMIK>;
   LIndexeTarget: TPair<String, TIndexeKeyMIK>;
 begin
   // Remove indexe que n�o existe no modelo.
-  for LIndexeTarget in SortedPairs<TIndexeKeyMIK>(ATargetTable.IndexeKeys) do
+  for LIndexeTarget in _SortedPairs<TIndexeKeyMIK>(ATargetTable.IndexeKeys) do
   begin
     if not AMasterTable.IndexeKeys.ContainsKey(LIndexeTarget.Key) then
-      ActionDropIndexe(LIndexeTarget.Value);
+      _ActionDropIndexe(LIndexeTarget.Value);
   end;
   // Gera script de cria��o de indexe, caso a indexe do modelo n�o exista no banco.
-  for LIndexeMaster in SortedPairs<TIndexeKeyMIK>(AMasterTable.IndexeKeys) do
+  for LIndexeMaster in _SortedPairs<TIndexeKeyMIK>(AMasterTable.IndexeKeys) do
   begin
     if ATargetTable.IndexeKeys.ContainsKey(LIndexeMaster.Key) then
     begin
       LIndexeTarget.Value := ATargetTable.IndexeKeys.Items[LIndexeMaster.Key];
-      if (not DeepEqualsIndexe(LIndexeMaster.Value, LIndexeTarget.Value)) or
-         (not DeepEqualsIndexeColumns(LIndexeMaster.Value, LIndexeTarget.Value)) then
+      if (not _DeepEqualsIndexe(LIndexeMaster.Value, LIndexeTarget.Value)) or
+         (not _DeepEqualsIndexeColumns(LIndexeMaster.Value, LIndexeTarget.Value)) then
       begin
         // Par DROP+CREATE: s� emite se AMBAS as opera��es forem permitidas.
         if FPolicy.Allows(TDDLOperation.DropIndexe) and
            FPolicy.Allows(TDDLOperation.CreateIndexe) then
         begin
-          ActionDropIndexe(LIndexeTarget.Value);
-          ActionCreateIndexe(LIndexeMaster.Value);
+          _ActionDropIndexe(LIndexeTarget.Value);
+          _ActionCreateIndexe(LIndexeMaster.Value);
         end
         else
           AddSuppressed(Format('RECREATE INDEXE %s.%s suppressed by policy',
@@ -755,11 +755,11 @@ begin
       end;
     end
     else
-      ActionCreateIndexe(LIndexeMaster.Value);
+      _ActionCreateIndexe(LIndexeMaster.Value);
   end;
 end;
 
-procedure TDatabaseFactory.ComparePrimaryKey(AMasterTable, ATargetTable: TTableMIK);
+procedure TDatabaseFactory._ComparePrimaryKey(AMasterTable, ATargetTable: TTableMIK);
 var
   LColumnMaster: TPair<String, TColumnMIK>;
   LColumn: TColumnMIK;
@@ -815,12 +815,12 @@ begin
     LRecreatePK := False;
   end;
   if LDropPK then
-    ActionDropPrimaryKey(ATargetTable.PrimaryKey);
+    _ActionDropPrimaryKey(ATargetTable.PrimaryKey);
   if LRecreatePK then
-    ActionCreatePrimaryKey(AMasterTable.PrimaryKey);
+    _ActionCreatePrimaryKey(AMasterTable.PrimaryKey);
 end;
 
-procedure TDatabaseFactory.CompareSequences(AMasterDB, ATargetDB: TCatalogMetadataMIK);
+procedure TDatabaseFactory._CompareSequences(AMasterDB, ATargetDB: TCatalogMetadataMIK);
 var
   LSequenceMaster: TPair<String, TSequenceMIK>;
   LSequenceTarget: TPair<String, TSequenceMIK>;
@@ -841,16 +841,16 @@ begin
   begin
     // Checa se existe alguma sequence no banco, da qual n�o exista nos modelos
     // para exclus�o da mesma.
-    for LSequenceTarget in SortedPairs<TSequenceMIK>(ATargetDB.Sequences) do
+    for LSequenceTarget in _SortedPairs<TSequenceMIK>(ATargetDB.Sequences) do
     begin
       if not AMasterDB.Sequences.ContainsKey(LSequenceTarget.Key) then
-        ActionDropSequence(LSequenceTarget.Value);
+        _ActionDropSequence(LSequenceTarget.Value);
     end;
     // Checa se existe a sequence no banco: cria se faltar, senao compara.
-    for LSequenceMaster in SortedPairs<TSequenceMIK>(AMasterDB.Sequences) do
+    for LSequenceMaster in _SortedPairs<TSequenceMIK>(AMasterDB.Sequences) do
     begin
       if not ATargetDB.Sequences.ContainsKey(LSequenceMaster.Key) then
-        ActionCreateSequence(LSequenceMaster.Value)
+        _ActionCreateSequence(LSequenceMaster.Value)
       else if _DialectSupportsAlterSequence then
       begin
         // Sequence existe nos dois lados: compara os atributos alteraveis.
@@ -884,7 +884,7 @@ end;
 // quando a opera��o n�o � permitida, a muta��o N�O entra na lista e um registro
 // descritivo � anexado ao relat�rio de auditoria (SuppressedCommands).
 
-procedure TDatabaseFactory.ActionAlterColumn(AColumn: TColumnMIK);
+procedure TDatabaseFactory._ActionAlterColumn(AColumn: TColumnMIK);
 begin
   if not FPolicy.Allows(TDDLOperation.AlterColumn) then
   begin
@@ -895,7 +895,7 @@ begin
   FDDLCommands.Add(TDDLCommandAlterColumn.Create(AColumn));
 end;
 
-procedure TDatabaseFactory.ActionAlterColumnPosition(AColumn: TColumnMIK);
+procedure TDatabaseFactory._ActionAlterColumnPosition(AColumn: TColumnMIK);
 begin
   if not FPolicy.Allows(TDDLOperation.AlterColumnPosition) then
   begin
@@ -906,7 +906,7 @@ begin
   FDDLCommands.Add(TDDLCommandAlterColumnPosition.Create(AColumn));
 end;
 
-procedure TDatabaseFactory.ActionAlterDefaultValue(AColumn: TColumnMIK);
+procedure TDatabaseFactory._ActionAlterDefaultValue(AColumn: TColumnMIK);
 begin
   if not FPolicy.Allows(TDDLOperation.AlterDefaultValue) then
   begin
@@ -917,7 +917,7 @@ begin
   FDDLCommands.Add(TDDLCommandAlterDefaultValue.Create(AColumn));
 end;
 
-procedure TDatabaseFactory.ActionCreateCheck(ACheck: TCheckMIK);
+procedure TDatabaseFactory._ActionCreateCheck(ACheck: TCheckMIK);
 begin
   if not FPolicy.Allows(TDDLOperation.CreateCheck) then
   begin
@@ -928,7 +928,7 @@ begin
   FDDLCommands.Add(TDDLCommandCreateCheck.Create(ACheck));
 end;
 
-procedure TDatabaseFactory.ActionAlterCheck(ACheck: TCheckMIK);
+procedure TDatabaseFactory._ActionAlterCheck(ACheck: TCheckMIK);
 begin
   if not FPolicy.Allows(TDDLOperation.AlterCheck) then
   begin
@@ -939,7 +939,7 @@ begin
   FDDLCommands.Add(TDDLCommandAlterCheck.Create(ACheck));
 end;
 
-procedure TDatabaseFactory.ActionCreateColumn(AColumn: TColumnMIK);
+procedure TDatabaseFactory._ActionCreateColumn(AColumn: TColumnMIK);
 begin
   if not FPolicy.Allows(TDDLOperation.CreateColumn) then
   begin
@@ -950,7 +950,7 @@ begin
   FDDLCommands.Add(TDDLCommandCreateColumn.Create(AColumn));
 end;
 
-procedure TDatabaseFactory.ActionCreateForeignKey(AForeignKey: TForeignKeyMIK);
+procedure TDatabaseFactory._ActionCreateForeignKey(AForeignKey: TForeignKeyMIK);
 begin
   if not FPolicy.Allows(TDDLOperation.CreateForeignKey) then
   begin
@@ -961,7 +961,7 @@ begin
   FDDLCommands.Add(TDDLCommandCreateForeignKey.Create(AForeignKey));
 end;
 
-procedure TDatabaseFactory.ActionCreateIndexe(AIndexe: TIndexeKeyMIK);
+procedure TDatabaseFactory._ActionCreateIndexe(AIndexe: TIndexeKeyMIK);
 begin
   if not FPolicy.Allows(TDDLOperation.CreateIndexe) then
   begin
@@ -972,7 +972,7 @@ begin
   FDDLCommands.Add(TDDLCommandCreateIndexe.Create(AIndexe));
 end;
 
-procedure TDatabaseFactory.ActionCreatePrimaryKey(APrimaryKey: TPrimaryKeyMIK);
+procedure TDatabaseFactory._ActionCreatePrimaryKey(APrimaryKey: TPrimaryKeyMIK);
 begin
   if not FPolicy.Allows(TDDLOperation.CreatePrimaryKey) then
   begin
@@ -983,7 +983,7 @@ begin
   FDDLCommands.Add(TDDLCommandCreatePrimaryKey.Create(APrimaryKey));
 end;
 
-procedure TDatabaseFactory.ActionCreateSequence(ASequence: TSequenceMIK);
+procedure TDatabaseFactory._ActionCreateSequence(ASequence: TSequenceMIK);
 begin
   if not FPolicy.Allows(TDDLOperation.CreateSequence) then
   begin
@@ -1005,7 +1005,7 @@ begin
   FDDLCommands.Add(TDDLCommandAlterSequence.Create(ASequence));
 end;
 
-procedure TDatabaseFactory.ActionCreateTable(ATable: TTableMIK);
+procedure TDatabaseFactory._ActionCreateTable(ATable: TTableMIK);
 begin
   if not FPolicy.Allows(TDDLOperation.CreateTable) then
   begin
@@ -1015,7 +1015,7 @@ begin
   FDDLCommands.Add(TDDLCommandCreateTable.Create(ATable));
 end;
 
-procedure TDatabaseFactory.ActionCreateView(AView: TViewMIK);
+procedure TDatabaseFactory._ActionCreateView(AView: TViewMIK);
 begin
   if not FPolicy.Allows(TDDLOperation.CreateView) then
   begin
@@ -1025,7 +1025,7 @@ begin
   FDDLCommands.Add(TDDLCommandCreateView.Create(AView));
 end;
 
-procedure TDatabaseFactory.ActionCreateTrigger(ATrigger: TTriggerMIK);
+procedure TDatabaseFactory._ActionCreateTrigger(ATrigger: TTriggerMIK);
 begin
   if not FPolicy.Allows(TDDLOperation.CreateTrigger) then
   begin
@@ -1036,7 +1036,7 @@ begin
   FDDLCommands.Add(TDDLCommandCreateTrigger.Create(ATrigger));
 end;
 
-procedure TDatabaseFactory.ActionDropCheck(ACheck: TCheckMIK);
+procedure TDatabaseFactory._ActionDropCheck(ACheck: TCheckMIK);
 begin
   if not FPolicy.Allows(TDDLOperation.DropCheck) then
   begin
@@ -1047,7 +1047,7 @@ begin
   FDDLCommands.Add(TDDLCommandDropCheck.Create(ACheck));
 end;
 
-procedure TDatabaseFactory.ActionDropColumn(AColumn: TColumnMIK);
+procedure TDatabaseFactory._ActionDropColumn(AColumn: TColumnMIK);
 begin
   if not FPolicy.Allows(TDDLOperation.DropColumn) then
   begin
@@ -1058,7 +1058,7 @@ begin
   FDDLCommands.Add(TDDLCommandDropColumn.Create(AColumn));
 end;
 
-procedure TDatabaseFactory.ActionDropDefaultValue(AColumn: TColumnMIK);
+procedure TDatabaseFactory._ActionDropDefaultValue(AColumn: TColumnMIK);
 begin
   if not FPolicy.Allows(TDDLOperation.DropDefaultValue) then
   begin
@@ -1069,7 +1069,7 @@ begin
   FDDLCommands.Add(TDDLCommandDropDefaultValue.Create(AColumn));
 end;
 
-procedure TDatabaseFactory.ActionDropForeignKey(AForeignKey: TForeignKeyMIK);
+procedure TDatabaseFactory._ActionDropForeignKey(AForeignKey: TForeignKeyMIK);
 begin
   if not FPolicy.Allows(TDDLOperation.DropForeignKey) then
   begin
@@ -1080,7 +1080,7 @@ begin
   FDDLCommands.Add(TDDLCommandDropForeignKey.Create(AForeignKey));
 end;
 
-procedure TDatabaseFactory.ActionDropIndexe(AIndexe: TIndexeKeyMIK);
+procedure TDatabaseFactory._ActionDropIndexe(AIndexe: TIndexeKeyMIK);
 begin
   if not FPolicy.Allows(TDDLOperation.DropIndexe) then
   begin
@@ -1091,7 +1091,7 @@ begin
   FDDLCommands.Add(TDDLCommandDropIndexe.Create(AIndexe));
 end;
 
-procedure TDatabaseFactory.ActionDropPrimaryKey(APrimaryKey: TPrimaryKeyMIK);
+procedure TDatabaseFactory._ActionDropPrimaryKey(APrimaryKey: TPrimaryKeyMIK);
 begin
   if not FPolicy.Allows(TDDLOperation.DropPrimaryKey) then
   begin
@@ -1102,7 +1102,7 @@ begin
   FDDLCommands.Add(TDDLCommandDropPrimaryKey.Create(APrimaryKey));
 end;
 
-procedure TDatabaseFactory.ActionDropSequence(ASequence: TSequenceMIK);
+procedure TDatabaseFactory._ActionDropSequence(ASequence: TSequenceMIK);
 begin
   if not FPolicy.Allows(TDDLOperation.DropSequence) then
   begin
@@ -1113,7 +1113,7 @@ begin
   FDDLCommands.Add(TDDLCommandDropSequence.Create(ASequence));
 end;
 
-procedure TDatabaseFactory.ActionDropTable(ATable: TTableMIK);
+procedure TDatabaseFactory._ActionDropTable(ATable: TTableMIK);
 begin
   if not FPolicy.Allows(TDDLOperation.DropTable) then
   begin
@@ -1123,7 +1123,7 @@ begin
   FDDLCommands.Add(TDDLCommandDropTable.Create(ATable));
 end;
 
-procedure TDatabaseFactory.ActionDropView(AView: TViewMIK);
+procedure TDatabaseFactory._ActionDropView(AView: TViewMIK);
 begin
   if not FPolicy.Allows(TDDLOperation.DropView) then
   begin
@@ -1133,7 +1133,7 @@ begin
   FDDLCommands.Add(TDDLCommandDropView.Create(AView));
 end;
 
-procedure TDatabaseFactory.ActionDropTrigger(ATrigger: TTriggerMIK);
+procedure TDatabaseFactory._ActionDropTrigger(ATrigger: TTriggerMIK);
 begin
   if not FPolicy.Allows(TDDLOperation.DropTrigger) then
   begin
@@ -1146,12 +1146,12 @@ end;
 
 // EnableForeignKeys / EnableTriggers s�o comandos de GUARDA (n�o muta��es):
 // sempre emitidos, independentemente da policy.
-procedure TDatabaseFactory.ActionEnableForeignKeys(AEnable: Boolean);
+procedure TDatabaseFactory._ActionEnableForeignKeys(AEnable: Boolean);
 begin
   FDDLCommands.Add(TDDLCommandEnableForeignKeys.Create(AEnable));
 end;
 
-procedure TDatabaseFactory.ActionEnableTriggers(AEnable: Boolean);
+procedure TDatabaseFactory._ActionEnableTriggers(AEnable: Boolean);
 begin
   FDDLCommands.Add(TDDLCommandEnableTriggers.Create(AEnable));
 end;
