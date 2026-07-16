@@ -358,6 +358,53 @@ begin
   finally
     LColumn.Free;
   end;
+
+  // Lone apostrophe: length-1 value equal to ' must NOT be treated as
+  // "already quoted" (IsAlreadyQuoted requires Length >= 2), otherwise it
+  // would be emitted unescaped and break the generated SQL.
+  LColumn := TColumnMIK.Create(Cliente);
+  try
+    LColumn.Name := 'X';
+    LColumn.FieldType := ftString;
+    LColumn.TypeName := 'VARCHAR(%l)';
+    LColumn.Size := 1;
+    LColumn.DefaultValue := '''';
+    LSQL := NormalizeSQL(LGenerator.GenerateCreateColumn(LColumn));
+    Assert.IsTrue(Pos('DEFAULT ' + QuotedStr(''''), LSQL) > 0,
+      'Apostrofo solitario deveria ser escapado corretamente: ' + LSQL);
+  finally
+    LColumn.Free;
+  end;
+
+  // ALTER path (GenerateAlterDefaultValue / GetAlterFieldDefaultDefinition):
+  // textual default must be quoted, same as the CREATE path.
+  LColumn := TColumnMIK.Create(Cliente);
+  try
+    LColumn.Name := 'APELIDO';
+    LColumn.FieldType := ftString;
+    LColumn.TypeName := 'VARCHAR(%l)';
+    LColumn.Size := 30;
+    LColumn.DefaultValue := 'SEM APELIDO';
+    LSQL := NormalizeSQL(LGenerator.GenerateAlterDefaultValue(LColumn));
+    Assert.IsTrue(Pos('SET DEFAULT ''SEM APELIDO''', LSQL) > 0,
+      'ALTER com default textual deveria vir quotado: ' + LSQL);
+  finally
+    LColumn.Free;
+  end;
+
+  // ALTER path: known function/keyword must not be quoted.
+  LColumn := TColumnMIK.Create(Cliente);
+  try
+    LColumn.Name := 'ATUALIZADO_EM';
+    LColumn.FieldType := ftDateTime;
+    LColumn.TypeName := 'TIMESTAMP';
+    LColumn.DefaultValue := 'CURRENT_TIMESTAMP';
+    LSQL := NormalizeSQL(LGenerator.GenerateAlterDefaultValue(LColumn));
+    Assert.IsTrue(Pos('SET DEFAULT CURRENT_TIMESTAMP;', LSQL) > 0,
+      'ALTER com CURRENT_TIMESTAMP nao deveria ser quotado: ' + LSQL);
+  finally
+    LColumn.Free;
+  end;
 end;
 
 initialization
