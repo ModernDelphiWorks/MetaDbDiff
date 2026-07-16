@@ -33,9 +33,9 @@ type
     FEntitys: TObjectDictionary<TClass, TList<TClass>>;
     FViews: TObjectDictionary<TClass, TList<TClass>>;
     FTriggers: TObjectDictionary<TClass, TList<TClass>>;
-    function GetEntity: TEnumerable<TClass>;
-    function GetView: TEnumerable<TClass>;
-    function GetTrigger: TEnumerable<TClass>;
+    function _GetEntity: TEnumerable<TClass>;
+    function _GetView: TEnumerable<TClass>;
+    function _GetTrigger: TEnumerable<TClass>;
   protected
     property EntityList: TObjectDictionary<TClass, TList<TClass>> read FEntitys;
     property ViewList: TObjectDictionary<TClass, TList<TClass>> read FViews;
@@ -43,9 +43,9 @@ type
   public
     constructor Create;
     destructor Destroy; override;
-    property Entitys: TEnumerable<TClass> read GetEntity;
-    property Views: TEnumerable<TClass> read GetView;
-    property Trigger: TEnumerable<TClass> read GetTrigger;
+    property Entitys: TEnumerable<TClass> read _GetEntity;
+    property Views: TEnumerable<TClass> read _GetView;
+    property Trigger: TEnumerable<TClass> read _GetTrigger;
   end;
 
   TMappingRepository = class
@@ -148,17 +148,17 @@ begin
   inherited;
 end;
 
-function TRepository.GetEntity: TEnumerable<TClass>;
+function TRepository._GetEntity: TEnumerable<TClass>;
 begin
   Result := FEntitys.Keys;
 end;
 
-function TRepository.GetTrigger: TEnumerable<TClass>;
+function TRepository._GetTrigger: TEnumerable<TClass>;
 begin
   Result := FTriggers.Keys;
 end;
 
-function TRepository.GetView: TEnumerable<TClass>;
+function TRepository._GetView: TEnumerable<TClass>;
 begin
   Result := FViews.Keys;
 end;

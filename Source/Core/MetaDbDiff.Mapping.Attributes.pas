@@ -430,7 +430,7 @@ type
   private
     FEnumType: TEnumType;
     FEnumValues: TList<Variant>;
-    function ValidateEnumValue(const AValue: String): String;
+    function _ValidateEnumValue(const AValue: String): String;
   public
     constructor Create(const AEnumType: TEnumType; const AEnumValues: String);
     destructor Destroy; override;
@@ -1005,7 +1005,7 @@ begin
     LEnumList.Duplicates := dupError;
     ExtractStrings([',', ';'], [' '], PChar(AEnumValues), LEnumList);
     for LFor := 0 to LEnumList.Count - 1 do
-      FEnumValues.Add(ValidateEnumValue(LEnumList[LFor]));
+      FEnumValues.Add(_ValidateEnumValue(LEnumList[LFor]));
   finally
     LEnumList.Free;
   end;
@@ -1017,7 +1017,7 @@ begin
   inherited;
 end;
 
-function Enumeration.ValidateEnumValue(const AValue: String): String;
+function Enumeration._ValidateEnumValue(const AValue: String): String;
 var
   LFor: Integer;
 begin
