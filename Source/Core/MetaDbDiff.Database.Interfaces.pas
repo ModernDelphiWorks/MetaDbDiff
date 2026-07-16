@@ -122,15 +122,30 @@ type
     property LastMigrationReport: TMigrationReport read GetLastMigrationReport;
     /// <summary>
     ///   Schema-aware compare (single-schema, configuravel). Default '' preserva
-    ///   o comportamento historico: a extracao PostgreSQL/MSSQL nao filtra por
-    ///   schema e o DDL sai sem qualificacao. Com um valor nao-vazio (ex.:
-    ///   'vendas'), os extractors multi-schema restringem a extracao a esse
-    ///   schema e os generators PostgreSQL/MSSQL qualificam os nomes de tabela
-    ///   ("schema"."tabela" / [schema].[tabela]). Dialetos sem schema (Firebird,
-    ///   SQLite, MySQL) ignoram a property. O nome e validado como identificador
-    ///   SQL (ver TCatalogMetadataAbstract.ValidateSchemaName): nomes com aspas,
-    ///   espacos, ";" etc. sao rejeitados. Ao migrar entre schemas distintos
-    ///   (master X vs target Y), o DDL usa sempre o schema do TARGET.
+    ///   o comportamento HISTORICO POR DIALETO:
+    ///     - PostgreSQL: o catalogo/DDL saem qualificados com 'public' (como
+    ///       sempre foi - o codigo historico gravava Schema:='public'); a
+    ///       extracao NAO filtra por schema no default.
+    ///     - MSSQL: sem qualificacao (DDL cru), extracao sem filtro.
+    ///     - demais (Firebird/SQLite/MySQL): sem schema (ignoram a property).
+    ///   Com um valor nao-vazio (ex.: 'vendas'), os extractors PostgreSQL/MSSQL
+    ///   restringem a extracao a esse schema e os generators qualificam os nomes
+    ///   de tabela ("schema"."tabela" / [schema].[tabela]).
+    ///
+    ///   O nome e validado como identificador SQL (ver
+    ///   TCatalogMetadataAbstract.ValidateSchemaName): nomes com aspas, espacos,
+    ///   ";" etc. sao rejeitados ja na atribuicao.
+    ///
+    ///   CAVEAT case-sensitivity cross-dialeto: o nome e usado VERBATIM. No
+    ///   PostgreSQL identificadores nao-citados sao dobrados para minusculas pelo
+    ///   servidor, entao um schema fisico 'vendas' NAO casa com Schema:='Vendas'
+    ///   (o filtro "table_schema = 'Vendas'" vem vazio e o DDL geraria
+    ///   "Vendas".tabela inexistente) - use o nome exatamente como gravado no
+    ///   catalogo do banco. O SQL Server e tipicamente case-insensitive (depende
+    ///   do collation), tolerando divergencia de caixa.
+    ///
+    ///   Ao migrar entre schemas distintos (master X vs target Y), o DDL usa
+    ///   sempre o schema do TARGET.
     /// </summary>
     property Schema: String read GetSchema write SetSchema;
   end;

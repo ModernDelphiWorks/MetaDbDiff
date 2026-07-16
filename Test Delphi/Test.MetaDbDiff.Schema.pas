@@ -40,7 +40,7 @@ uses
   MetaDbDiff.DDL.Generator.MSSQL;
 
 type
-  /// <summary>Expoe os GetSelect* protegidos do extractor PostgreSQL.</summary>
+  /// <summary>Expoe os GetSelect* + CatalogSchema protegidos do extractor PostgreSQL.</summary>
   TPGSchemaProbe = class(TCatalogMetadataPostgreSQL)
   public
     function SelTables: String;
@@ -51,9 +51,10 @@ type
     function SelViews: String;
     function SelChecks(const ATable: String): String;
     function SelIndexe(const ATable: String): String;
+    function CatSchema: String;
   end;
 
-  /// <summary>Expoe os GetSelect* protegidos do extractor MSSQL.</summary>
+  /// <summary>Expoe os GetSelect* + CatalogSchema protegidos do extractor MSSQL.</summary>
   TMSSQLSchemaProbe = class(TCatalogMetadataMSSQL)
   public
     function SelTables: String;
@@ -63,6 +64,7 @@ type
     function SelSequences: String;
     function SelViews: String;
     function SelIndexe(const ATable: String): String;
+    function CatSchema: String;
   end;
 
   [TestFixture]
@@ -95,18 +97,24 @@ type
     // -------------------------------------------- Extracao PostgreSQL - default
     [Test]
     procedure PG_DefaultSchema_NoFilter;
+    [Test]
+    procedure PG_DefaultCatalogSchema_IsPublic;
     // -------------------------------------------- Extracao PostgreSQL - schema
     [Test]
     procedure PG_ConfiguredSchema_FiltersEverySelect;
+    [Test]
+    procedure PG_ConfiguredCatalogSchema_IsConfigured;
     // -------------------------------------------- Extracao MSSQL - default
     [Test]
     procedure MSSQL_DefaultSchema_NoFilter;
+    [Test]
+    procedure MSSQL_DefaultCatalogSchema_IsEmpty;
     // -------------------------------------------- Extracao MSSQL - schema
     [Test]
     procedure MSSQL_ConfiguredSchema_FiltersEverySelect;
-    // -------------------------------------------- DDL - default (sem schema)
+    // -------------------------------------------- DDL - default por dialeto
     [Test]
-    procedure PG_DDL_DefaultSchema_Unqualified;
+    procedure PG_DDL_DefaultSchema_PublicQualified;
     [Test]
     procedure MSSQL_DDL_DefaultSchema_Unqualified;
     // -------------------------------------------- DDL - qualificado por dialeto
@@ -120,6 +128,8 @@ type
     procedure MSSQL_DDL_Qualified_CreateTable;
     [Test]
     procedure MSSQL_DDL_Qualified_DropTable;
+    [Test]
+    procedure MSSQL_DDL_Qualified_RenameColumn;
     // -------------------------------------------- Snapshot round-trip
     [Test]
     procedure Snapshot_RoundTrip_PreservesSchema;
@@ -169,6 +179,11 @@ begin
   Result := GetSelectIndexe(ATable);
 end;
 
+function TPGSchemaProbe.CatSchema: String;
+begin
+  Result := CatalogSchema;
+end;
+
 { TMSSQLSchemaProbe }
 
 function TMSSQLSchemaProbe.SelTables: String;
@@ -204,6 +219,11 @@ end;
 function TMSSQLSchemaProbe.SelIndexe(const ATable: String): String;
 begin
   Result := GetSelectIndexe(ATable);
+end;
+
+function TMSSQLSchemaProbe.CatSchema: String;
+begin
+  Result := CatalogSchema;
 end;
 
 { TTestSchemaAware }
@@ -345,6 +365,34 @@ begin
   end;
 end;
 
+procedure TTestSchemaAware.PG_DefaultCatalogSchema_IsPublic;
+var
+  LProbe: TPGSchemaProbe;
+begin
+  // Comportamento historico restaurado: sem schema configurado, o catalogo
+  // PostgreSQL e carimbado com 'public' (DDL sai public-qualificado como sempre).
+  LProbe := TPGSchemaProbe.Create;
+  try
+    LProbe.Schema := '';
+    Assert.AreEqual('public', LProbe.CatSchema);
+  finally
+    LProbe.Free;
+  end;
+end;
+
+procedure TTestSchemaAware.PG_ConfiguredCatalogSchema_IsConfigured;
+var
+  LProbe: TPGSchemaProbe;
+begin
+  LProbe := TPGSchemaProbe.Create;
+  try
+    LProbe.Schema := 'vendas';
+    Assert.AreEqual('vendas', LProbe.CatSchema);
+  finally
+    LProbe.Free;
+  end;
+end;
+
 procedure TTestSchemaAware.PG_ConfiguredSchema_FiltersEverySelect;
 var
   LProbe: TPGSchemaProbe;
@@ -383,6 +431,21 @@ begin
   end;
 end;
 
+procedure TTestSchemaAware.MSSQL_DefaultCatalogSchema_IsEmpty;
+var
+  LProbe: TMSSQLSchemaProbe;
+begin
+  // MSSQL nao tem default 'public': sem schema configurado o catalogo fica ''
+  // (DDL sem qualificacao, comportamento historico).
+  LProbe := TMSSQLSchemaProbe.Create;
+  try
+    LProbe.Schema := '';
+    Assert.AreEqual('', LProbe.CatSchema);
+  finally
+    LProbe.Free;
+  end;
+end;
+
 procedure TTestSchemaAware.MSSQL_ConfiguredSchema_FiltersEverySelect;
 var
   LProbe: TMSSQLSchemaProbe;
@@ -404,13 +467,16 @@ end;
 
 // ------------------------------------------------------------ DDL - default
 
-procedure TTestSchemaAware.PG_DDL_DefaultSchema_Unqualified;
+procedure TTestSchemaAware.PG_DDL_DefaultSchema_PublicQualified;
 var
   LTable: TTableMIK;
 begin
-  // Schema='' (default do FCatalog): saida identica ao historico (sem aspas/schema).
+  // Comportamento historico do PostgreSQL: o extractor carimba o catalogo com
+  // 'public' no default (ver PG_DefaultCatalogSchema_IsPublic), entao o DDL sai
+  // public-qualificado como sempre foi. Aqui simulamos esse carimbo.
+  FCatalog.Schema := 'public';
   LTable := _BuildClienteTable('INTEGER');
-  Assert.StartsWith('CREATE TABLE CLIENTE (',
+  Assert.StartsWith('CREATE TABLE "public"."CLIENTE" (',
     _NormalizeSQL(_PG.GenerateCreateTable(LTable)));
 end;
 
@@ -475,6 +541,18 @@ begin
   LTable := _BuildClienteTable('INT');
   Assert.AreEqual('DROP TABLE [vendas].[CLIENTE];',
     _NormalizeSQL(_MSSQL.GenerateDropTable(LTable)));
+end;
+
+procedure TTestSchemaAware.MSSQL_DDL_Qualified_RenameColumn;
+var
+  LTable: TTableMIK;
+begin
+  // sp_rename: a tabela vira [vendas].[CLIENTE]; a COLUNA no primeiro argumento
+  // permanece SEM colchetes (parte do literal 'objeto.coluna').
+  FCatalog.Schema := 'vendas';
+  LTable := _BuildClienteTable('INT');
+  Assert.AreEqual('EXEC sp_rename ''[vendas].[CLIENTE].NOME'', ''novo'', ''COLUMN'';',
+    _NormalizeSQL(_MSSQL.GenerateRenameColumn(LTable.Fields['000001'], 'novo')));
 end;
 
 // -------------------------------------------------------- Snapshot round-trip

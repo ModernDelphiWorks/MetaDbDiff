@@ -144,15 +144,16 @@ end;
 procedure TCatalogMetadataMSSQL.GetSchemas;
 begin
   inherited;
-  // Schema-aware compare (FRENTE 14). Schema efetivo do SQL Server:
-  //   - default '' (nada configurado): comportamento historico - a extracao NAO
-  //     filtra por schema e o catalogo fica com Schema='' (DDL sem qualificacao).
-  //     O schema DEFAULT de fato do SQL Server, quando nada e informado, e 'dbo'
-  //     - passe Schema:='dbo' explicitamente para o compare single-schema sobre ele.
+  // Schema-aware compare (FRENTE 14). Comportamento do SQL Server:
+  //   - default '' (nada configurado): comportamento HISTORICO - a extracao NAO
+  //     filtra por schema e o catalogo fica com Schema='' (DDL sem qualificacao;
+  //     DefaultSchema do MSSQL e '', ao contrario do PostgreSQL). O schema DEFAULT
+  //     de fato do SQL Server e 'dbo' - passe Schema:='dbo' explicitamente para o
+  //     compare single-schema sobre ele.
   //   - Schema configurado (ex.: 'vendas'): os GetSelect* abaixo acrescentam o
   //     filtro "ss.name = 'vendas'" e o catalogo recebe esse schema, fazendo o
   //     generator qualificar [vendas].[tabela].
-  FCatalogMetadata.Schema := EffectiveSchema;
+  FCatalogMetadata.Schema := CatalogSchema;
   GetSequences;
   GetTables;
   // Views ligadas (F10): GetSelectViews/GetViews do MSSQL sao reais (sys.views +

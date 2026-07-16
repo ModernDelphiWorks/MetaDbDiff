@@ -49,6 +49,13 @@ type
     function GetSelectViews: String; override;
     function GetSelectChecks(ATableName: String): String; override;
     function GetSelectSequences: String; override;
+    /// <summary>
+    ///   Schema default do PostgreSQL: 'public'. Sem schema configurado, o
+    ///   catalogo recebe 'public' e o DDL sai qualificado como sempre foi (o
+    ///   historico gravava FCatalogMetadata.Schema := 'public'). Os selects de
+    ///   extracao, porem, seguem SEM filtro no default (via EffectiveSchema='').
+    /// </summary>
+    function DefaultSchema: String; override;
     function Execute: IDBResultSet;
   public
     procedure CreateFieldTypeList; override;
@@ -111,6 +118,11 @@ begin
   end;
 end;
 
+function TCatalogMetadataPostgreSQL.DefaultSchema: String;
+begin
+  Result := 'public';
+end;
+
 procedure TCatalogMetadataPostgreSQL.GetDatabaseMetadata;
 begin
   inherited;
@@ -148,17 +160,19 @@ end;
 procedure TCatalogMetadataPostgreSQL.GetSchemas;
 begin
   inherited;
-  // Schema-aware compare (FRENTE 14). Schema efetivo do PostgreSQL:
-  //   - default '' (nenhum schema configurado): comportamento historico - a
+  // Schema-aware compare (FRENTE 14). Comportamento do PostgreSQL:
+  //   - default '' (nenhum schema configurado): comportamento HISTORICO - a
   //     extracao NAO filtra por schema (mantem o WHERE ... not in
-  //     ('pg_catalog','information_schema')) e o catalogo fica com Schema=''
-  //     (DDL sem qualificacao). O schema DEFAULT de fato do PostgreSQL, quando
-  //     nada e informado, e 'public' (search_path) - passe Schema:='public'
-  //     explicitamente para tornar o compare single-schema sobre ele.
+  //     ('pg_catalog','information_schema')), mas o catalogo recebe 'public'
+  //     (DefaultSchema), fazendo o DDL sair public-qualificado exatamente como
+  //     sempre foi (o codigo historico gravava FCatalogMetadata.Schema:='public').
   //   - Schema configurado (ex.: 'vendas'): os GetSelect* abaixo acrescentam o
   //     filtro "= 'vendas'" e o catalogo recebe esse schema, fazendo o generator
   //     qualificar "vendas"."tabela".
-  FCatalogMetadata.Schema := EffectiveSchema;
+  // CatalogSchema resolve exatamente isso (EffectiveSchema se configurado, senao
+  // DefaultSchema='public'); os selects continuam usando EffectiveSchema (='' no
+  // default) para o filtro.
+  FCatalogMetadata.Schema := CatalogSchema;
   GetSequences;
   GetTables;
   // Views ligadas (F10): GetSelectViews/GetViews do PostgreSQL sao reais

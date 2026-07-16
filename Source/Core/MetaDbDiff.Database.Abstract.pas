@@ -216,14 +216,20 @@ type
     property LastSequenceReport: TDDLSequenceReport read GetLastSequenceReport;
     /// <summary>
     ///   Schema-aware compare (single-schema, configuravel - FRENTE 14). Default
-    ///   '' = comportamento historico (extracao sem filtro de schema em
-    ///   PostgreSQL/MSSQL; DDL sem qualificacao). Um valor nao-vazio (validado
+    ///   '' = comportamento HISTORICO POR DIALETO: PostgreSQL carimba o catalogo
+    ///   com 'public' e emite DDL public-qualificado (como sempre foi), MSSQL fica
+    ///   sem qualificacao, e Firebird/SQLite/MySQL ignoram a property. Em todos, a
+    ///   extracao NAO filtra por schema no default. Um valor nao-vazio (validado
     ///   como identificador SQL) restringe a extracao PostgreSQL/MSSQL a esse
     ///   schema e faz os generators desses dialetos qualificarem os nomes de
-    ///   tabela. Dialetos sem schema (Firebird/SQLite/MySQL) ignoram a property.
-    ///   Migracao entre schemas (master X -> target Y) e legitima: o DDL usa o
-    ///   schema do TARGET. Model-vs-DB: o modelo nao tem schema proprio - assume
-    ///   o Schema configurado aqui.
+    ///   tabela. Migracao entre schemas (master X -> target Y) e legitima: o DDL
+    ///   usa o schema do TARGET. Model-vs-DB: o modelo nao tem schema proprio -
+    ///   assume o Schema configurado aqui.
+    ///
+    ///   CAVEAT case-sensitivity: o nome e usado verbatim. No PostgreSQL (que
+    ///   dobra identificadores nao-citados para minusculas) 'Vendas' NAO casa com
+    ///   um schema fisico 'vendas'; use a caixa exata do catalogo. MSSQL tolera
+    ///   (case-insensitive conforme collation).
     /// </summary>
     property Schema: String read GetSchema write SetSchema;
   end;

@@ -73,18 +73,34 @@ type
   private
     function GetConnection: IDBConnection;
     procedure SetConnection(const Value: IDBConnection);
+    procedure SetSchema(const Value: String);
   protected
     FSQLText: String;
     FSchema: String;
     FFieldType: TDictionary<String, TFieldType>;
     /// <summary>
-    ///   Schema efetivo, ja validado: '' (default) = sem filtro/qualificacao
-    ///   (comportamento historico), ou o identificador configurado. Os
+    ///   Schema efetivo do FILTRO de extracao, ja validado: '' (default) = sem
+    ///   filtro (comportamento historico), ou o identificador configurado. Os
     ///   GetSelect* dos extractors multi-schema (PostgreSQL/MSSQL) so acrescentam
-    ///   o filtro de schema quando este retorna nao-vazio, garantindo SQL
-    ///   identico ao historico quando nada e configurado.
+    ///   o filtro de schema quando este retorna nao-vazio, garantindo SQL de
+    ///   extracao identico ao historico quando nada e configurado.
     /// </summary>
     function EffectiveSchema: String;
+    /// <summary>
+    ///   Schema DEFAULT do dialeto usado para carimbar o catalogo/qualificar o
+    ///   DDL quando NENHUM schema foi configurado. Base: '' (dialetos sem schema
+    ///   - o DDL sai sem qualificacao). O extractor PostgreSQL sobrescreve para
+    ///   'public', restaurando o comportamento historico (catalogo/DDL public).
+    /// </summary>
+    function DefaultSchema: String; virtual;
+    /// <summary>
+    ///   Schema efetivamente gravado no catalogo (e, portanto, usado pelo
+    ///   generator para qualificar o DDL): o schema configurado quando nao-vazio,
+    ///   senao o DefaultSchema do dialeto. NAO e o mesmo que EffectiveSchema, que
+    ///   governa apenas o FILTRO dos selects (este permanece '' no default para
+    ///   nao alterar o SQL historico de extracao).
+    /// </summary>
+    function CatalogSchema: String;
     procedure SetFieldType(var AColumnMIK: TColumnMIK); virtual;
     function GetSelectTables: String; virtual; abstract;
     function GetSelectTableColumns(ATableName: String): String; virtual; abstract;
@@ -127,11 +143,11 @@ type
     class function ValidateSchemaName(const ASchema: String): String; static;
     /// <summary>
     ///   Schema configurado a ser comparado/qualificado. Default '' preserva o
-    ///   comportamento historico (extracao sem filtro de schema, DDL sem
-    ///   qualificacao). Um valor nao-vazio e validado (ValidateSchemaName) na
-    ///   propagacao para o catalogo/selects.
+    ///   comportamento historico POR DIALETO (PostgreSQL: catalogo/DDL 'public';
+    ///   demais: sem qualificacao). O write valida o identificador
+    ///   (ValidateSchemaName) - schema malicioso e rejeitado ja na atribuicao.
     /// </summary>
-    property Schema: String read FSchema write FSchema;
+    property Schema: String read FSchema write SetSchema;
     property Connection: IDBConnection read GetConnection write SetConnection;
   end;
 
@@ -212,6 +228,24 @@ end;
 function TCatalogMetadataAbstract.EffectiveSchema: String;
 begin
   Result := ValidateSchemaName(FSchema);
+end;
+
+function TCatalogMetadataAbstract.DefaultSchema: String;
+begin
+  // Base (dialetos sem schema): sem default - DDL sem qualificacao.
+  Result := '';
+end;
+
+function TCatalogMetadataAbstract.CatalogSchema: String;
+begin
+  Result := EffectiveSchema;
+  if Result = '' then
+    Result := DefaultSchema;
+end;
+
+procedure TCatalogMetadataAbstract.SetSchema(const Value: String);
+begin
+  FSchema := ValidateSchemaName(Value);
 end;
 
 function TCatalogMetadataAbstract.GetConnection: IDBConnection;
