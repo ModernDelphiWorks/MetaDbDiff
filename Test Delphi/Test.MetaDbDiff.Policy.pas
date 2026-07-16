@@ -30,10 +30,21 @@ uses
   MetaDbDiff.Database.Factory,
   MetaDbDiff.Compare.Options,
   MetaDbDiff.DDL.Commands,
+  MetaDbDiff.DDL.Interfaces,
   MetaDbDiff.DDL.Register,
   MetaDbDiff.DDL.Generator.Firebird;
 
 type
+  /// <summary>
+  ///   Comando DDL "fake" N�O mapeado no dispatch: simula uma futura muta��o
+  ///   que algu�m esque�a de registrar. Deve ser NEGADO por fail-closed.
+  /// </summary>
+  TDDLCommandFake = class(TDDLCommand)
+  public
+    constructor Create;
+    function BuildCommand(ASQLGeneratorCommand: IDDLGeneratorCommand): String; override;
+  end;
+
   /// <summary>
   ///   Subclasse de teste: exp�e GenerateDDLCommands sobre cat�logos montados �
   ///   m�o e fornece corpos vazios para os m�todos abstratos herdados.
@@ -47,6 +58,11 @@ type
     constructor Create(ADriverName: TDriverName); override;
     /// <summary> Assume a posse dos cat�logos e roda o diff real. </summary>
     procedure Generate(AMaster, ATarget: TCatalogMetadataMIK);
+    /// <summary>
+    ///   Injeta um comando cru na lista final (a TObjectList assume a posse),
+    ///   simulando comandos externos/injetados para o teste de fail-closed.
+    /// </summary>
+    procedure InjectRawCommand(ACommand: TDDLCommand);
   end;
 
   [TestFixture]
@@ -66,6 +82,8 @@ type
     procedure BuildColumnScenario(out AMaster, ATarget: TCatalogMetadataMIK);
     // Cen�rio "par": PEDIDO com �ndice divergente (recreate = drop+create).
     procedure BuildIndexRecreateScenario(out AMaster, ATarget: TCatalogMetadataMIK);
+    // Cen�rio "PK-rename": PK nos dois lados com nomes diferentes.
+    procedure BuildPrimaryKeyRenameScenario(out AMaster, ATarget: TCatalogMetadataMIK);
   public
     [TearDown]
     procedure TearDown;
@@ -83,18 +101,41 @@ type
     procedure Full_DropCreatePair_BothEmitted;
     [Test]
     procedure Full_MatchesCurrentBehavior_NoSuppression;
+    // ---- highest-risk path: PK rename -----------------------------------
+    [Test]
+    procedure Janus_PrimaryKeyRename_SuppressesAllPkCommands;
     // ---- defense in depth on execution ----------------------------------
     [Test]
     procedure Execute_RejectsCommandNotAllowedByPolicy;
+    [Test]
+    procedure Execute_UnknownCommand_DeniedFailClosed;
   end;
 
 implementation
+
+{ TDDLCommandFake }
+
+constructor TDDLCommandFake.Create;
+begin
+  FWarning := 'Fake Unmapped Command';
+end;
+
+function TDDLCommandFake.BuildCommand(
+  ASQLGeneratorCommand: IDDLGeneratorCommand): String;
+begin
+  Result := '';
+end;
 
 { TTestableFactory }
 
 constructor TTestableFactory.Create(ADriverName: TDriverName);
 begin
   inherited Create(ADriverName);
+end;
+
+procedure TTestableFactory.InjectRawCommand(ACommand: TDDLCommand);
+begin
+  FDDLCommands.Add(ACommand);
 end;
 
 procedure TTestableFactory.ExtractDatabase;
@@ -239,6 +280,26 @@ begin
   AddIndexe(LTable, 'IDX_PEDIDO', 'ID', False);
 end;
 
+procedure TTestComparePolicy.BuildPrimaryKeyRenameScenario(out AMaster,
+  ATarget: TCatalogMetadataMIK);
+var
+  LTable: TTableMIK;
+begin
+  // Caminho de MAIOR RISCO: a PK existe nos DOIS lados (mesma coluna) mas com
+  // nomes diferentes -> o diff hist�rico faz DROP da PK antiga + CREATE da nova
+  // (par). No perfil Janus o par inteiro deve ser suprimido para nunca deixar a
+  // tabela sem chave prim�ria.
+  AMaster := TCatalogMetadataMIK.Create;
+  LTable := AddTable(AMaster, 'PEDIDO');
+  AddColumn(LTable, 'ID', 0, 'INTEGER', 0, True);
+  SetPrimaryKey(LTable, 'PK_PEDIDO_NEW', 'ID');
+
+  ATarget := TCatalogMetadataMIK.Create;
+  LTable := AddTable(ATarget, 'PEDIDO');
+  AddColumn(LTable, 'ID', 0, 'INTEGER', 0, True);
+  SetPrimaryKey(LTable, 'PK_PEDIDO_OLD', 'ID');
+end;
+
 procedure TTestComparePolicy.Policy_FullProfile_AllowsEverything;
 var
   LPolicy: TComparePolicy;
@@ -345,6 +406,48 @@ begin
   Assert.IsTrue(HasCommand(TDDLCommandCreatePrimaryKey), 'CREATE PRIMARY KEY');
   Assert.AreEqual(0, Length(FFactory.SuppressedCommands),
     'FullProfile n�o deveria suprimir nada');
+end;
+
+procedure TTestComparePolicy.Janus_PrimaryKeyRename_SuppressesAllPkCommands;
+var
+  LMaster, LTarget: TCatalogMetadataMIK;
+begin
+  BuildPrimaryKeyRenameScenario(LMaster, LTarget);
+  FFactory := TTestableFactory.Create(dnFirebird);
+  FFactory.Policy := TComparePolicy.JanusOrmProfile;
+  FFactory.Generate(LMaster, LTarget);
+
+  // NENHUM comando de PK deve ser emitido (nem drop da antiga, nem create da nova).
+  Assert.IsFalse(HasCommand(TDDLCommandDropPrimaryKey),
+    'DROP PRIMARY KEY nunca deve ser emitido no perfil Janus');
+  Assert.IsFalse(HasCommand(TDDLCommandCreatePrimaryKey),
+    'CREATE PRIMARY KEY do par renomeado n�o deve ser emitido (sem create �rf�o)');
+  // A supress�o do par � registrada na auditoria.
+  Assert.IsTrue(SuppressedContains('RECREATE PRIMARYKEY'),
+    'SuppressedCommands deveria relatar o par de PK suprimido');
+end;
+
+procedure TTestComparePolicy.Execute_UnknownCommand_DeniedFailClosed;
+var
+  LFake: TDDLCommandFake;
+begin
+  FFactory := TTestableFactory.Create(dnFirebird);
+  // Policy default = FullProfile (tudo liberado)...
+  LFake := TDDLCommandFake.Create;
+  FFactory.InjectRawCommand(LFake); // FDDLCommands (TObjectList) assume a posse.
+
+  // ...ainda assim, uma classe DESCONHECIDA � negada por fail-closed.
+  Assert.IsFalse(FFactory.Policy.Allows(LFake),
+    'comando desconhecido deve ser negado mesmo no FullProfile');
+  Assert.WillRaise(
+    procedure
+    begin
+      FFactory.ExecuteCommands;
+    end,
+    Exception,
+    'ExecuteCommands deveria recusar comando desconhecido (fail-closed)');
+  Assert.IsTrue(SuppressedContains('unknown command class'),
+    'a auditoria deveria registrar a classe desconhecida negada');
 end;
 
 procedure TTestComparePolicy.Execute_RejectsCommandNotAllowedByPolicy;

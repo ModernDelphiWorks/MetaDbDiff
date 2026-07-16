@@ -322,8 +322,8 @@ begin
             ActionCreateTrigger(LTriggerMaster.Value);
           end
           else
-            AddSuppressed(Format('RECREATE TRIGGER %s suppressed by policy',
-              [LTrigger.Name]));
+            AddSuppressed(Format('RECREATE TRIGGER %s.%s suppressed by policy',
+              [LTrigger.Table.Name, LTrigger.Name]));
         end;
       end
       else
@@ -577,8 +577,8 @@ begin
             ActionCreateForeignKey(LForeignKeyMaster.Value);
           end
           else
-            AddSuppressed(Format('RECREATE FOREIGNKEY %s suppressed by policy',
-              [LForeignKeyTarget.Value.Name]));
+            AddSuppressed(Format('RECREATE FOREIGNKEY %s.%s suppressed by policy',
+              [LForeignKeyTarget.Value.Table.Name, LForeignKeyTarget.Value.Name]));
         end;
       end
       else
@@ -713,8 +713,8 @@ begin
           ActionCreateIndexe(LIndexeMaster.Value);
         end
         else
-          AddSuppressed(Format('RECREATE INDEXE %s suppressed by policy',
-            [LIndexeTarget.Value.Name]));
+          AddSuppressed(Format('RECREATE INDEXE %s.%s suppressed by policy',
+            [LIndexeTarget.Value.Table.Name, LIndexeTarget.Value.Name]));
       end;
     end
     else
@@ -772,8 +772,8 @@ begin
      (not (FPolicy.Allows(TDDLOperation.DropPrimaryKey) and
            FPolicy.Allows(TDDLOperation.CreatePrimaryKey))) then
   begin
-    AddSuppressed(Format('RECREATE PRIMARYKEY %s suppressed by policy',
-      [ATargetTable.PrimaryKey.Name]));
+    AddSuppressed(Format('RECREATE PRIMARYKEY %s.%s suppressed by policy',
+      [ATargetTable.Name, ATargetTable.PrimaryKey.Name]));
     LDropPK := False;
     LRecreatePK := False;
   end;
@@ -848,7 +848,8 @@ procedure TDatabaseFactory.ActionCreateCheck(ACheck: TCheckMIK);
 begin
   if not FPolicy.Allows(TDDLOperation.CreateCheck) then
   begin
-    AddSuppressed(Format('CREATE CHECK %s suppressed by policy', [ACheck.Name]));
+    AddSuppressed(Format('CREATE CHECK %s.%s suppressed by policy',
+      [ACheck.Table.Name, ACheck.Name]));
     Exit;
   end;
   FDDLCommands.Add(TDDLCommandCreateCheck.Create(ACheck));
@@ -858,7 +859,8 @@ procedure TDatabaseFactory.ActionAlterCheck(ACheck: TCheckMIK);
 begin
   if not FPolicy.Allows(TDDLOperation.AlterCheck) then
   begin
-    AddSuppressed(Format('ALTER CHECK %s suppressed by policy', [ACheck.Name]));
+    AddSuppressed(Format('ALTER CHECK %s.%s suppressed by policy',
+      [ACheck.Table.Name, ACheck.Name]));
     Exit;
   end;
   FDDLCommands.Add(TDDLCommandAlterCheck.Create(ACheck));
@@ -879,8 +881,8 @@ procedure TDatabaseFactory.ActionCreateForeignKey(AForeignKey: TForeignKeyMIK);
 begin
   if not FPolicy.Allows(TDDLOperation.CreateForeignKey) then
   begin
-    AddSuppressed(Format('CREATE FOREIGNKEY %s suppressed by policy',
-      [AForeignKey.Name]));
+    AddSuppressed(Format('CREATE FOREIGNKEY %s.%s suppressed by policy',
+      [AForeignKey.Table.Name, AForeignKey.Name]));
     Exit;
   end;
   FDDLCommands.Add(TDDLCommandCreateForeignKey.Create(AForeignKey));
@@ -890,7 +892,8 @@ procedure TDatabaseFactory.ActionCreateIndexe(AIndexe: TIndexeKeyMIK);
 begin
   if not FPolicy.Allows(TDDLOperation.CreateIndexe) then
   begin
-    AddSuppressed(Format('CREATE INDEXE %s suppressed by policy', [AIndexe.Name]));
+    AddSuppressed(Format('CREATE INDEXE %s.%s suppressed by policy',
+      [AIndexe.Table.Name, AIndexe.Name]));
     Exit;
   end;
   FDDLCommands.Add(TDDLCommandCreateIndexe.Create(AIndexe));
@@ -900,8 +903,8 @@ procedure TDatabaseFactory.ActionCreatePrimaryKey(APrimaryKey: TPrimaryKeyMIK);
 begin
   if not FPolicy.Allows(TDDLOperation.CreatePrimaryKey) then
   begin
-    AddSuppressed(Format('CREATE PRIMARYKEY %s suppressed by policy',
-      [APrimaryKey.Name]));
+    AddSuppressed(Format('CREATE PRIMARYKEY %s.%s suppressed by policy',
+      [APrimaryKey.Table.Name, APrimaryKey.Name]));
     Exit;
   end;
   FDDLCommands.Add(TDDLCommandCreatePrimaryKey.Create(APrimaryKey));
@@ -942,8 +945,8 @@ procedure TDatabaseFactory.ActionCreateTrigger(ATrigger: TTriggerMIK);
 begin
   if not FPolicy.Allows(TDDLOperation.CreateTrigger) then
   begin
-    AddSuppressed(Format('CREATE TRIGGER %s suppressed by policy',
-      [ATrigger.Name]));
+    AddSuppressed(Format('CREATE TRIGGER %s.%s suppressed by policy',
+      [ATrigger.Table.Name, ATrigger.Name]));
     Exit;
   end;
   FDDLCommands.Add(TDDLCommandCreateTrigger.Create(ATrigger));
@@ -953,7 +956,8 @@ procedure TDatabaseFactory.ActionDropCheck(ACheck: TCheckMIK);
 begin
   if not FPolicy.Allows(TDDLOperation.DropCheck) then
   begin
-    AddSuppressed(Format('DROP CHECK %s suppressed by policy', [ACheck.Name]));
+    AddSuppressed(Format('DROP CHECK %s.%s suppressed by policy',
+      [ACheck.Table.Name, ACheck.Name]));
     Exit;
   end;
   FDDLCommands.Add(TDDLCommandDropCheck.Create(ACheck));
@@ -985,8 +989,8 @@ procedure TDatabaseFactory.ActionDropForeignKey(AForeignKey: TForeignKeyMIK);
 begin
   if not FPolicy.Allows(TDDLOperation.DropForeignKey) then
   begin
-    AddSuppressed(Format('DROP FOREIGNKEY %s suppressed by policy',
-      [AForeignKey.Name]));
+    AddSuppressed(Format('DROP FOREIGNKEY %s.%s suppressed by policy',
+      [AForeignKey.Table.Name, AForeignKey.Name]));
     Exit;
   end;
   FDDLCommands.Add(TDDLCommandDropForeignKey.Create(AForeignKey));
@@ -996,7 +1000,8 @@ procedure TDatabaseFactory.ActionDropIndexe(AIndexe: TIndexeKeyMIK);
 begin
   if not FPolicy.Allows(TDDLOperation.DropIndexe) then
   begin
-    AddSuppressed(Format('DROP INDEXE %s suppressed by policy', [AIndexe.Name]));
+    AddSuppressed(Format('DROP INDEXE %s.%s suppressed by policy',
+      [AIndexe.Table.Name, AIndexe.Name]));
     Exit;
   end;
   FDDLCommands.Add(TDDLCommandDropIndexe.Create(AIndexe));
@@ -1006,8 +1011,8 @@ procedure TDatabaseFactory.ActionDropPrimaryKey(APrimaryKey: TPrimaryKeyMIK);
 begin
   if not FPolicy.Allows(TDDLOperation.DropPrimaryKey) then
   begin
-    AddSuppressed(Format('DROP PRIMARYKEY %s suppressed by policy',
-      [APrimaryKey.Name]));
+    AddSuppressed(Format('DROP PRIMARYKEY %s.%s suppressed by policy',
+      [APrimaryKey.Table.Name, APrimaryKey.Name]));
     Exit;
   end;
   FDDLCommands.Add(TDDLCommandDropPrimaryKey.Create(APrimaryKey));
@@ -1048,7 +1053,8 @@ procedure TDatabaseFactory.ActionDropTrigger(ATrigger: TTriggerMIK);
 begin
   if not FPolicy.Allows(TDDLOperation.DropTrigger) then
   begin
-    AddSuppressed(Format('DROP TRIGGER %s suppressed by policy', [ATrigger.Name]));
+    AddSuppressed(Format('DROP TRIGGER %s.%s suppressed by policy',
+      [ATrigger.Table.Name, ATrigger.Name]));
     Exit;
   end;
   FDDLCommands.Add(TDDLCommandDropTrigger.Create(ATrigger));

@@ -19,6 +19,16 @@
   Policy que limita quais opera��es DDL o diff pode gerar/executar. Cada muta��o
   emitida pelo TDatabaseFactory passa por um "gate" que consulta esta policy;
   opera��es suprimidas s�o registradas no relat�rio de auditoria da compara��o.
+
+  IMPORTANTE (uso correto): TComparePolicy � um RECORD. Para trocar a policy,
+  atribua o RECORD INTEIRO � property (`X.Policy := TComparePolicy.JanusOrmProfile`
+  ou monte um TComparePolicy local e atribua). O conjunto Operations � somente
+  leitura de prop�sito: `X.Policy.Operations := [...]` mutaria apenas o
+  tempor�rio devolvido pelo getter (no-op silencioso) e por isso � imposs�vel.
+
+  Seguran�a (fail-closed): a classifica��o comando->opera��o usa uma allowlist
+  expl�cita das guardas; QUALQUER TDDLCommand desconhecido (n�o mapeado) �
+  NEGADO por padr�o e registrado na auditoria, jamais tratado como guarda.
 }
 
 unit MetaDbDiff.Compare.Options;
@@ -64,6 +74,15 @@ type
 
   TDDLOperations = set of TDDLOperation;
 
+{$SCOPEDENUMS OFF}
+  /// <summary>
+  ///   Classifica��o de um TDDLCommand quanto � policy:
+  ///   ckMutation - muta��o de schema mapeada (sujeita � policy);
+  ///   ckGuard    - comando de guarda (Enable*), sempre permitido;
+  ///   ckUnknown  - classe n�o mapeada: NEGADA por fail-closed.
+  /// </summary>
+  TDDLCommandKind = (ckMutation, ckGuard, ckUnknown);
+
 const
   /// <summary> Conjunto com todas as opera��es de muta��o conhecidas. </summary>
   AllDDLOperations: TDDLOperations =
@@ -94,28 +113,36 @@ type
     function Allows(AOperation: TDDLOperation): Boolean; overload;
     /// <summary>
     ///   Indica se o comando DDL informado � permitido. Comandos de guarda
-    ///   (Enable*) s�o sempre permitidos por n�o serem muta��es.
+    ///   (Enable*) s�o sempre permitidos; comandos desconhecidos (n�o mapeados)
+    ///   s�o NEGADOS por fail-closed.
     /// </summary>
     function Allows(ACommand: TDDLCommand): Boolean; overload;
-    property Operations: TDDLOperations read FOperations write FOperations;
+    /// <summary>
+    ///   Somente leitura de prop�sito (ver cabe�alho da unit): trocar a policy
+    ///   se faz atribuindo o record inteiro � property, nunca mutando este set.
+    /// </summary>
+    property Operations: TDDLOperations read FOperations;
   end;
 
 /// <summary>
-///   Mapeia a classe concreta de um TDDLCommand para a opera��o correspondente.
-///   Retorna False quando o comando � de guarda (EnableForeignKeys /
-///   EnableTriggers), caso em que AOperation n�o deve ser considerado.
+///   Classifica a classe concreta de um TDDLCommand. Allowlist expl�cita das
+///   guardas (Enable*); muta��es conhecidas devolvem ckMutation + AOperation;
+///   QUALQUER outra classe devolve ckUnknown (fail-closed). O mapeamento vive
+///   aqui para n�o precisar editar MetaDbDiff.DDL.Commands.pas.
 /// </summary>
-function TryGetDDLOperation(ACommand: TDDLCommand;
-  out AOperation: TDDLOperation): Boolean;
+function ClassifyDDLCommand(ACommand: TDDLCommand;
+  out AOperation: TDDLOperation): TDDLCommandKind;
 
 implementation
 
-function TryGetDDLOperation(ACommand: TDDLCommand;
-  out AOperation: TDDLOperation): Boolean;
+function ClassifyDDLCommand(ACommand: TDDLCommand;
+  out AOperation: TDDLOperation): TDDLCommandKind;
 begin
-  Result := True;
-  // Dispatch por classe do comando (o mapeamento vive aqui para n�o precisar
-  // editar MetaDbDiff.DDL.Commands.pas).
+  // 1) Allowlist EXPL�CITA das guardas (n�o s�o muta��es): sempre liberadas.
+  if (ACommand is TDDLCommandEnableForeignKeys) or
+     (ACommand is TDDLCommandEnableTriggers) then
+    Exit(ckGuard);
+  // 2) Muta��es conhecidas.
   if ACommand is TDDLCommandCreateTable then
     AOperation := TDDLOperation.CreateTable
   else if ACommand is TDDLCommandDropTable then
@@ -163,8 +190,9 @@ begin
   else if ACommand is TDDLCommandDropSequence then
     AOperation := TDDLOperation.DropSequence
   else
-    // TDDLCommandEnableForeignKeys / TDDLCommandEnableTriggers: guardas.
-    Result := False;
+    // 3) Classe n�o mapeada: NEGA por fail-closed (jamais tratada como guarda).
+    Exit(ckUnknown);
+  Result := ckMutation;
 end;
 
 { TComparePolicy }
@@ -198,10 +226,14 @@ function TComparePolicy.Allows(ACommand: TDDLCommand): Boolean;
 var
   LOperation: TDDLOperation;
 begin
-  // Comandos de guarda (Enable*) n�o s�o muta��es: sempre permitidos.
-  if not TryGetDDLOperation(ACommand, LOperation) then
-    Exit(True);
-  Result := LOperation in FOperations;
+  case ClassifyDDLCommand(ACommand, LOperation) of
+    ckGuard:
+      Result := True;                     // guarda: sempre permitida
+    ckMutation:
+      Result := LOperation in FOperations; // muta��o: sujeita � policy
+  else
+    Result := False;                       // ckUnknown: fail-closed
+  end;
 end;
 
 end.

@@ -125,14 +125,38 @@ end;
 procedure TDatabaseAbstract.ValidateCommandsPolicy;
 var
   LDDLCommand: TDDLCommand;
+  LOperation: TDDLOperation;
+  LDenied: Boolean;
 begin
-  // Percorre a lista final e recusa qualquer comando cuja opera��o n�o esteja
-  // liberada pela policy - protege contra comandos injetados na lista.
+  // Percorre a lista final e recusa qualquer comando n�o liberado pela policy -
+  // protege contra comandos injetados na lista e contra classes n�o mapeadas.
+  // Toda recusa � registrada na auditoria; se houver ao menos uma, a execu��o �
+  // bloqueada (fail-closed) com uma exce��o clara.
+  LDenied := False;
   for LDDLCommand in FDDLCommands do
-    if not FPolicy.Allows(LDDLCommand) then
-      raise Exception.CreateFmt(
-        'MetaDbDiff: comando "%s" n�o � permitido pela policy vigente.',
-        [LDDLCommand.Warning]);
+  begin
+    case ClassifyDDLCommand(LDDLCommand, LOperation) of
+      ckGuard: ; // guarda: sempre permitida
+      ckMutation:
+        if not FPolicy.Allows(LOperation) then
+        begin
+          AddSuppressed(Format('%s denied by policy at execution',
+            [LDDLCommand.Warning]));
+          LDenied := True;
+        end;
+      ckUnknown:
+        begin
+          // Fail-closed: classe desconhecida � negada e auditada.
+          AddSuppressed(Format(
+            'unknown command class %s denied by fail-closed policy',
+            [LDDLCommand.ClassName]));
+          LDenied := True;
+        end;
+    end;
+  end;
+  if LDenied then
+    raise Exception.Create('MetaDbDiff: execu��o recusada - h� comandos n�o ' +
+      'permitidos pela policy vigente (ver SuppressedCommands).');
 end;
 
 procedure TDatabaseAbstract.ExecuteCommands;
