@@ -48,6 +48,7 @@ type
     function GetSelectIndexe(ATableName: String): String; override;
     function GetSelectIndexeColumns(AIndexeName: String): String; override;
     function GetSelectTriggers(ATableName: String): String; override;
+    function GetSelectChecks(ATableName: String): String; override;
     function GetSelectViews: String; override;
     function GetSelectSequences: String; override;
     function Execute: IDBResultSet;
@@ -100,8 +101,32 @@ begin
 end;
 
 procedure TCatalogMetadataFirebird.GetChecks(ATable: TTableMIK);
+var
+  LDBResultSet: IDBResultSet;
+  LCheck: TCheckMIK;
+
+  function ExtractCheckCondition(ACheckSource: String): String;
+  begin
+    // RDB$TRIGGER_SOURCE armazena a definicao completa "CHECK (<condicao>)";
+    // remove a palavra-chave CHECK para manter somente a condicao, no padrao
+    // dos demais extractors (o gerador reconstroi o "CHECK (...)").
+    Result := Trim(ACheckSource);
+    if UpperCase(Copy(Result, 1, 5)) = 'CHECK' then
+      Result := Trim(Copy(Result, 6, Length(Result)));
+  end;
+
 begin
-  /// Not Suported.
+  inherited;
+  FSQLText := GetSelectChecks(ATable.Name);
+  LDBResultSet := Execute;
+  while LDBResultSet.NotEof do
+  begin
+    LCheck := TCheckMIK.Create(ATable);
+    LCheck.Name := VarToStr(LDBResultSet.GetFieldValue('name'));
+    LCheck.Description := '';
+    LCheck.Condition := ExtractCheckCondition(VarToStr(LDBResultSet.GetFieldValue('condition')));
+    ATable.Checks.Add(UpperCase(LCheck.Name), LCheck);
+  end;
 end;
 
 procedure TCatalogMetadataFirebird.GetSchemas;
@@ -528,6 +553,24 @@ end;
 function TCatalogMetadataFirebird.GetSelectTriggers(ATableName: String): String;
 begin
   Result := '';
+end;
+
+function TCatalogMetadataFirebird.GetSelectChecks(ATableName: String): String;
+begin
+  // Check constraints via RDB$RELATION_CONSTRAINTS + RDB$CHECK_CONSTRAINTS +
+  // RDB$TRIGGERS (RDB$TRIGGER_SOURCE contem o "CHECK (...)").
+  // O filtro rdb$trigger_type = 1 (BEFORE INSERT) evita duplicidade, pois cada
+  // CHECK gera um par de triggers (BEFORE INSERT/BEFORE UPDATE) com o mesmo fonte.
+  // Os NOT NULL implicitos ja ficam de fora (rdb$constraint_type = 'NOT NULL').
+  Result := ' select rc.rdb$constraint_name as name, ' +
+            '        tg.rdb$trigger_source  as condition ' +
+            ' from rdb$relation_constraints rc ' +
+            ' inner join rdb$check_constraints ck on ck.rdb$constraint_name = rc.rdb$constraint_name ' +
+            ' inner join rdb$triggers tg on tg.rdb$trigger_name = ck.rdb$trigger_name ' +
+            ' where (rc.rdb$constraint_type = ''CHECK'') ' +
+            ' and   (tg.rdb$trigger_type = 1) ' +
+            ' and   (rc.rdb$relation_name = ' + QuotedStr(ATableName) + ')' +
+            ' order by rc.rdb$constraint_name ';
 end;
 
 function TCatalogMetadataFirebird.GetSelectForeignKey(ATableName: String): String;
