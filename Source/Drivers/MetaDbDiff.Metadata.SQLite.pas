@@ -30,6 +30,7 @@ uses
   Generics.Collections,
   MetaDbDiff.Metadata.Register,
   MetaDbDiff.Metadata.Extract,
+  MetaDbDiff.Metadata.Normalize,
   MetaDbDiff.Database.Mapping,
   DataEngine.FactoryInterfaces;
 
@@ -458,7 +459,9 @@ begin
     oView := TViewMIK.Create(FCatalogMetadata);
     oView.Name := VarToStr(oDBResultSet.GetFieldValue('name'));
     oView.Description := '';
-    oView.Script := VarToStr(oDBResultSet.GetFieldValue('sql'));
+    // sqlite_master.sql traz o "CREATE VIEW <nome> AS ..." COMPLETO; guarda so o
+    // corpo (como PG/MySQL/Firebird) para o recreate montar SQL valido.
+    oView.Script := TMetadataNormalizer.StripCreateViewPrefix(VarToStr(oDBResultSet.GetFieldValue('sql')));
     FCatalogMetadata.Views.Add(UpperCase(oView.Name), oView);
   end;
 end;

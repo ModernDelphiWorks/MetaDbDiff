@@ -54,7 +54,8 @@ type
     procedure ActionCreatePrimaryKey(APrimaryKey: TPrimaryKeyMIK);
     procedure ActionCreateColumn(AColumn: TColumnMIK);
     procedure ActionCreateSequence(ASequence: TSequenceMIK);
-    procedure ActionAlterSequence(ASequence: TSequenceMIK);
+    // Estilo do dono: metodo private novo desta frente leva prefixo '_'.
+    procedure _ActionAlterSequence(ASequence: TSequenceMIK);
     procedure ActionCreateForeignKey(AForeignKey: TForeignKeyMIK);
     procedure ActionCreateView(AView: TViewMIK);
     procedure ActionCreateTrigger(ATrigger: TTriggerMIK);
@@ -320,8 +321,8 @@ begin
         // script NORMALIZADO (whitespace/quebras colapsados) para nao gerar
         // drop+create espurio so por diferenca de formatacao; o script ORIGINAL
         // continua sendo usado no CREATE.
-        if CompareText(NormalizeScript(LTriggerMaster.Value.Script),
-                       NormalizeScript(LTrigger.Script)) <> 0 then
+        if CompareText(TMetadataNormalizer.NormalizeScript(LTriggerMaster.Value.Script),
+                       TMetadataNormalizer.NormalizeScript(LTrigger.Script)) <> 0 then
         begin
           // Par DROP+CREATE: s� emite se AMBAS as opera��es forem permitidas;
           // caso contr�rio suprime o par inteiro (nunca deixa drop �rf�o).
@@ -351,14 +352,25 @@ begin
   if TSupportedFeature.Views in FGeneratorCommand.SupportedFeatures then
   begin
     // Gera script de exclus�o da view, caso n�o exista um modelo para ela no banco.
-    for LViewTarget in SortedPairs<TViewMIK>(ATargetDB.Views) do
-    begin
-      if not AMasterDB.Views.ContainsKey(LViewTarget.Key) then
-        ActionDropView(LViewTarget.Value);
-    end;
+    // EXCECAO (F10) - modo Model-vs-Database: o modelo (atributos [View]) NAO
+    // conhece todas as views do banco, entao NUNCA dropamos uma view do target so
+    // porque nao esta mapeada - senao um FullProfile em model-mode faria DROP em
+    // massa das views nao modeladas. O diff completo de views (drop de orfas) fica
+    // para DB-vs-DB/snapshot, onde ambos os lados tem o catalogo real.
+    if not FModelForDatabase then
+      for LViewTarget in SortedPairs<TViewMIK>(ATargetDB.Views) do
+      begin
+        if not AMasterDB.Views.ContainsKey(LViewTarget.Key) then
+          ActionDropView(LViewTarget.Value);
+      end;
     // Gera script de cria��o da view, caso a view do modelo n�o exista no banco.
     for LViewMaster in SortedPairs<TViewMIK>(AMasterDB.Views) do
     begin
+      // Em model-mode o atributo [View] NAO carrega Script (Popular forca ''):
+      // sem corpo nao da para comparar nem (re)criar (CREATE VIEW AS <vazio> e
+      // invalido). Pula estas views - o corpo so existe no caminho DB-vs-DB.
+      if FModelForDatabase and (Trim(LViewMaster.Value.Script) = '') then
+        Continue;
       if ATargetDB.Views.ContainsKey(LViewMaster.Key) then
       begin
         LView := ATargetDB.Views.Items[LViewMaster.Key];
@@ -366,8 +378,8 @@ begin
         // script NORMALIZADO (whitespace/quebras colapsados) para nao gerar
         // drop+create espurio so por diferenca de formatacao; o script ORIGINAL
         // continua sendo usado no CREATE.
-        if CompareText(NormalizeScript(LViewMaster.Value.Script),
-                       NormalizeScript(LView.Script)) <> 0 then
+        if CompareText(TMetadataNormalizer.NormalizeScript(LViewMaster.Value.Script),
+                       TMetadataNormalizer.NormalizeScript(LView.Script)) <> 0 then
         begin
           // Par DROP+CREATE: s� emite se AMBAS as opera��es forem permitidas.
           if FPolicy.Allows(TDDLOperation.DropView) and
@@ -412,8 +424,8 @@ begin
         // [Check] (ex.: 'AGE > 18' ou '((AGE > 18))'): aplica a MESMA canonizacao
         // aqui para que 'AGE > 18' (master) == '((AGE > 18))' (target) NAO gere um
         // ALTER CHECK espurio. Canonizar o target de novo e idempotente.
-        if CompareText(CanonicalizeCheckCondition(LCheckMaster.Value.Condition),
-                       CanonicalizeCheckCondition(LCheck.Condition)) <> 0 then
+        if CompareText(TMetadataNormalizer.CanonicalizeCheckCondition(LCheckMaster.Value.Condition),
+                       TMetadataNormalizer.CanonicalizeCheckCondition(LCheck.Condition)) <> 0 then
           ActionAlterCheck(LCheckMaster.Value);
       end
       else
@@ -814,7 +826,7 @@ var
   // real: o "contador" e uma linha em sqlite_sequence e nao ha INCREMENT/RESTART
   // alteravel por DDL. Nesses dialetos nunca emitimos ALTER SEQUENCE (o proprio
   // generator retorna vazio, mas evitamos ate criar o comando).
-  function DialectSupportsAlterSequence: Boolean;
+  function _DialectSupportsAlterSequence: Boolean;
   begin
     Result := not (FDriverName in [dnSQLite, dnAbsoluteDB]);
   end;
@@ -834,19 +846,29 @@ begin
     begin
       if not ATargetDB.Sequences.ContainsKey(LSequenceMaster.Key) then
         ActionCreateSequence(LSequenceMaster.Value)
-      else if DialectSupportsAlterSequence then
+      else if _DialectSupportsAlterSequence then
       begin
-        // Sequence existe nos dois lados: compara os atributos alteraveis. O
-        // Increment (passo) e sempre comparado - e estavel. O InitialValue so e
-        // comparado quando CompareSequenceInitialValue esta LIGADO (opt-in),
-        // porque o valor corrente avanca com o uso e geraria falso-positivo eterno.
+        // Sequence existe nos dois lados: compara os atributos alteraveis.
         LTarget := ATargetDB.Sequences.Items[LSequenceMaster.Key];
-        LDiverges := LSequenceMaster.Value.Increment <> LTarget.Increment;
-        if FCompareSequenceInitialValue then
-          LDiverges := LDiverges or
-            (LSequenceMaster.Value.InitialValue <> LTarget.InitialValue);
+        LDiverges := False;
+        // REGRA DE SEGURANCA (F10): Increment 0 e ILEGAL em qualquer SGBD, logo
+        // aqui o zero significa "nao extraido/desconhecido" (Firebird 2.5 nao tem
+        // increment em RDB$GENERATORS; o passo e do GEN_ID por chamada). Quando o
+        // target nao trouxe o increment, PULAMOS a comparacao do passo - senao o
+        // increment do modelo divergiria SEMPRE de 0 e dispararia um ALTER
+        // SEQUENCE ... RESTART perpetuo que reseta a sequence viva a cada diff.
+        if (LTarget.Increment <> 0) and
+           (LSequenceMaster.Value.Increment <> LTarget.Increment) then
+          LDiverges := True;
+        // InitialValue so entra na comparacao sob a flag opt-in (o valor corrente
+        // e alvo movel em producao). No Firebird 2.5 essa e a UNICA via possivel
+        // de AlterSequence (o override so emite RESTART WITH) e apenas quando o
+        // usuario liga explicitamente a flag - documentado no gerador.
+        if FCompareSequenceInitialValue and
+           (LSequenceMaster.Value.InitialValue <> LTarget.InitialValue) then
+          LDiverges := True;
         if LDiverges then
-          ActionAlterSequence(LSequenceMaster.Value);
+          _ActionAlterSequence(LSequenceMaster.Value);
       end;
     end;
   end;
@@ -967,7 +989,7 @@ begin
   FDDLCommands.Add(TDDLCommandCreateSequence.Create(ASequence));
 end;
 
-procedure TDatabaseFactory.ActionAlterSequence(ASequence: TSequenceMIK);
+procedure TDatabaseFactory._ActionAlterSequence(ASequence: TSequenceMIK);
 begin
   if not FPolicy.Allows(TDDLOperation.AlterSequence) then
   begin

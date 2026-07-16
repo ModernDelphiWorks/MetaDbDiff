@@ -385,7 +385,12 @@ begin
     oSequence := TSequenceMIK.Create(FCatalogMetadata);
     oSequence.TableName := VarToStr(oDBResultSet.GetFieldValue('name'));
     oSequence.Name := VarToStr(oDBResultSet.GetFieldValue('name'));
-    oSequence.Description := VarToStr(oDBResultSet.GetFieldValue('description'));
+    oSequence.Description := '';
+    // user_sequences expoe increment_by e min_value: popula-los evita ALTER
+    // SEQUENCE perpetuo por Increment 0 (ver F10). Oracle nao guarda "start"
+    // separado; min_value e o piso de reinicio.
+    oSequence.Increment := StrToIntDef(VarToStr(oDBResultSet.GetFieldValue('increment')), 0);
+    oSequence.InitialValue := StrToIntDef(VarToStr(oDBResultSet.GetFieldValue('start_value')), 0);
     FCatalogMetadata.Sequences.Add(UpperCase(oSequence.Name), oSequence);
   end;
 end;
@@ -490,7 +495,8 @@ end;
 function TCatalogMetadataOracle.GetSelectSequences: String;
 begin
   Result := ' select sequence_name as name, ' +
-            '        ''''          as description ' +
+            '        increment_by  as increment, ' +
+            '        min_value     as start_value ' +
             ' from user_sequences ';
 end;
 

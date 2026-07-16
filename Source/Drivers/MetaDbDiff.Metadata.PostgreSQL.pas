@@ -138,9 +138,9 @@ begin
     LCheck.Name := VarToStr(LDBResultSet.GetFieldValue('name'));
     LCheck.Description := '';
     // pg_get_constraintdef() traz "CHECK ((<cond>))"; canoniza (strip CHECK +
-    // parens externos balanceados) via helper compartilhado com o Firebird,
+    // parens externos balanceados) via fachada neutra do Core (TMetadataNormalizer),
     // evitando o "CHECK (CHECK (...))" invalido no gerador.
-    LCheck.Condition := CanonicalizeCheckCondition(VarToStr(LDBResultSet.GetFieldValue('condition')));
+    LCheck.Condition := TMetadataNormalizer.CanonicalizeCheckCondition(VarToStr(LDBResultSet.GetFieldValue('condition')));
     ATable.Checks.Add(UpperCase(LCheck.Name), LCheck);
   end;
 end;
@@ -380,7 +380,11 @@ begin
   begin
     LSequence := TSequenceMIK.Create(FCatalogMetadata);
     LSequence.Name := VarToStr(LDBResultSet.GetFieldValue('name'));
-    LSequence.Description := VarToStr(LDBResultSet.GetFieldValue('description'));;
+    LSequence.Description := '';
+    // pg_sequences (PG10+) expoe increment_by e start_value: popula-los evita
+    // ALTER SEQUENCE perpetuo por Increment 0 (ver F10).
+    LSequence.Increment := StrToIntDef(VarToStr(LDBResultSet.GetFieldValue('increment')), 0);
+    LSequence.InitialValue := StrToIntDef(VarToStr(LDBResultSet.GetFieldValue('start_value')), 0);
     FCatalogMetadata.Sequences.Add(UpperCase(LSequence.Name), LSequence);
   end;
 end;
@@ -488,10 +492,12 @@ end;
 
 function TCatalogMetadataPostgreSQL.GetSelectSequences: String;
 begin
-  Result := ' select relname as name, ' +
-            '        ''''    as description ' +
-            ' from pg_class ' +
-            ' where relkind in (' + QuotedStr('S') + ')';
+  // pg_sequences (PG10+) traz o passo (increment_by) e o valor inicial
+  // (start_value) alem do nome - necessarios para o diff de sequence (F10).
+  Result := ' select sequencename as name, ' +
+            '        increment_by as increment, ' +
+            '        start_value  as start_value ' +
+            ' from pg_sequences ';
 end;
 
 function TCatalogMetadataPostgreSQL.GetSelectTableColumns(ATableName: String): String;

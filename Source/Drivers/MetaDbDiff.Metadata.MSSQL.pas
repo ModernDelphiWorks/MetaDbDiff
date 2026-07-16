@@ -30,6 +30,7 @@ uses
   Generics.Collections,
   MetaDbDiff.Metadata.Register,
   MetaDbDiff.Metadata.Extract,
+  MetaDbDiff.Metadata.Normalize,
   MetaDbDiff.Database.Mapping,
   DataEngine.FactoryInterfaces;
 
@@ -371,7 +372,12 @@ begin
   begin
     oSequence := TSequenceMIK.Create(FCatalogMetadata);
     oSequence.Name := VarToStr(oDBResultSet.GetFieldValue('name'));
-    oSequence.Description := VarToStr(oDBResultSet.GetFieldValue('description'));;
+    oSequence.Description := '';
+    // sys.sequences expoe o passo e o valor inicial (sql_variant -> bigint no
+    // select). Popula-los evita que o diff dispare ALTER SEQUENCE perpetuo: sem
+    // isso Increment ficaria 0 e divergiria sempre do modelo (ver F10).
+    oSequence.Increment := StrToIntDef(VarToStr(oDBResultSet.GetFieldValue('increment')), 0);
+    oSequence.InitialValue := StrToIntDef(VarToStr(oDBResultSet.GetFieldValue('start_value')), 0);
     FCatalogMetadata.Sequences.Add(UpperCase(oSequence.Name), oSequence);
   end;
 end;
@@ -444,7 +450,10 @@ begin
   begin
     oView := TViewMIK.Create(FCatalogMetadata);
     oView.Name := VarToStr(oDBResultSet.GetFieldValue('view_name'));
-    oView.Script := VarToStr(oDBResultSet.GetFieldValue('view_script'));
+    // sys.sql_modules.definition traz o "CREATE VIEW <nome> AS ..." COMPLETO;
+    // guarda so o corpo (como PG/MySQL/Firebird fazem) para o recreate montar um
+    // "CREATE VIEW %s AS <corpo>" valido.
+    oView.Script := TMetadataNormalizer.StripCreateViewPrefix(VarToStr(oDBResultSet.GetFieldValue('view_script')));
     oView.Description := VarToStr(oDBResultSet.GetFieldValue('view_description'));
     FCatalogMetadata.Views.Add(UpperCase(oView.Name), oView);
   end;
@@ -476,9 +485,10 @@ end;
 
 function TCatalogMetadataMSSQL.GetSelectSequences: String;
 begin
-  Result := ' select name   as name, ' +
-            '      ''desc'' as description' +
-            ' from [sys].sequences';
+  Result := ' select name                     as name, ' +
+            '        cast(increment as bigint)   as increment, ' +
+            '        cast(start_value as bigint) as start_value ' +
+            ' from sys.sequences';
 end;
 
 function TCatalogMetadataMSSQL.GetSelectTableColumns(ATableName: String): String;

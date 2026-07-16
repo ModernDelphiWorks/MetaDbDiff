@@ -120,7 +120,7 @@ begin
     LCheck.Description := '';
     // RDB$TRIGGER_SOURCE traz "CHECK (<cond>)"; canoniza (strip CHECK + parens
     // externos balanceados) via helper compartilhado com o extractor PostgreSQL.
-    LCheck.Condition := CanonicalizeCheckCondition(VarToStr(LDBResultSet.GetFieldValue('condition')));
+    LCheck.Condition := TMetadataNormalizer.CanonicalizeCheckCondition(VarToStr(LDBResultSet.GetFieldValue('condition')));
     ATable.Checks.Add(UpperCase(LCheck.Name), LCheck);
   end;
 end;
