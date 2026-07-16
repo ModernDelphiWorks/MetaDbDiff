@@ -55,6 +55,8 @@ type
     function GetRaiseOnError: Boolean;
     procedure SetRaiseOnError(const Value: Boolean);
     function GetLastMigrationReport: TMigrationReport;
+    function GetSchema: String;
+    procedure SetSchema(const Value: String);
   {$ENDREGION}
     procedure BuildDatabase;
     procedure ExecuteCommands;
@@ -118,6 +120,19 @@ type
     ///   meio-migrado mesmo com RaiseOnError=False.
     /// </summary>
     property LastMigrationReport: TMigrationReport read GetLastMigrationReport;
+    /// <summary>
+    ///   Schema-aware compare (single-schema, configuravel). Default '' preserva
+    ///   o comportamento historico: a extracao PostgreSQL/MSSQL nao filtra por
+    ///   schema e o DDL sai sem qualificacao. Com um valor nao-vazio (ex.:
+    ///   'vendas'), os extractors multi-schema restringem a extracao a esse
+    ///   schema e os generators PostgreSQL/MSSQL qualificam os nomes de tabela
+    ///   ("schema"."tabela" / [schema].[tabela]). Dialetos sem schema (Firebird,
+    ///   SQLite, MySQL) ignoram a property. O nome e validado como identificador
+    ///   SQL (ver TCatalogMetadataAbstract.ValidateSchemaName): nomes com aspas,
+    ///   espacos, ";" etc. sao rejeitados. Ao migrar entre schemas distintos
+    ///   (master X vs target Y), o DDL usa sempre o schema do TARGET.
+    /// </summary>
+    property Schema: String read GetSchema write SetSchema;
   end;
 
 implementation

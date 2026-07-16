@@ -62,6 +62,8 @@ type
     procedure SetRaiseOnError(const Value: Boolean);
     function GetLastMigrationReport: TMigrationReport;
     function GetLastSequenceReport: TDDLSequenceReport;
+    function GetSchema: String;
+    procedure SetSchema(const Value: String);
     /// <summary>
     ///   Monta o resumo textual de uma execu��o que falhou (n� de falhas,
     ///   primeira mensagem + fase, ponteiro para LastMigrationReport).
@@ -106,6 +108,7 @@ type
     FRaiseOnError: Boolean;
     FLastMigrationReport: TMigrationReport;
     FLastSequenceReport: TDDLSequenceReport;
+    FSchema: String;
     function GetFieldTypeValid(AFieldType: TFieldType): TFieldType; virtual; abstract;
     procedure GenerateDDLCommands(AMasterDB, ATargetDB: TCatalogMetadataMIK); virtual; abstract;
     procedure ExecuteDDLCommands; virtual; abstract;
@@ -211,9 +214,24 @@ type
     ///   Vazio quando UseSequencer=False.
     /// </summary>
     property LastSequenceReport: TDDLSequenceReport read GetLastSequenceReport;
+    /// <summary>
+    ///   Schema-aware compare (single-schema, configuravel - FRENTE 14). Default
+    ///   '' = comportamento historico (extracao sem filtro de schema em
+    ///   PostgreSQL/MSSQL; DDL sem qualificacao). Um valor nao-vazio (validado
+    ///   como identificador SQL) restringe a extracao PostgreSQL/MSSQL a esse
+    ///   schema e faz os generators desses dialetos qualificarem os nomes de
+    ///   tabela. Dialetos sem schema (Firebird/SQLite/MySQL) ignoram a property.
+    ///   Migracao entre schemas (master X -> target Y) e legitima: o DDL usa o
+    ///   schema do TARGET. Model-vs-DB: o modelo nao tem schema proprio - assume
+    ///   o Schema configurado aqui.
+    /// </summary>
+    property Schema: String read GetSchema write SetSchema;
   end;
 
 implementation
+
+uses
+  MetaDbDiff.Metadata.Extract;
 
 { TAbstractDatabase }
 
@@ -245,6 +263,9 @@ begin
   FRaiseOnError := True;
   FLastMigrationReport := Default(TMigrationReport);
   FLastSequenceReport := Default(TDDLSequenceReport);
+  // Schema-aware compare (FRENTE 14): default '' = comportamento historico
+  // (extracao sem filtro de schema; DDL sem qualificacao).
+  FSchema := '';
 end;
 
 destructor TDatabaseAbstract.Destroy;
@@ -436,6 +457,19 @@ end;
 function TDatabaseAbstract.GetLastSequenceReport: TDDLSequenceReport;
 begin
   Result := FLastSequenceReport;
+end;
+
+function TDatabaseAbstract.GetSchema: String;
+begin
+  Result := FSchema;
+end;
+
+procedure TDatabaseAbstract.SetSchema(const Value: String);
+begin
+  // Fail-fast: valida o identificador ja na atribuicao (mesma regra usada na
+  // extracao), para que um schema malicioso seja rejeitado antes de qualquer
+  // scan de metadata. '' e sempre aceito (comportamento historico).
+  FSchema := TCatalogMetadataAbstract.ValidateSchemaName(Value);
 end;
 
 procedure TDatabaseAbstract.ReorderCommandsInPlace(

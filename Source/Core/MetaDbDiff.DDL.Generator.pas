@@ -77,6 +77,21 @@ type
 
   TDDLSQLGenerator = class(TDDLSQLGeneratorAbstract)
   protected
+    /// <summary>
+    ///   Schema-aware compare (FRENTE 14). Qualifica um nome de objeto com o
+    ///   schema quando este e nao-vazio. Implementacao base (dialetos sem schema
+    ///   - Firebird/SQLite/MySQL): retorna o nome cru (ignora o schema como
+    ///   documentado). Os generators PostgreSQL/MSSQL sobrescrevem para aplicar
+    ///   o quoting proprio ("schema"."nome" / [schema].[nome]). Com ASchema=''
+    ///   (default) TODOS retornam apenas AName, preservando o SQL historico.
+    /// </summary>
+    class function _QualifyName(const ASchema, AName: String): String; virtual;
+    /// <summary>
+    ///   Conveniencia: qualifica o nome da tabela com o schema do proprio
+    ///   catalogo (ATable.Database.Schema), via _QualifyName (despacho virtual
+    ///   pelo dialeto concreto).
+    /// </summary>
+    function _QualifyTable(ATable: TTableMIK): String;
     function GetRuleDeleteActionDefinition(ARuleAction: TRuleAction): String;
     function GetRuleUpdateActionDefinition(ARuleAction: TRuleAction): String;
     function GetPrimaryKeyColumnsDefinition(APrimaryKey: TPrimaryKeyMIK): String;
@@ -142,6 +157,22 @@ uses
 
 { TDDLSQLGenerator }
 
+class function TDDLSQLGenerator._QualifyName(const ASchema, AName: String): String;
+begin
+  // Base (dialetos sem schema): schema.nome generico quando ha schema; caso
+  // contrario apenas o nome. Na pratica esses dialetos sempre chegam com
+  // ASchema='' (o extractor nao preenche schema), entao retorna o nome cru.
+  if ASchema <> '' then
+    Result := ASchema + '.' + AName
+  else
+    Result := AName;
+end;
+
+function TDDLSQLGenerator._QualifyTable(ATable: TTableMIK): String;
+begin
+  Result := _QualifyName(ATable.Database.Schema, ATable.Name);
+end;
+
 function TDDLSQLGenerator.GenerateCreateTable(ATable: TTableMIK): String;
 begin
   Result := 'CREATE TABLE %s (';
@@ -162,10 +193,7 @@ end;
 function TDDLSQLGenerator.GenerateDropTable(ATable: TTableMIK): String;
 begin
   Result := 'DROP TABLE %s;';
-  if ATable.Database.Schema <> '' then
-    Result := Format(Result, [ATable.Database.Schema + '.' + ATable.Name])
-  else
-    Result := Format(Result, [ATable.Name]);
+  Result := Format(Result, [_QualifyTable(ATable)]);
 end;
 
 function TDDLSQLGenerator.GenerateDropTrigger(ATrigger: TTriggerMIK): String;
@@ -183,14 +211,14 @@ end;
 function TDDLSQLGenerator.GenerateAddPrimaryKey(APrimaryKey: TPrimaryKeyMIK): String;
 begin
   Result := 'ALTER TABLE %s ADD PRIMARY KEY (%s);';
-  Result := Format(Result, [APrimaryKey.Table.Name,
+  Result := Format(Result, [_QualifyTable(APrimaryKey.Table),
                             GetPrimaryKeyColumnsDefinition(APrimaryKey)]);
 end;
 
 function TDDLSQLGenerator.GenerateAlterColumn(AColumn: TColumnMIK): String;
 begin
   Result := 'ALTER TABLE %s ALTER COLUMN %s;';
-  Result := Format(Result, [AColumn.Table.Name, BuilderAlterFieldDefinition(AColumn)]);
+  Result := Format(Result, [_QualifyTable(AColumn.Table), BuilderAlterFieldDefinition(AColumn)]);
 end;
 
 function TDDLSQLGenerator.GenerateCopyColumnData(AColumn: TColumnMIK;
@@ -200,7 +228,7 @@ begin
   if ABackfillNull then
   begin
     Result := 'UPDATE %s SET %s = %s WHERE %s IS NULL;';
-    Result := Format(Result, [AColumn.Table.Name,
+    Result := Format(Result, [_QualifyTable(AColumn.Table),
                               AColumn.Name,
                               QuoteDefaultValueIfNeeded(AColumn, AColumn.DefaultValue),
                               AColumn.Name]);
@@ -211,7 +239,7 @@ begin
     // ANSI e funciona em Firebird/PostgreSQL/Oracle/MySQL/MSSQL; dialetos cuja
     // sintaxe de cast difira sobrescrevem este metodo.
     Result := 'UPDATE %s SET %s = CAST(%s AS %s);';
-    Result := Format(Result, [AColumn.Table.Name,
+    Result := Format(Result, [_QualifyTable(AColumn.Table),
                               AColumn.Name,
                               ASourceColumn,
                               Trim(GetFieldTypeDefinition(AColumn))]);
@@ -224,7 +252,7 @@ begin
   // Sintaxe ANSI/portavel: PostgreSQL, Oracle, MySQL 8.0+, SQLite 3.25+.
   // Firebird usa "ALTER COLUMN ... TO" e MSSQL usa sp_rename (overrides).
   Result := 'ALTER TABLE %s RENAME COLUMN %s TO %s;';
-  Result := Format(Result, [AColumn.Table.Name, AColumn.Name, ANewName]);
+  Result := Format(Result, [_QualifyTable(AColumn.Table), AColumn.Name, ANewName]);
 end;
 
 function TDDLSQLGenerator.GenerateCreateCheck(ACheck: TCheckMIK): String;
@@ -236,7 +264,7 @@ end;
 function TDDLSQLGenerator.GenerateAlterCheck(ACheck: TCheckMIK): String;
 begin
   Result := 'ALTER TABLE %s ADD CONSTRAINT %s CHECK (%s);';
-  Result := Format(Result, [ACheck.Table.Name,  ACheck.Name, ACheck.Condition]);
+  Result := Format(Result, [_QualifyTable(ACheck.Table),  ACheck.Name, ACheck.Condition]);
 end;
 
 function TDDLSQLGenerator.GenerateAlterSequence(ASequence: TSequenceMIK): String;
@@ -253,16 +281,18 @@ end;
 function TDDLSQLGenerator.GenerateCreateColumn(AColumn: TColumnMIK): String;
 begin
   Result := 'ALTER TABLE %s ADD %s;';
-  Result := Format(Result, [AColumn.Table.Name, BuilderCreateFieldDefinition(AColumn)]);
+  Result := Format(Result, [_QualifyTable(AColumn.Table), BuilderCreateFieldDefinition(AColumn)]);
 end;
 
 function TDDLSQLGenerator.GenerateCreateForeignKey(AForeignKey: TForeignKeyMIK): String;
 begin
   Result := 'ALTER TABLE %s ADD CONSTRAINT %s FOREIGN KEY (%s) REFERENCES %s(%s) %s %s';
-  Result := Format(Result, [AForeignKey.Table.Name,
+  Result := Format(Result, [_QualifyTable(AForeignKey.Table),
                             AForeignKey.Name,
                             GetForeignKeyFromColumnsDefinition(AForeignKey),
-                            AForeignKey.FromTable,
+                            // Tabela referenciada esta no mesmo schema (compare
+                            // single-schema) - qualifica-a tambem.
+                            _QualifyName(AForeignKey.Table.Database.Schema, AForeignKey.FromTable),
                             GetForeignKeyToColumnsDefinition(AForeignKey),
                             GetRuleDeleteActionDefinition(AForeignKey.OnDelete),
                             GetRuleUpdateActionDefinition(AForeignKey.OnUpdate)]);
@@ -274,7 +304,7 @@ begin
   Result := 'CREATE %s INDEX %s ON %s (%s);';
   Result := Format(Result, [GetUniqueColumnDefinition(AIndexe.Unique),
                             AIndexe.Name,
-                            AIndexe.Table.Name,
+                            _QualifyTable(AIndexe.Table),
                             GetIndexeKeyColumnsDefinition(AIndexe)]);
 end;
 
@@ -293,31 +323,31 @@ end;
 function TDDLSQLGenerator.GenerateDropColumn(AColumn: TColumnMIK): String;
 begin
   Result := 'ALTER TABLE %s DROP COLUMN %s;';
-  Result := Format(Result, [AColumn.Table.Name, AColumn.Name]);
+  Result := Format(Result, [_QualifyTable(AColumn.Table), AColumn.Name]);
 end;
 
 function TDDLSQLGenerator.GenerateDropForeignKey(AForeignKey: TForeignKeyMIK): String;
 begin
   Result := 'ALTER TABLE %s DROP CONSTRAINT %s;';
-  Result := Format(Result, [AForeignKey.Table.Name, AForeignKey.Name]);
+  Result := Format(Result, [_QualifyTable(AForeignKey.Table), AForeignKey.Name]);
 end;
 
 function TDDLSQLGenerator.GenerateDropIndexe(AIndexe: TIndexeKeyMIK): String;
 begin
   Result := 'DROP INDEX %s ON %s;';
-  Result := Format(Result, [AIndexe.Name, AIndexe.Table.Name]);
+  Result := Format(Result, [AIndexe.Name, _QualifyTable(AIndexe.Table)]);
 end;
 
 function TDDLSQLGenerator.GenerateDropCheck(ACheck: TCheckMIK): String;
 begin
   Result := 'ALTER TABLE %s DROP CONSTRAINT %s;';
-  Result := Format(Result, [ACheck.Table.Name, ACheck.Name]);
+  Result := Format(Result, [_QualifyTable(ACheck.Table), ACheck.Name]);
 end;
 
 function TDDLSQLGenerator.GenerateDropPrimaryKey(APrimaryKey: TPrimaryKeyMIK): String;
 begin
   Result := 'ALTER TABLE %s DROP CONSTRAINT %s;';
-  Result := Format(Result, [APrimaryKey.Table.Name, APrimaryKey.Name]);
+  Result := Format(Result, [_QualifyTable(APrimaryKey.Table), APrimaryKey.Name]);
 end;
 
 function TDDLSQLGenerator.GenerateDropSequence(ASequence: TSequenceMIK): String;

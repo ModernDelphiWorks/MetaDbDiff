@@ -81,13 +81,23 @@ begin
   FDatabaseMetadata := TMetadataRegister.GetInstance.GetMetadata(FConnection.GetDriver);
   FDatabaseMetadata.Connection := FConnection;
   FDatabaseMetadata.CatalogMetadata := ACatalogMetadata;
+  // Schema-aware compare (FRENTE 14): propaga o schema configurado no compare
+  // (FOwner) para o extractor. O registro devolve uma instancia SINGLETON, entao
+  // sempre reatribuimos (inclusive '' quando nao ha owner) para nunca vazar o
+  // schema de uma extracao anterior.
   if FOwner <> nil then
+  begin
     FDatabaseMetadata.ModelForDatabase := FOwner.ModelForDatabase;
+    FDatabaseMetadata.Schema := FOwner.Schema;
+  end
+  else
+    FDatabaseMetadata.Schema := '';
   try
     FDatabaseMetadata.GetDatabaseMetadata;
   finally
     FDatabaseMetadata.CatalogMetadata := nil;
     FDatabaseMetadata.Connection := nil;
+    FDatabaseMetadata.Schema := '';
   end;
 end;
 

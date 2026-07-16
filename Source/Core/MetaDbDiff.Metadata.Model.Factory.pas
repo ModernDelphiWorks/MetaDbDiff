@@ -97,6 +97,13 @@ begin
   FModelMetadata.CatalogMetadata := ACatalogMetadata;
   FModelMetadata.ModelForDatabase := FOwner.ModelForDatabase;
   FModelMetadata.GetModelMetadata;
+  // Schema-aware compare (FRENTE 14): o modelo (classes decoradas) nao carrega
+  // schema proprio - GetModelMetadata sempre grava Schema=''. Quando o compare
+  // esta configurado com um schema, carimba-o aqui para que o DDL gerado a
+  // partir do modelo (master) saia qualificado no dialeto do target. Default ''
+  // preserva o comportamento historico (sem qualificacao).
+  if (FOwner <> nil) and (FOwner.Schema <> '') then
+    ACatalogMetadata.Schema := FOwner.Schema;
 end;
 
 end.

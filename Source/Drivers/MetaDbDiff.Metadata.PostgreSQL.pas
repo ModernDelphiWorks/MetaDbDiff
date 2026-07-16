@@ -148,7 +148,17 @@ end;
 procedure TCatalogMetadataPostgreSQL.GetSchemas;
 begin
   inherited;
-  FCatalogMetadata.Schema := 'public';
+  // Schema-aware compare (FRENTE 14). Schema efetivo do PostgreSQL:
+  //   - default '' (nenhum schema configurado): comportamento historico - a
+  //     extracao NAO filtra por schema (mantem o WHERE ... not in
+  //     ('pg_catalog','information_schema')) e o catalogo fica com Schema=''
+  //     (DDL sem qualificacao). O schema DEFAULT de fato do PostgreSQL, quando
+  //     nada e informado, e 'public' (search_path) - passe Schema:='public'
+  //     explicitamente para tornar o compare single-schema sobre ele.
+  //   - Schema configurado (ex.: 'vendas'): os GetSelect* abaixo acrescentam o
+  //     filtro "= 'vendas'" e o catalogo recebe esse schema, fazendo o generator
+  //     qualificar "vendas"."tabela".
+  FCatalogMetadata.Schema := EffectiveSchema;
   GetSequences;
   GetTables;
   // Views ligadas (F10): GetSelectViews/GetViews do PostgreSQL sao reais
@@ -471,8 +481,10 @@ begin
              ' from information_schema.table_constraints rc ' +
              ' where rc.constraint_type = ''PRIMARY KEY'' ' +
              ' and   rc.table_schema not in (''pg_catalog'', ''information_schema'') ' +
-             ' and   rc.table_name in (' + QuotedStr(ATableName) + ') ' +
-             ' order by rc.constraint_name ';
+             ' and   rc.table_name in (' + QuotedStr(ATableName) + ') ';
+   if EffectiveSchema <> '' then
+     Result := Result + ' and rc.table_schema = ' + QuotedStr(EffectiveSchema) + ' ';
+   Result := Result + ' order by rc.constraint_name ';
 end;
 
 function TCatalogMetadataPostgreSQL.GetSelectPrimaryKeyColumns(APrimaryKeyName: String): String;
@@ -484,7 +496,10 @@ begin
              '                                                  and t.constraint_name = c.constraint_name ' +
              '                                                  and t.constraint_type = ''PRIMARY KEY'' ' +
              ' where t.table_name = ' + QuotedStr(APrimaryKeyName) +
-             ' and   c.table_schema not in (''pg_catalog'', ''information_schema'') ' +
+             ' and   c.table_schema not in (''pg_catalog'', ''information_schema'') ';
+   if EffectiveSchema <> '' then
+     Result := Result + ' and c.table_schema = ' + QuotedStr(EffectiveSchema) + ' ';
+   Result := Result +
              ' order by t.table_name, ' +
              '          t.constraint_name, ' +
              '          c.ordinal_position ';
@@ -498,10 +513,15 @@ begin
             '        increment_by as increment, ' +
             '        start_value  as start_value ' +
             ' from pg_sequences ';
+  if EffectiveSchema <> '' then
+    Result := Result + ' where schemaname = ' + QuotedStr(EffectiveSchema) + ' ';
 end;
 
 function TCatalogMetadataPostgreSQL.GetSelectTableColumns(ATableName: String): String;
+var
+  LSchema: String;
 begin
+   LSchema := EffectiveSchema;
    Result := ' select column_name              as column_name, ' +
              '        ordinal_position         as column_position, ' +
              '        character_maximum_length as column_size, ' +
@@ -514,18 +534,25 @@ begin
              '  upper(udt_name)                as column_typename, ' +
              '        character_set_name       as column_charset ' +
              ' from information_schema.columns ' +
-             ' where table_name in (' + QuotedStr(ATableName) + ') ' +
-             ' order by ordinal_position' ;
+             ' where table_name in (' + QuotedStr(ATableName) + ') ';
+   if LSchema <> '' then
+     Result := Result + ' and table_schema = ' + QuotedStr(LSchema) + ' ';
+   Result := Result + ' order by ordinal_position' ;
 end;
 
 function TCatalogMetadataPostgreSQL.GetSelectTables: String;
+var
+  LSchema: String;
 begin
+  LSchema := EffectiveSchema;
   Result := ' select table_name as table_name, ' +
             '        ''''       as table_description ' +
             ' from information_schema.tables ' +
             ' where table_type = ''BASE TABLE'' ' +
-            ' and table_schema not in (''pg_catalog'', ''information_schema'') ' +
-            ' order by table_name';
+            ' and table_schema not in (''pg_catalog'', ''information_schema'') ';
+  if LSchema <> '' then
+    Result := Result + ' and table_schema = ' + QuotedStr(LSchema) + ' ';
+  Result := Result + ' order by table_name';
 end;
 
 function TCatalogMetadataPostgreSQL.GetSelectTriggers(ATableName: String): String;
@@ -552,8 +579,10 @@ begin
             ' inner join information_schema.key_column_usage ku on rc.unique_constraint_name = ku.constraint_name ' +
             '                                                  and kc.position_in_unique_constraint = ku.ordinal_position ' +
             ' where kc.table_name in(' + QuotedStr(ATableName) + ') ' +
-            ' and   kc.table_schema not in (''pg_catalog'', ''information_schema'') ' +
-            ' order by kc.constraint_name, kc.ordinal_position';
+            ' and   kc.table_schema not in (''pg_catalog'', ''information_schema'') ';
+  if EffectiveSchema <> '' then
+    Result := Result + ' and kc.table_schema = ' + QuotedStr(EffectiveSchema) + ' ';
+  Result := Result + ' order by kc.constraint_name, kc.ordinal_position';
 end;
 
 function TCatalogMetadataPostgreSQL.GetSelectForeignKeyColumns(AForeignKeyName: String): String;
@@ -569,6 +598,8 @@ begin
             ' inner join pg_namespace n on n.oid = c.connamespace ' +
             ' where conrelid::regclass = ' + QuotedStr(ATableName) + '::regclass' +
             '   and contype in (' + QuotedStr('c') + ')';
+  if EffectiveSchema <> '' then
+    Result := Result + ' and n.nspname = ' + QuotedStr(EffectiveSchema) + ' ';
 end;
 
 function TCatalogMetadataPostgreSQL.GetSelectViews: String;
@@ -579,6 +610,8 @@ begin
              ' from information_schema.views v ' +
              ' where table_schema not in (''pg_catalog'', ''information_schema'') ' +
              ' and table_name !~ ''^pg_'' ';
+   if EffectiveSchema <> '' then
+     Result := Result + ' and v.table_schema = ' + QuotedStr(EffectiveSchema) + ' ';
 end;
 
 function TCatalogMetadataPostgreSQL.GetSelectIndexe(ATableName: String): String;
@@ -588,10 +621,15 @@ begin
             '        ''''          as indexe_description ' +
             ' from pg_class as a ' +
             ' join pg_index as b on (a.oid = b.indrelid) ' +
-            ' join pg_class as c on (c.oid = b.indexrelid) ' +
+            ' join pg_class as c on (c.oid = b.indexrelid) ';
+  if EffectiveSchema <> '' then
+    Result := Result + ' join pg_namespace as n on (n.oid = a.relnamespace) ';
+  Result := Result +
             ' where a.relname in(' + QuotedStr(ATableName) + ') ' +
-            ' and   b.indisprimary != ''t'' ' +
-            ' order by c.relname';
+            ' and   b.indisprimary != ''t'' ';
+  if EffectiveSchema <> '' then
+    Result := Result + ' and n.nspname = ' + QuotedStr(EffectiveSchema) + ' ';
+  Result := Result + ' order by c.relname';
 end;
 
 function TCatalogMetadataPostgreSQL.GetSelectIndexeColumns(AIndexeName: String): String;

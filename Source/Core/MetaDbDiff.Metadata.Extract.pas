@@ -58,13 +58,33 @@ type
     property ModelForDatabase: Boolean read _GetModelForDatabase write _SetModelForDatabase;
   end;
 
+  /// <summary>
+  ///   Levantada quando o nome de schema configurado (property Schema do
+  ///   compare, propagada ate o extractor) contem caracteres que nao formam um
+  ///   identificador SQL valido. Como o nome do schema entra na montagem dos
+  ///   selects de extracao (via QuotedStr apos esta validacao), rejeitar aqui
+  ///   um nome malicioso ('x; DROP', aspas, espacos, ";" etc.) e a barreira que
+  ///   impede injecao no metadata-scan. String vazia ('') e sempre valida e
+  ///   significa "comportamento historico (sem filtro de schema)".
+  /// </summary>
+  EMetaDbDiffSchema = class(Exception);
+
   TCatalogMetadataAbstract = class(TMetadataAbstract, IDatabaseMetadata)
   private
     function GetConnection: IDBConnection;
     procedure SetConnection(const Value: IDBConnection);
   protected
     FSQLText: String;
+    FSchema: String;
     FFieldType: TDictionary<String, TFieldType>;
+    /// <summary>
+    ///   Schema efetivo, ja validado: '' (default) = sem filtro/qualificacao
+    ///   (comportamento historico), ou o identificador configurado. Os
+    ///   GetSelect* dos extractors multi-schema (PostgreSQL/MSSQL) so acrescentam
+    ///   o filtro de schema quando este retorna nao-vazio, garantindo SQL
+    ///   identico ao historico quando nada e configurado.
+    /// </summary>
+    function EffectiveSchema: String;
     procedure SetFieldType(var AColumnMIK: TColumnMIK); virtual;
     function GetSelectTables: String; virtual; abstract;
     function GetSelectTableColumns(ATableName: String): String; virtual; abstract;
@@ -96,6 +116,22 @@ type
     procedure GetFunctions; virtual; abstract;
     procedure GetViews; virtual; abstract;
     procedure GetDatabaseMetadata; virtual; abstract;
+    /// <summary>
+    ///   Valida um nome de schema como identificador SQL seguro. '' e sempre
+    ///   valido (default = sem qualificacao). Um nome nao-vazio deve conter
+    ///   apenas letras/digitos/underscore, comecar por letra ou underscore e ter
+    ///   no maximo 128 caracteres - qualquer outra coisa (aspas, espacos, ";",
+    ///   etc.) levanta EMetaDbDiffSchema. Retorna o proprio nome quando valido,
+    ///   para uso fluente na montagem dos selects.
+    /// </summary>
+    class function ValidateSchemaName(const ASchema: String): String; static;
+    /// <summary>
+    ///   Schema configurado a ser comparado/qualificado. Default '' preserva o
+    ///   comportamento historico (extracao sem filtro de schema, DDL sem
+    ///   qualificacao). Um valor nao-vazio e validado (ValidateSchemaName) na
+    ///   propagacao para o catalogo/selects.
+    /// </summary>
+    property Schema: String read FSchema write FSchema;
     property Connection: IDBConnection read GetConnection write SetConnection;
   end;
 
@@ -143,6 +179,39 @@ destructor TCatalogMetadataAbstract.Destroy;
 begin
   FFieldType.Free;
   inherited;
+end;
+
+class function TCatalogMetadataAbstract.ValidateSchemaName(const ASchema: String): String;
+var
+  LFor: Integer;
+  LChar: Char;
+begin
+  Result := ASchema;
+  // '' = default (comportamento historico, sem filtro/qualificacao): valido.
+  if ASchema = '' then
+    Exit;
+  if Length(ASchema) > 128 then
+    raise EMetaDbDiffSchema.CreateFmt(
+      'MetaDbDiff: nome de schema invalido "%s" (excede 128 caracteres).', [ASchema]);
+  // Primeiro caractere nao pode ser digito (regra de identificador SQL).
+  if CharInSet(ASchema[1], ['0'..'9']) then
+    raise EMetaDbDiffSchema.CreateFmt(
+      'MetaDbDiff: nome de schema invalido "%s": nao pode comecar por digito.', [ASchema]);
+  for LFor := 1 to Length(ASchema) do
+  begin
+    LChar := ASchema[LFor];
+    // Whitelist estrita: sem aspas, espacos, ";", pontos ou qualquer outro
+    // metacaractere - so assim o QuotedStr posterior nao pode ser subvertido.
+    if not CharInSet(LChar, ['A'..'Z', 'a'..'z', '0'..'9', '_']) then
+      raise EMetaDbDiffSchema.CreateFmt(
+        'MetaDbDiff: nome de schema invalido "%s": apenas letras, digitos e ' +
+        'underscore sao permitidos (sem aspas, espacos, ";" ou pontos).', [ASchema]);
+  end;
+end;
+
+function TCatalogMetadataAbstract.EffectiveSchema: String;
+begin
+  Result := ValidateSchemaName(FSchema);
 end;
 
 function TCatalogMetadataAbstract.GetConnection: IDBConnection;

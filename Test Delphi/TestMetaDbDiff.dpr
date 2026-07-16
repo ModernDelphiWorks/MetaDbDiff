@@ -17,6 +17,7 @@ uses
   Test.MetaDbDiff.Metadata.Model in 'Test.MetaDbDiff.Metadata.Model.pas',
   Test.MetaDbDiff.Policy in 'Test.MetaDbDiff.Policy.pas',
   Test.MetaDbDiff.Snapshot in 'Test.MetaDbDiff.Snapshot.pas',
+  Test.MetaDbDiff.Schema in 'Test.MetaDbDiff.Schema.pas',
   MetaDbDiff.Metadata.Snapshot in '..\Source\Core\MetaDbDiff.Metadata.Snapshot.pas',
   MetaDbDiff.Metadata.Snapshot.Factory in '..\Source\Core\MetaDbDiff.Metadata.Snapshot.Factory.pas',
   MetaDbDiff.Metadata.Snapshot.Export in '..\Source\Core\MetaDbDiff.Metadata.Snapshot.Export.pas',

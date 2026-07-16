@@ -144,7 +144,15 @@ end;
 procedure TCatalogMetadataMSSQL.GetSchemas;
 begin
   inherited;
-  FCatalogMetadata.Schema := '';
+  // Schema-aware compare (FRENTE 14). Schema efetivo do SQL Server:
+  //   - default '' (nada configurado): comportamento historico - a extracao NAO
+  //     filtra por schema e o catalogo fica com Schema='' (DDL sem qualificacao).
+  //     O schema DEFAULT de fato do SQL Server, quando nada e informado, e 'dbo'
+  //     - passe Schema:='dbo' explicitamente para o compare single-schema sobre ele.
+  //   - Schema configurado (ex.: 'vendas'): os GetSelect* abaixo acrescentam o
+  //     filtro "ss.name = 'vendas'" e o catalogo recebe esse schema, fazendo o
+  //     generator qualificar [vendas].[tabela].
+  FCatalogMetadata.Schema := EffectiveSchema;
   GetSequences;
   GetTables;
   // Views ligadas (F10): GetSelectViews/GetViews do MSSQL sao reais (sys.views +
@@ -466,8 +474,10 @@ begin
             ' from sys.indexes si ' +
             ' inner join sys.objects tb on tb.object_id = si.object_id ' +
             ' inner join sys.schemas ss on ss.schema_id = tb.schema_id ' +
-            ' where si.is_primary_key = 1 and tb.name = ' + QuotedStr(ATableName) +
-            ' order by si.name';
+            ' where si.is_primary_key = 1 and tb.name = ' + QuotedStr(ATableName);
+  if EffectiveSchema <> '' then
+    Result := Result + ' and ss.name = ' + QuotedStr(EffectiveSchema) + ' ';
+  Result := Result + ' order by si.name';
 end;
 
 function TCatalogMetadataMSSQL.GetSelectPrimaryKeyColumns(APrimaryKeyName: String): String;
@@ -489,6 +499,10 @@ begin
             '        cast(increment as bigint)   as increment, ' +
             '        cast(start_value as bigint) as start_value ' +
             ' from sys.sequences';
+  // schema_id(''vendas'') resolve o schema sem alterar o from (default '' fica
+  // com o SQL historico intacto).
+  if EffectiveSchema <> '' then
+    Result := Result + ' where schema_id = schema_id(' + QuotedStr(EffectiveSchema) + ') ';
 end;
 
 function TCatalogMetadataMSSQL.GetSelectTableColumns(ATableName: String): String;
@@ -518,8 +532,11 @@ begin
             '                                            and ep.major_id = ac.object_id ' +
             '                                            and ep.minor_id = ac.column_id ' +
             '                                            and ep.name = ''MS_Description'' ' +
-            ' where ao.name in(' + quotedstr(ATableName) + ') ' +
-            ' order by ac.column_id';
+            ' where ao.name in(' + quotedstr(ATableName) + ') ';
+  // schema_id(''vendas'') filtra o schema sem novo join (default '' intacto).
+  if EffectiveSchema <> '' then
+    Result := Result + ' and ao.schema_id = schema_id(' + QuotedStr(EffectiveSchema) + ') ';
+  Result := Result + ' order by ac.column_id';
 end;
 
 function TCatalogMetadataMSSQL.GetSelectTables: String;
@@ -529,8 +546,10 @@ begin
             '       (select value from [fn_listextendedproperty] (''MS_Description'', ''schema'', ss.name, ''table'', so.name, null, null)) as table_description ' +
             ' from sys.objects so ' +
             ' left join sys.schemas ss on ss.schema_id = so.schema_id ' +
-            ' where so.type = ''U'' and so.is_ms_shipped = 0 ' +
-            ' order by ss.name, so.name';
+            ' where so.type = ''U'' and so.is_ms_shipped = 0 ';
+  if EffectiveSchema <> '' then
+    Result := Result + ' and ss.name = ' + QuotedStr(EffectiveSchema) + ' ';
+  Result := Result + ' order by ss.name, so.name';
 end;
 
 function TCatalogMetadataMSSQL.GetSelectTriggers(ATableName: String): String;
@@ -555,10 +574,12 @@ begin
             ' inner join sys.objects ft on ft.object_id = fk.parent_object_id and ft.type = ''U'' ' +
             ' left outer join sys.extended_properties ep on ep.major_id = fk.object_id ' +
             '                                           and ep.name =     ''MS_Description'' ' +
-            ' where coalesce(fk.is_ms_shipped, 0) <> 1 and ft.name in(' + QuotedStr(ATableName) + ') ' +
-            // Ordena por NOME da FK (nao pela tabela) para que as colunas de cada
-            // chave composta cheguem contiguas e o agrupamento por nome funcione.
-            ' order by fk.name, fkc.constraint_column_id';
+            ' where coalesce(fk.is_ms_shipped, 0) <> 1 and ft.name in(' + QuotedStr(ATableName) + ') ';
+  if EffectiveSchema <> '' then
+    Result := Result + ' and ft.schema_id = schema_id(' + QuotedStr(EffectiveSchema) + ') ';
+  // Ordena por NOME da FK (nao pela tabela) para que as colunas de cada
+  // chave composta cheguem contiguas e o agrupamento por nome funcione.
+  Result := Result + ' order by fk.name, fkc.constraint_column_id';
 end;
 
 function TCatalogMetadataMSSQL.GetSelectForeignKeyColumns(AForeignKeyName: String): String;
@@ -579,6 +600,8 @@ begin
              ' left join sys.extended_properties ep on ep.major_id = sv.object_id ' +
              '                                     and ep.minor_id = 0 ' +
              '                                     and ep.name = ''ms_description'' ';
+   if EffectiveSchema <> '' then
+     Result := Result + ' where sv.schema_id = schema_id(' + QuotedStr(EffectiveSchema) + ') ';
 end;
 
 function TCatalogMetadataMSSQL.GetSelectIndexe(ATableName: String): String;
@@ -590,8 +613,10 @@ begin
              ' from sys.indexes si ' +
              ' inner join sys.objects tb on tb.object_id = si.object_id ' +
              ' inner join sys.schemas ss on ss.schema_id = tb.schema_id ' +
-             ' where si.type = 2 and tb.name = ' + QuotedStr(ATableName) +
-             ' order by tb.name';
+             ' where si.type = 2 and tb.name = ' + QuotedStr(ATableName);
+   if EffectiveSchema <> '' then
+     Result := Result + ' and ss.name = ' + QuotedStr(EffectiveSchema) + ' ';
+   Result := Result + ' order by tb.name';
 end;
 
 function TCatalogMetadataMSSQL.GetSelectIndexeColumns(AIndexeName: String): String;
