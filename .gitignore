@@ -18,3 +18,7 @@ Win32/
 docs-src/node_modules/
 docs-src/build/
 docs-src/.docusaurus/
+
+# MetaDbDiff test build artifacts (Test Delphi/)
+Test Delphi/TestMetaDbDiff.exe
+Test Delphi/dunitx-results.xml
