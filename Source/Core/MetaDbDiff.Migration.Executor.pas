@@ -33,10 +33,20 @@
     other dialect it runs without a transaction and the report flags
     TransactionalDDL = False so callers know rollback was never on the table.
 
+  Error policy (mmExecute):
+    * mepStopOnError (default) - the first failing command rolls its phase back
+      (on transactional dialects) and every remaining command is marked Skipped.
+    * mepContinueOnError       - a failing command rolls its phase back and the
+      REST of that phase is Skipped; the next phase runs in a fresh transaction.
+      Each phase stays all-or-nothing, so we never leave the earlier successful
+      statements of a failed phase committed next to a rolled-back sibling.
+
   Connection ownership:
     The executor USES but never OWNS the caller's connection - it never calls
     Disconnect (and never Connect; the caller must supply a connected instance
-    for mmExecute).
+    for mmExecute). It drives its own per-phase transactions, so it REJECTS (with
+    a clear exception) a connection that is already InTransaction on entry -
+    committing a phase would otherwise silently commit the caller's pending work.
 
   Future integration point (front-line F2 - policy): mmExecute has a marked
   pre-validation hook where a migration policy would gate the plan before any
@@ -335,9 +345,9 @@ function TMigrationExecutor.ScriptOut(const ASequence: TDDLSequenceReport;
 begin
   Result := DryRun(ASequence);
   Result.Mode := mmScriptOut;
-  // UTF-8 file (no BOM would also do; TEncoding.UTF8 writes a BOM which most
-  // SQL clients tolerate). The caller chose the path.
-  TFile.WriteAllText(AFileName, Result.Script, TEncoding.UTF8);
+  // UTF-8 WITHOUT BOM: GetBytes never emits the preamble, unlike WriteAllText
+  // with TEncoding.UTF8. Keeps the script clean for every SQL client.
+  TFile.WriteAllBytes(AFileName, TEncoding.UTF8.GetBytes(Result.Script));
 end;
 
 { ---- Execute ---------------------------------------------------------------- }
@@ -354,7 +364,9 @@ var
   LTransactional: Boolean;
   LPhaseOpen: Boolean;
   LCurrentPhase: TDDLPhase;
-  LStopped: Boolean;
+  LHavePhase: Boolean;
+  LStopped: Boolean;      // StopOnError tripped: skip EVERYTHING that follows
+  LSkipPhase: Boolean;    // ContinueOnError: skip the REST of the failed phase
 
   procedure CommitPhaseIfOpen;
   begin
@@ -381,6 +393,15 @@ begin
   if not AConnection.IsConnected then
     raise EInvalidOpException.Create(
       'TMigrationExecutor.Execute: the supplied IDBConnection is not connected.');
+  // The executor drives its OWN per-phase transactions. If the caller handed us
+  // a connection that is already mid-transaction, a phase Commit would silently
+  // commit their pending work - a contract violation. Reject up front and tell
+  // the caller to settle their transaction first.
+  if AConnection.InTransaction then
+    raise EInvalidOpException.Create(
+      'TMigrationExecutor.Execute: the supplied IDBConnection is already in a ' +
+      'transaction. Commit or roll it back before calling Execute - the executor ' +
+      'manages its own per-phase transactions and will not touch yours.');
 
   // --------------------------------------------------------------------------
   // FUTURE INTEGRATION POINT (F2 - migration policy):
@@ -394,9 +415,20 @@ begin
   LItems := ASequence.Items;
   LTransactional := FUsePhaseTransactions and Result.TransactionalDDL;
   LPhaseOpen := False;
+  LHavePhase := False;
   LStopped := False;
+  LSkipPhase := False;
   LCurrentPhase := dphPre;
 
+  // Error semantics (see unit header):
+  //   * StopOnError     - on the first failure, roll the current phase back
+  //                       (transactional dialects) and mark EVERY remaining
+  //                       command Skipped; no further transactions are opened.
+  //   * ContinueOnError - on a failure, roll the current phase back and skip the
+  //                       REST of that phase (Skipped); the next phase starts in
+  //                       a brand-new transaction. This keeps each phase all-or-
+  //                       nothing instead of leaving successful statements of a
+  //                       failed phase committed alongside a rolled-back sibling.
   try
     for LFor := 0 to High(LItems) do
     begin
@@ -413,19 +445,23 @@ begin
         LOut.Warning := LItem.Command.Warning;
       LOut.SQL := LSQL;
 
-      // Phase boundary: close previous transaction, open the next one.
-      if (LFor = 0) or (LItem.Phase <> LCurrentPhase) then
+      // Phase boundary: close the previous phase transaction and (only if we are
+      // still running) open a fresh one for the new phase. Item 4: no empty
+      // transactions are opened once LStopped is set.
+      if (not LHavePhase) or (LItem.Phase <> LCurrentPhase) then
       begin
         CommitPhaseIfOpen;
         LCurrentPhase := LItem.Phase;
-        if LTransactional then
+        LHavePhase := True;
+        LSkipPhase := False;                 // new phase clears the per-phase skip
+        if LTransactional and (not LStopped) then
         begin
           AConnection.StartTransaction;
           LPhaseOpen := True;
         end;
       end;
 
-      if LStopped then
+      if LStopped or LSkipPhase then
       begin
         LOut.Status := misSkipped;
         Inc(Result.Skipped);
@@ -461,8 +497,9 @@ begin
           // Roll the whole phase back (transactional dialects only).
           RollbackPhaseIfOpen;
           if FErrorPolicy = mepStopOnError then
-            LStopped := True;
-          // ContinueOnError: next phase boundary re-opens a fresh transaction.
+            LStopped := True         // skip everything from here on
+          else
+            LSkipPhase := True;      // skip the rest of THIS phase; next phase is fresh
         end;
       end;
 

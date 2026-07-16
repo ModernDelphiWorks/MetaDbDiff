@@ -18,6 +18,7 @@ unit Test.MetaDbDiff.Sequencer;
 interface
 
 uses
+  DB,
   SysUtils,
   Classes,
   Generics.Collections,
@@ -49,6 +50,11 @@ type
     function Add(ACommand: TDDLCommand): TDDLCommand;
     /// <summary>ObjectNames of the items classified into APhase, in final order.</summary>
     function PhaseNames(const AReport: TDDLSequenceReport; APhase: TDDLPhase): TArray<String>;
+    function Firebird: IDDLGeneratorCommand;
+    /// <summary>Builds a CREATE TABLE command (with SQL) for a table with 1 column.</summary>
+    function BuiltCreateTable(const AName: String): TDDLCommand;
+    /// <summary>Builds a CREATE SEQUENCE command (with SQL).</summary>
+    function BuiltCreateSequence(const AName: String): TDDLCommand;
   public
     [Setup]
     procedure Setup;
@@ -63,7 +69,11 @@ type
     [Test]
     procedure Cycle_IsDetectedAndReported;
     [Test]
+    procedure MixedWithCycle_AllCommandsPreserved;
+    [Test]
     procedure Drops_AreInverted;
+    [Test]
+    procedure FkEdge_CaseInsensitive;
     // ----------------------------------------------------------------- phases
     [Test]
     procedure Phases_AreInCanonicalOrder;
@@ -76,9 +86,184 @@ type
     procedure DryRun_AcceptsNoConnection;
     [Test]
     procedure Dialect_TransactionalMatrix;
+    // ------------------------------------------------------- executor Execute
+    [Test]
+    procedure Execute_TransactionalDialect_CommitsPerPhase;
+    [Test]
+    procedure Execute_StopOnError_RollsBackAndSkips;
+    [Test]
+    procedure Execute_ContinueOnError_SkipsRestOfPhaseThenNextPhaseFresh;
+    [Test]
+    procedure Execute_NonTransactionalDialect_NoTransactionCalls;
+    [Test]
+    procedure Execute_EmptyCommandIsSkipped;
+    [Test]
+    procedure Execute_RejectsConnectionAlreadyInTransaction;
   end;
 
 implementation
+
+type
+  { In-memory IDBConnection double: records executed scripts and transaction
+    events, can be told to fail on the N-th ExecuteScript, and flags whether
+    Disconnect was ever called. Only the members the executor touches carry
+    behaviour; the rest satisfy the interface with harmless defaults. }
+  TFakeDBConnection = class(TInterfacedObject, IDBConnection)
+  private
+    FDriver: TDriverName;
+    FConnected: Boolean;
+    FInTx: Boolean;
+    FFailAt: Integer;      // 1-based ExecuteScript index to fail on (0 = never)
+    FExecCount: Integer;
+  public
+    Executed: TStringList; // scripts actually sent to ExecuteScript
+    TxLog: TStringList;    // 'START' / 'COMMIT' / 'ROLLBACK', in order
+    DisconnectCalls: Integer;
+    constructor Create(ADriver: TDriverName; AFailAt: Integer = 0);
+    destructor Destroy; override;
+    // --- IDBTransaction ---
+    function _GetTransaction(const AKey: String): TComponent;
+    procedure StartTransaction(const ALevel: TDBIsolationLevel = ilDefault);
+    procedure Commit;
+    procedure Rollback;
+    procedure AddTransaction(const AKey: String; const ATransaction: TComponent);
+    procedure UseTransaction(const AKey: String);
+    function TransactionActive: TComponent;
+    function InTransaction: Boolean;
+    // --- IDBConnection ---
+    procedure Connect;
+    procedure Disconnect;
+    procedure ExecuteDirect(const ASQL: String); overload;
+    procedure ExecuteDirect(const ASQL: String; const AParams: TParams); overload;
+    procedure ExecuteScript(const AScript: String);
+    procedure AddScript(const AScript: String);
+    procedure ExecuteScripts;
+    procedure ApplyUpdates(const ADataSets: array of IDBDataSet);
+    function IsConnected: Boolean;
+    function CreateQuery: IDBQuery;
+    function CreateDataSet(const ASQL: String = ''): IDBDataSet;
+    function BulkLoader: IDBBulkLoader;
+    function GetSQLScripts: String;
+    function RowsAffected: UInt32;
+    function GetDriver: TDriverName;
+    function CommandMonitor: ICommandMonitor;
+    function MonitorCallback: TMonitorProc;
+    function Options: IOptions;
+    function Cache: IDBCacheProvider;
+    function MetadataCache: IDBMetadataCache;
+    procedure SetCacheProvider(ACache: IDBCacheProvider);
+    procedure SetMetadataCacheProvider(AMetadataCache: IDBMetadataCache);
+    procedure SetCommandMonitor(AMonitor: ICommandMonitor);
+    procedure RefreshMetadata(const ATableName: string);
+    function IsAlive: Boolean;
+    function ResiliencePolicy: IDBResiliencePolicy;
+    procedure SetResiliencePolicy(APolicy: IDBResiliencePolicy);
+    procedure AddObserver(const AObserver: IDBObserver);
+    procedure RemoveObserver(const AObserver: IDBObserver);
+    function SlowQueryThreshold: Integer;
+    procedure SetSlowQueryThreshold(const AValue: Integer);
+  end;
+
+constructor TFakeDBConnection.Create(ADriver: TDriverName; AFailAt: Integer);
+begin
+  inherited Create;
+  FDriver := ADriver;
+  FFailAt := AFailAt;
+  FConnected := True;
+  Executed := TStringList.Create;
+  TxLog := TStringList.Create;
+end;
+
+destructor TFakeDBConnection.Destroy;
+begin
+  Executed.Free;
+  TxLog.Free;
+  inherited;
+end;
+
+procedure TFakeDBConnection.StartTransaction(const ALevel: TDBIsolationLevel);
+begin
+  FInTx := True;
+  TxLog.Add('START');
+end;
+
+procedure TFakeDBConnection.Commit;
+begin
+  FInTx := False;
+  TxLog.Add('COMMIT');
+end;
+
+procedure TFakeDBConnection.Rollback;
+begin
+  FInTx := False;
+  TxLog.Add('ROLLBACK');
+end;
+
+function TFakeDBConnection.InTransaction: Boolean;
+begin
+  Result := FInTx;
+end;
+
+procedure TFakeDBConnection.ExecuteScript(const AScript: String);
+begin
+  Inc(FExecCount);
+  Executed.Add(AScript);
+  if (FFailAt > 0) and (FExecCount = FFailAt) then
+    raise Exception.CreateFmt('Fake failure at command #%d', [FExecCount]);
+end;
+
+procedure TFakeDBConnection.Connect;
+begin
+  FConnected := True;
+end;
+
+procedure TFakeDBConnection.Disconnect;
+begin
+  Inc(DisconnectCalls);
+  FConnected := False;
+end;
+
+function TFakeDBConnection.IsConnected: Boolean;
+begin
+  Result := FConnected;
+end;
+
+function TFakeDBConnection.GetDriver: TDriverName;
+begin
+  Result := FDriver;
+end;
+
+// ---- remaining interface members: harmless defaults ------------------------
+function TFakeDBConnection._GetTransaction(const AKey: String): TComponent; begin Result := nil; end;
+procedure TFakeDBConnection.AddTransaction(const AKey: String; const ATransaction: TComponent); begin end;
+procedure TFakeDBConnection.UseTransaction(const AKey: String); begin end;
+function TFakeDBConnection.TransactionActive: TComponent; begin Result := nil; end;
+procedure TFakeDBConnection.ExecuteDirect(const ASQL: String); begin end;
+procedure TFakeDBConnection.ExecuteDirect(const ASQL: String; const AParams: TParams); begin end;
+procedure TFakeDBConnection.AddScript(const AScript: String); begin end;
+procedure TFakeDBConnection.ExecuteScripts; begin end;
+procedure TFakeDBConnection.ApplyUpdates(const ADataSets: array of IDBDataSet); begin end;
+function TFakeDBConnection.CreateQuery: IDBQuery; begin Result := nil; end;
+function TFakeDBConnection.CreateDataSet(const ASQL: String): IDBDataSet; begin Result := nil; end;
+function TFakeDBConnection.BulkLoader: IDBBulkLoader; begin Result := nil; end;
+function TFakeDBConnection.GetSQLScripts: String; begin Result := ''; end;
+function TFakeDBConnection.RowsAffected: UInt32; begin Result := 0; end;
+function TFakeDBConnection.CommandMonitor: ICommandMonitor; begin Result := nil; end;
+function TFakeDBConnection.MonitorCallback: TMonitorProc; begin Result := nil; end;
+function TFakeDBConnection.Options: IOptions; begin Result := nil; end;
+function TFakeDBConnection.Cache: IDBCacheProvider; begin Result := nil; end;
+function TFakeDBConnection.MetadataCache: IDBMetadataCache; begin Result := nil; end;
+procedure TFakeDBConnection.SetCacheProvider(ACache: IDBCacheProvider); begin end;
+procedure TFakeDBConnection.SetMetadataCacheProvider(AMetadataCache: IDBMetadataCache); begin end;
+procedure TFakeDBConnection.SetCommandMonitor(AMonitor: ICommandMonitor); begin end;
+procedure TFakeDBConnection.RefreshMetadata(const ATableName: string); begin end;
+function TFakeDBConnection.IsAlive: Boolean; begin Result := FConnected; end;
+function TFakeDBConnection.ResiliencePolicy: IDBResiliencePolicy; begin Result := nil; end;
+procedure TFakeDBConnection.SetResiliencePolicy(APolicy: IDBResiliencePolicy); begin end;
+procedure TFakeDBConnection.AddObserver(const AObserver: IDBObserver); begin end;
+procedure TFakeDBConnection.RemoveObserver(const AObserver: IDBObserver); begin end;
+function TFakeDBConnection.SlowQueryThreshold: Integer; begin Result := 0; end;
+procedure TFakeDBConnection.SetSlowQueryThreshold(const AValue: Integer); begin end;
 
 { TTestDDLSequencer }
 
@@ -146,6 +331,34 @@ begin
   for LItem in AReport.Items do
     if LItem.Phase = APhase then
       Result := Result + [LItem.ObjectName];
+end;
+
+function TTestDDLSequencer.Firebird: IDDLGeneratorCommand;
+begin
+  Result := TSQLDriverRegister.GetInstance.GetDriver(dnFirebird);
+end;
+
+function TTestDDLSequencer.BuiltCreateTable(const AName: String): TDDLCommand;
+var
+  LTable: TTableMIK;
+begin
+  LTable := AddTable(AName);
+  AddColumn(LTable, 'ID');
+  Result := Add(TDDLCommandCreateTable.Create(LTable));
+  Result.BuildCommand(Firebird);   // F1 guarantees the SQL is built
+end;
+
+function TTestDDLSequencer.BuiltCreateSequence(const AName: String): TDDLCommand;
+var
+  LSeq: TSequenceMIK;
+begin
+  LSeq := TSequenceMIK.Create(FCatalog);
+  LSeq.Name := AName;
+  LSeq.InitialValue := 1;
+  LSeq.Increment := 1;
+  FCatalog.Sequences.Add(AName, LSeq);
+  Result := Add(TDDLCommandCreateSequence.Create(LSeq));
+  Result.BuildCommand(Firebird);
 end;
 
 procedure TTestDDLSequencer.TopologicalOrder_A_B_C;
@@ -423,6 +636,252 @@ begin
   Assert.IsFalse(TMigrationExecutor.DialectHasTransactionalDDL(dnMySQL));
   Assert.IsFalse(TMigrationExecutor.DialectHasTransactionalDDL(dnMariaDB));
   Assert.IsFalse(TMigrationExecutor.DialectHasTransactionalDDL(dnDB2));
+end;
+
+procedure TTestDDLSequencer.Execute_TransactionalDialect_CommitsPerPhase;
+var
+  LFake: TFakeDBConnection;
+  LConn: IDBConnection;
+  LExec: TMigrationExecutor;
+  LSeq: TDDLSequencer;
+  LMig: TMigrationReport;
+begin
+  BuiltCreateSequence('S1');   // phase: Create Sequences
+  BuiltCreateTable('T1');      // phase: Create Tables
+
+  LFake := TFakeDBConnection.Create(dnFirebird);
+  LConn := LFake;
+  LSeq := TDDLSequencer.Create(FCatalog);
+  LExec := TMigrationExecutor.Create(dnFirebird);
+  try
+    LMig := LExec.Execute(LSeq.Sequence(FCommands.ToArray), LConn);
+  finally
+    LExec.Free;
+    LSeq.Free;
+  end;
+
+  Assert.AreEqual(2, LMig.Succeeded);
+  Assert.AreEqual(0, LMig.Failed);
+  Assert.IsFalse(LMig.RolledBack);
+  Assert.AreEqual(2, LFake.Executed.Count, 'ambos os comandos executados');
+  // One transaction per phase: START/COMMIT, START/COMMIT.
+  Assert.AreEqual('START;COMMIT;START;COMMIT', LFake.TxLog.CommaText.Replace(',', ';'));
+  Assert.AreEqual(0, LFake.DisconnectCalls, 'nunca desconecta o chamador');
+end;
+
+procedure TTestDDLSequencer.Execute_StopOnError_RollsBackAndSkips;
+var
+  LFake: TFakeDBConnection;
+  LConn: IDBConnection;
+  LExec: TMigrationExecutor;
+  LSeq: TDDLSequencer;
+  LMig: TMigrationReport;
+begin
+  BuiltCreateTable('T1');
+  BuiltCreateTable('T2');
+  BuiltCreateTable('T3');      // all in the same phase (Create Tables), order T1,T2,T3
+
+  LFake := TFakeDBConnection.Create(dnFirebird, 2);  // fail on the 2nd script
+  LConn := LFake;
+  LSeq := TDDLSequencer.Create(FCatalog);
+  LExec := TMigrationExecutor.Create(dnFirebird);     // default = StopOnError
+  try
+    LMig := LExec.Execute(LSeq.Sequence(FCommands.ToArray), LConn);
+  finally
+    LExec.Free;
+    LSeq.Free;
+  end;
+
+  Assert.AreEqual(3, Length(LMig.Items));
+  Assert.AreEqual(1, LMig.Succeeded);
+  Assert.AreEqual(1, LMig.Failed);
+  Assert.AreEqual(1, LMig.Skipped);
+  Assert.IsTrue(LMig.RolledBack, 'fase deve ter rollback');
+  Assert.AreEqual('START;ROLLBACK', LFake.TxLog.CommaText.Replace(',', ';'));
+  Assert.AreEqual(Ord(misSuccess), Ord(LMig.Items[0].Status));
+  Assert.AreEqual(Ord(misFailed), Ord(LMig.Items[1].Status));
+  Assert.AreEqual(Ord(misSkipped), Ord(LMig.Items[2].Status));
+end;
+
+procedure TTestDDLSequencer.Execute_ContinueOnError_SkipsRestOfPhaseThenNextPhaseFresh;
+var
+  LFake: TFakeDBConnection;
+  LConn: IDBConnection;
+  LExec: TMigrationExecutor;
+  LSeq: TDDLSequencer;
+  LMig: TMigrationReport;
+begin
+  BuiltCreateSequence('S1');   // phase Create Sequences (S1, S2)
+  BuiltCreateSequence('S2');
+  BuiltCreateTable('T1');      // phase Create Tables
+
+  LFake := TFakeDBConnection.Create(dnFirebird, 1);   // S1 (first script) fails
+  LConn := LFake;
+  LSeq := TDDLSequencer.Create(FCatalog);
+  LExec := TMigrationExecutor.Create(dnFirebird);
+  LExec.ErrorPolicy := mepContinueOnError;
+  try
+    LMig := LExec.Execute(LSeq.Sequence(FCommands.ToArray), LConn);
+  finally
+    LExec.Free;
+    LSeq.Free;
+  end;
+
+  // S1 fails -> phase rolled back, S2 (rest of phase) Skipped, next phase (T1)
+  // runs in a FRESH transaction and commits.
+  Assert.AreEqual(1, LMig.Failed);
+  Assert.AreEqual(1, LMig.Skipped);
+  Assert.AreEqual(1, LMig.Succeeded);
+  Assert.IsTrue(LMig.RolledBack);
+  Assert.AreEqual('START;ROLLBACK;START;COMMIT', LFake.TxLog.CommaText.Replace(',', ';'));
+  // S2 was skipped => never executed; only S1 (failed attempt) and T1 ran.
+  Assert.AreEqual(2, LFake.Executed.Count);
+  Assert.AreEqual(Ord(misFailed), Ord(LMig.Items[0].Status));
+  Assert.AreEqual(Ord(misSkipped), Ord(LMig.Items[1].Status));
+  Assert.AreEqual(Ord(misSuccess), Ord(LMig.Items[2].Status));
+end;
+
+procedure TTestDDLSequencer.Execute_NonTransactionalDialect_NoTransactionCalls;
+var
+  LFake: TFakeDBConnection;
+  LConn: IDBConnection;
+  LExec: TMigrationExecutor;
+  LSeq: TDDLSequencer;
+  LMig: TMigrationReport;
+begin
+  BuiltCreateTable('T1');
+  BuiltCreateTable('T2');
+
+  LFake := TFakeDBConnection.Create(dnMySQL);
+  LConn := LFake;
+  LSeq := TDDLSequencer.Create(FCatalog);
+  LExec := TMigrationExecutor.Create(dnMySQL);   // implicit-commit DDL
+  try
+    LMig := LExec.Execute(LSeq.Sequence(FCommands.ToArray), LConn);
+  finally
+    LExec.Free;
+    LSeq.Free;
+  end;
+
+  Assert.IsFalse(LMig.TransactionalDDL);
+  Assert.AreEqual(2, LMig.Succeeded);
+  Assert.IsFalse(LMig.RolledBack);
+  Assert.AreEqual(0, LFake.TxLog.Count, 'nenhum Start/Commit/Rollback em dialeto nao-transacional');
+  Assert.AreEqual(2, LFake.Executed.Count);
+end;
+
+procedure TTestDDLSequencer.Execute_EmptyCommandIsSkipped;
+var
+  LTable: TTableMIK;
+  LFake: TFakeDBConnection;
+  LConn: IDBConnection;
+  LExec: TMigrationExecutor;
+  LSeq: TDDLSequencer;
+  LMig: TMigrationReport;
+begin
+  BuiltCreateTable('T1');      // has SQL
+  LTable := AddTable('T2');    // command WITHOUT BuildCommand -> empty SQL
+  Add(TDDLCommandCreateTable.Create(LTable));
+
+  LFake := TFakeDBConnection.Create(dnFirebird);
+  LConn := LFake;
+  LSeq := TDDLSequencer.Create(FCatalog);
+  LExec := TMigrationExecutor.Create(dnFirebird);
+  try
+    LMig := LExec.Execute(LSeq.Sequence(FCommands.ToArray), LConn);
+  finally
+    LExec.Free;
+    LSeq.Free;
+  end;
+
+  Assert.AreEqual(2, Length(LMig.Items));
+  Assert.AreEqual(1, LMig.Succeeded);
+  Assert.AreEqual(1, LMig.Empty, 'comando vazio contabilizado como Empty');
+  Assert.AreEqual(1, LFake.Executed.Count, 'comando vazio nao e enviado ao banco');
+end;
+
+procedure TTestDDLSequencer.Execute_RejectsConnectionAlreadyInTransaction;
+var
+  LFake: TFakeDBConnection;
+  LConn: IDBConnection;
+  LExec: TMigrationExecutor;
+  LSeq: TDDLSequencer;
+  LRep: TDDLSequenceReport;
+begin
+  BuiltCreateTable('T1');
+  LFake := TFakeDBConnection.Create(dnFirebird);
+  LConn := LFake;
+  LConn.StartTransaction;     // caller left a transaction open
+  LSeq := TDDLSequencer.Create(FCatalog);
+  LExec := TMigrationExecutor.Create(dnFirebird);
+  try
+    LRep := LSeq.Sequence(FCommands.ToArray);
+    Assert.WillRaise(
+      procedure
+      begin
+        LExec.Execute(LRep, LConn);
+      end,
+      EInvalidOpException);
+  finally
+    LExec.Free;
+    LSeq.Free;
+  end;
+end;
+
+procedure TTestDDLSequencer.MixedWithCycle_AllCommandsPreserved;
+var
+  LA, LB: TTableMIK;
+  LSeq: TDDLSequencer;
+  LReport: TDDLSequenceReport;
+begin
+  // Mixed batch (PRE + two cyclic CREATE TABLEs + POST) with a A<->B cycle.
+  LA := AddTable('A');
+  LB := AddTable('B');
+  AddFK(LA, 'B');
+  AddFK(LB, 'A');
+
+  Add(TDDLCommandEnableForeignKeys.Create(False));   // PRE
+  NewCreateTable(LA);
+  NewCreateTable(LB);
+  Add(TDDLCommandEnableForeignKeys.Create(True));    // POST
+
+  LSeq := TDDLSequencer.Create(FCatalog);
+  try
+    LReport := LSeq.Sequence(FCommands.ToArray);
+  finally
+    LSeq.Free;
+  end;
+
+  Assert.IsTrue(LReport.HasCycles);
+  // Every command is preserved exactly once - none dropped by cycle handling.
+  Assert.AreEqual(FCommands.Count, Length(LReport.Items));
+  Assert.AreEqual(4, Length(LReport.Items));
+  Assert.AreEqual(2, Length(PhaseNames(LReport, dphCreateTables)));
+end;
+
+procedure TTestDDLSequencer.FkEdge_CaseInsensitive;
+var
+  LSeq: TDDLSequencer;
+  LOrder: TArray<String>;
+begin
+  // Parent 'Z' sorts AFTER child 'A'; only the FK edge can force Z before A.
+  // The child's FromTable is lower-case 'z' - normalization must still match it.
+  AddTable('Z');
+  AddTable('A');
+  AddFK(FCatalog.Tables['A'], 'z');     // divergent casing on purpose
+  NewCreateTable(FCatalog.Tables['Z']);
+  NewCreateTable(FCatalog.Tables['A']);
+
+  LSeq := TDDLSequencer.Create(FCatalog);
+  try
+    LOrder := PhaseNames(LSeq.Sequence(FCommands.ToArray), dphCreateTables);
+  finally
+    LSeq.Free;
+  end;
+
+  Assert.AreEqual(2, Length(LOrder));
+  Assert.AreEqual('Z', LOrder[0], 'pai Z deve preceder filho A apesar do casing');
+  Assert.AreEqual('A', LOrder[1]);
 end;
 
 initialization

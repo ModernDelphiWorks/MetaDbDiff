@@ -322,12 +322,17 @@ function TDDLSequencer.OrderTables(const ANames: TArray<String>;
   ACatalog: TCatalogMetadataMIK; AInverse: Boolean;
   var ACycles: TArray<TDDLCycleInfo>): TArray<String>;
 var
-  LNodes: TList<String>;                            // input order, de-duplicated
-  LNodeSet: TDictionary<String, Integer>;           // name -> first input index
+  // All graph structures are keyed by the UPPER-CASE (normalized) table name so
+  // that a FK whose FromTable differs only in casing still matches its parent
+  // node. LDisplay maps each normalized key back to the first-seen original
+  // spelling, which is what we emit (and what the caller ranks commands by).
+  LNodes: TList<String>;                            // normalized keys, input order
+  LNodeSet: TDictionary<String, Integer>;           // normKey -> first input index
+  LDisplay: TDictionary<String, String>;            // normKey -> original spelling
   LDeps: TObjectDictionary<String, TList<String>>;  // node -> parents (in set)
   LDependents: TObjectDictionary<String, TList<String>>; // parent -> children
   LIndeg: TDictionary<String, Integer>;
-  LName, LParent, LChild, LNode: String;
+  LName, LKey, LParent, LChild, LNode: String;
   LTable: TTableMIK;
   LFK: TPair<String, TForeignKeyMIK>;
   LReady: TList<String>;
@@ -363,6 +368,7 @@ var
       LW, LPopped: String;
       LComp: TList<String>;
       LCycle: TDDLCycleInfo;
+      LIdx: Integer;
     begin
       LIndex.AddOrSetValue(AV, LIndexCounter);
       LLowLink.AddOrSetValue(AV, LIndexCounter);
@@ -397,6 +403,9 @@ var
           until LPopped = AV;
           if LComp.Count > 1 then
           begin
+            // Map normalized keys back to their display spelling for the report.
+            for LIdx := 0 to LComp.Count - 1 do
+              LComp[LIdx] := LDisplay[LComp[LIdx]];
             LCycle.Tables := SortedNames(LComp.ToArray);
             LCycle.IsDrop := AInverse;
             ACycles := ACycles + [LCycle];
@@ -428,40 +437,49 @@ var
 begin
   LNodes := TList<String>.Create;
   LNodeSet := TDictionary<String, Integer>.Create;
+  LDisplay := TDictionary<String, String>.Create;
   LDeps := TObjectDictionary<String, TList<String>>.Create([doOwnsValues]);
   LDependents := TObjectDictionary<String, TList<String>>.Create([doOwnsValues]);
   LIndeg := TDictionary<String, Integer>.Create;
   LReady := TList<String>.Create;
   LEmitted := TList<String>.Create;
   try
-    // 1) node set (de-dup, keep first-seen input order)
+    // 1) node set (normalized key, de-dup, keep first-seen input spelling)
     for LName in ANames do
-      if (LName <> '') and (not LNodeSet.ContainsKey(LName)) then
-      begin
-        LNodeSet.Add(LName, LNodes.Count);
-        LNodes.Add(LName);
-        LDeps.Add(LName, TList<String>.Create);
-        LDependents.Add(LName, TList<String>.Create);
-        LIndeg.Add(LName, 0);
-      end;
-
-    // 2) edges from FK metadata: child depends on parent (FK.FromTable)
-    for LName in LNodes do
     begin
-      if not ACatalog.Tables.TryGetValue(LName, LTable) then
+      if LName = '' then
+        Continue;
+      LKey := UpperCase(LName);
+      if not LNodeSet.ContainsKey(LKey) then
+      begin
+        LNodeSet.Add(LKey, LNodes.Count);
+        LNodes.Add(LKey);
+        LDisplay.Add(LKey, LName);
+        LDeps.Add(LKey, TList<String>.Create);
+        LDependents.Add(LKey, TList<String>.Create);
+        LIndeg.Add(LKey, 0);
+      end;
+    end;
+
+    // 2) edges from FK metadata: child depends on parent (FK.FromTable).
+    //    Both node keys and FromTable are upper-cased so casing never drops
+    //    an edge silently.
+    for LKey in LNodes do
+    begin
+      if not ACatalog.Tables.TryGetValue(LDisplay[LKey], LTable) then
         Continue;
       for LFK in LTable.ForeignKeys do
       begin
-        LParent := LFK.Value.FromTable;
-        if (LParent = '') or SameStr(LParent, LName) then
+        LParent := UpperCase(LFK.Value.FromTable);
+        if (LParent = '') or SameStr(LParent, LKey) then
           Continue;                       // ignore self references
         if not LNodeSet.ContainsKey(LParent) then
           Continue;                       // parent not part of this batch
-        if LDeps[LName].IndexOf(LParent) < 0 then
+        if LDeps[LKey].IndexOf(LParent) < 0 then
         begin
-          LDeps[LName].Add(LParent);
-          LDependents[LParent].Add(LName);
-          LIndeg[LName] := LIndeg[LName] + 1;
+          LDeps[LKey].Add(LParent);
+          LDependents[LParent].Add(LKey);
+          LIndeg[LKey] := LIndeg[LKey] + 1;
         end;
       end;
     end;
@@ -493,20 +511,22 @@ begin
         if LEmitted.IndexOf(LName) < 0 then
           LEmitted.Add(LName);
 
-    // 6) create order = parents first; drop order = inverse
+    // 6) create order = parents first; drop order = inverse. Emit the display
+    //    spelling (the caller ranks its commands by ObjectName == this string).
     SetLength(Result, LEmitted.Count);
     if AInverse then
       for LFor := 0 to LEmitted.Count - 1 do
-        Result[LFor] := LEmitted[LEmitted.Count - 1 - LFor]
+        Result[LFor] := LDisplay[LEmitted[LEmitted.Count - 1 - LFor]]
     else
       for LFor := 0 to LEmitted.Count - 1 do
-        Result[LFor] := LEmitted[LFor];
+        Result[LFor] := LDisplay[LEmitted[LFor]];
   finally
     LEmitted.Free;
     LReady.Free;
     LIndeg.Free;
     LDependents.Free;
     LDeps.Free;
+    LDisplay.Free;
     LNodeSet.Free;
     LNodes.Free;
   end;
