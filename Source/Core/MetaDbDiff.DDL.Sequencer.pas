@@ -288,6 +288,16 @@ begin
       Exit(dphPre);
   end;
 
+  // Safe alter-column REBUILD steps (FRENTE 11) devem ficar JUNTOS e NA ORDEM na
+  // fase COLUMNS. Checados ANTES de TDDLCommandDropColumn/CreateColumn porque as
+  // subclasses de rebuild casam com o `is` da base; o drop de rebuild NAO pode
+  // cair na fase 'Drop Columns' (que roda antes de COLUMNS e destruiria a coluna
+  // antes da copia). A ordem relativa dentro da fase e preservada por OriginalIndex.
+  if ACommand is TDDLCommandCreateColumnRebuild then Exit(dphColumns);
+  if ACommand is TDDLCommandDropColumnRebuild then Exit(dphColumns);
+  if ACommand is TDDLCommandCopyColumnData then Exit(dphColumns);
+  if ACommand is TDDLCommandRenameColumn then Exit(dphColumns);
+
   // Drops (inverse dependency order for tables handled later).
   if ACommand is TDDLCommandDropTrigger then Exit(dphDropTriggers);
   if ACommand is TDDLCommandDropView then Exit(dphDropViews);

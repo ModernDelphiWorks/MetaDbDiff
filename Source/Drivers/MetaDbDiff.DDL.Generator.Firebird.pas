@@ -48,6 +48,7 @@ type
     function GenerateEnableTriggers(AEnable: Boolean): String; override;
     function GenerateAlterColumn(AColumn: TColumnMIK): String; override;
     function GenerateAlterColumnPosition(AColumn: TColumnMIK): String; override;
+    function GenerateRenameColumn(AColumn: TColumnMIK; const ANewName: String): String; override;
     function GenerateAlterDefaultValue(AColumn: TColumnMIK): String; override;
     function GenerateDropDefaultValue(AColumn: TColumnMIK): String; override;
     function GenerateCreateView(AView: TViewMIK): String; override;
@@ -206,6 +207,15 @@ begin
   Result := Format(Result, [AColumn.Table.Name,
                             AColumn.Name,
                             AColumn.Position + 1]);
+end;
+
+function TDDLSQLGeneratorFirebird.GenerateRenameColumn(AColumn: TColumnMIK;
+  const ANewName: String): String;
+begin
+  // Firebird/Interbase renomeiam coluna com ALTER COLUMN <atual> TO <novo>
+  // (nao suportam a sintaxe RENAME COLUMN do padrao usada na base).
+  Result := 'ALTER TABLE %s ALTER COLUMN %s TO %s;';
+  Result := Format(Result, [AColumn.Table.Name, AColumn.Name, ANewName]);
 end;
 
 function TDDLSQLGeneratorFirebird.GenerateEnableForeignKeys(AEnable: Boolean): String;

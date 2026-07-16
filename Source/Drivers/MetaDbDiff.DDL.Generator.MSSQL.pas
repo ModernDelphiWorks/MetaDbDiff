@@ -40,6 +40,7 @@ type
     function GenerateCreateSequence(ASequence: TSequenceMIK): String; override;
     function GenerateEnableForeignKeys(AEnable: Boolean): String; override;
     function GenerateEnableTriggers(AEnable: Boolean): String; override;
+    function GenerateRenameColumn(AColumn: TColumnMIK; const ANewName: String): String; override;
   end;
 
 implementation
@@ -127,6 +128,15 @@ begin
     Result := 'EXEC sp_MSforeachtable "ALTER TABLE ? ENABLE TRIGGER ALL";'
   else
     Result := 'EXEC sp_MSforeachtable "ALTER TABLE ? DISABLE TRIGGER ALL";';
+end;
+
+function TDDLSQLGeneratorMSSQL.GenerateRenameColumn(AColumn: TColumnMIK;
+  const ANewName: String): String;
+begin
+  // SQL Server nao tem RENAME COLUMN; usa a stored procedure sp_rename com o
+  // qualificador 'COLUMN' e o alvo no formato 'tabela.coluna'.
+  Result := 'EXEC sp_rename ''%s.%s'', ''%s'', ''COLUMN'';';
+  Result := Format(Result, [AColumn.Table.Name, AColumn.Name, ANewName]);
 end;
 
 initialization

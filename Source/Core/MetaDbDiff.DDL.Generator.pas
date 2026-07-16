@@ -48,6 +48,9 @@ type
     function GenerateCreateTrigger(ATrigger: TTriggerMIK): String; virtual; abstract;
     function GenerateAlterColumn(AColumn: TColumnMIK): String; virtual; abstract;
     function GenerateAlterColumnPosition(AColumn: TColumnMIK): String; virtual; abstract;
+    function GenerateCopyColumnData(AColumn: TColumnMIK; const ASourceColumn: String;
+      ABackfillNull: Boolean): String; virtual; abstract;
+    function GenerateRenameColumn(AColumn: TColumnMIK; const ANewName: String): String; virtual; abstract;
     function GenerateAlterDefaultValue(AColumn: TColumnMIK): String; virtual; abstract;
     function GenerateAlterCheck(ACheck: TCheckMIK): String; virtual; abstract;
     function GenerateAlterSequence(ASequence: TSequenceMIK): String; virtual; abstract;
@@ -109,6 +112,9 @@ type
     function GenerateCreateIndexe(AIndexe: TIndexeKeyMIK): String; override;
     function GenerateCreateCheck(ACheck: TCheckMIK): String; override;
     function GenerateAlterColumn(AColumn: TColumnMIK): String; override;
+    function GenerateCopyColumnData(AColumn: TColumnMIK; const ASourceColumn: String;
+      ABackfillNull: Boolean): String; override;
+    function GenerateRenameColumn(AColumn: TColumnMIK; const ANewName: String): String; override;
     function GenerateAlterCheck(ACheck: TCheckMIK): String; override;
     function GenerateAlterSequence(ASequence: TSequenceMIK): String; override;
     function GenerateAddPrimaryKey(APrimaryKey: TPrimaryKeyMIK): String; override;
@@ -185,6 +191,40 @@ function TDDLSQLGenerator.GenerateAlterColumn(AColumn: TColumnMIK): String;
 begin
   Result := 'ALTER TABLE %s ALTER COLUMN %s;';
   Result := Format(Result, [AColumn.Table.Name, BuilderAlterFieldDefinition(AColumn)]);
+end;
+
+function TDDLSQLGenerator.GenerateCopyColumnData(AColumn: TColumnMIK;
+  const ASourceColumn: String; ABackfillNull: Boolean): String;
+begin
+  // Backfill: preenche linhas NULL com o DefaultValue antes de aplicar NOT NULL.
+  if ABackfillNull then
+  begin
+    Result := 'UPDATE %s SET %s = %s WHERE %s IS NULL;';
+    Result := Format(Result, [AColumn.Table.Name,
+                              AColumn.Name,
+                              QuoteDefaultValueIfNeeded(AColumn, AColumn.DefaultValue),
+                              AColumn.Name]);
+  end
+  else
+  begin
+    // Copia com CAST da coluna de origem para o novo tipo. CAST(x AS <tipo>) e
+    // ANSI e funciona em Firebird/PostgreSQL/Oracle/MySQL/MSSQL; dialetos cuja
+    // sintaxe de cast difira sobrescrevem este metodo.
+    Result := 'UPDATE %s SET %s = CAST(%s AS %s);';
+    Result := Format(Result, [AColumn.Table.Name,
+                              AColumn.Name,
+                              ASourceColumn,
+                              Trim(GetFieldTypeDefinition(AColumn))]);
+  end;
+end;
+
+function TDDLSQLGenerator.GenerateRenameColumn(AColumn: TColumnMIK;
+  const ANewName: String): String;
+begin
+  // Sintaxe ANSI/portavel: PostgreSQL, Oracle, MySQL 8.0+, SQLite 3.25+.
+  // Firebird usa "ALTER COLUMN ... TO" e MSSQL usa sp_rename (overrides).
+  Result := 'ALTER TABLE %s RENAME COLUMN %s TO %s;';
+  Result := Format(Result, [AColumn.Table.Name, AColumn.Name, ANewName]);
 end;
 
 function TDDLSQLGenerator.GenerateCreateCheck(ACheck: TCheckMIK): String;

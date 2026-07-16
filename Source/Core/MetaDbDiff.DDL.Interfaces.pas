@@ -46,6 +46,20 @@ type
     function GenerateCreateColumn(AColumn: TColumnMIK): String;
     function GenerateAlterColumn(AColumn: TColumnMIK): String;
     function GenerateAlterColumnPosition(AColumn: TColumnMIK): String;
+    /// <summary>
+    ///   DML de copia/backfill de coluna usada pela estrategia de rebuild seguro
+    ///   (TAlterColumnRebuilder). ABackfillNull=False: UPDATE t SET AColumn =
+    ///   CAST(ASourceColumn AS <tipo>). ABackfillNull=True: UPDATE t SET AColumn =
+    ///   <default> WHERE AColumn IS NULL. O CAST pode variar por dialeto (override).
+    /// </summary>
+    function GenerateCopyColumnData(AColumn: TColumnMIK; const ASourceColumn: String;
+      ABackfillNull: Boolean): String;
+    /// <summary>
+    ///   Rename de coluna por dialeto (Firebird ALTER COLUMN ... TO; PostgreSQL/
+    ///   Oracle/MySQL 8+/SQLite 3.25+ RENAME COLUMN; MSSQL sp_rename). AColumn
+    ///   carrega o nome atual + a tabela; ANewName e o destino.
+    /// </summary>
+    function GenerateRenameColumn(AColumn: TColumnMIK; const ANewName: String): String;
     function GenerateAlterDefaultValue(AColumn: TColumnMIK): String;
     function GenerateAlterCheck(ACheck: TCheckMIK): String;
     function GenerateAlterSequence(ASequence: TSequenceMIK): String;
