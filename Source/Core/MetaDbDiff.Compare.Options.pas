@@ -83,6 +83,8 @@ type
   /// </summary>
   TDDLCommandKind = (ckMutation, ckGuard, ckUnknown);
 
+{$SCOPEDENUMS ON}
+
 const
   /// <summary> Conjunto com todas as opera��es de muta��o conhecidas. </summary>
   AllDDLOperations: TDDLOperations =
