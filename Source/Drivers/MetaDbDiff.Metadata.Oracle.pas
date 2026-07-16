@@ -568,7 +568,9 @@ begin
             ' from user_constraints cons ' +
             ' left join user_constraints conr on conr.constraint_name = cons.r_constraint_name ' +
             ' where cons.table_name in(' + QuotedStr(ATableName) + ') ' +
-            ' and cons.constraint_type in(''U'',''R'') ' +
+            // Somente ''R'' (referential/FK). O ''U'' (UNIQUE) incluia constraints
+            // unique como se fossem FKs, gerando foreign keys espurias sem colunas.
+            ' and cons.constraint_type = ''R'' ' +
             ' order by cons.constraint_name ';
 end;
 
