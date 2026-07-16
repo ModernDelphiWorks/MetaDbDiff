@@ -241,16 +241,25 @@ procedure TCatalogMetadataSQLite.GetPrimaryKey(ATable: TTableMIK);
   var
     oDBResultSet: IDBResultSet;
     oColumn: TColumnMIK;
+    iPkOrder: Integer;
   begin
     FSQLText := Format('PRAGMA table_info("%s")', [ATable.Name]);
     oDBResultSet := Execute;
     while oDBResultSet.NotEof do
     begin
-      oColumn := TColumnMIK.Create(ATable);
-      oColumn.Name := VarToStr(oDBResultSet.GetFieldValue('name'));
-      oColumn.NotNull := oDBResultSet.GetFieldValue('notnull') = 1;
-      oColumn.Position := VarAsType(oDBResultSet.GetFieldValue('cid'), varInteger);
-      APrimaryKey.Fields.Add(FormatFloat('000000', oColumn.Position), oColumn);
+      // PRAGMA table_info.pk = 0 quando a coluna NAO faz parte da PK, ou a
+      // posicao (1..n) dentro da PK caso contrario. O codigo anterior adicionava
+      // TODAS as colunas da tabela a PK; filtra por pk > 0 e usa esse valor para
+      // ordenar a chave composta.
+      iPkOrder := VarAsType(oDBResultSet.GetFieldValue('pk'), varInteger);
+      if iPkOrder > 0 then
+      begin
+        oColumn := TColumnMIK.Create(ATable);
+        oColumn.Name := VarToStr(oDBResultSet.GetFieldValue('name'));
+        oColumn.NotNull := oDBResultSet.GetFieldValue('notnull') = 1;
+        oColumn.Position := VarAsType(oDBResultSet.GetFieldValue('cid'), varInteger);
+        APrimaryKey.Fields.Add(FormatFloat('000000', iPkOrder), oColumn);
+      end;
     end;
   end;
 
@@ -308,17 +317,20 @@ begin
         ATable.ForeignKeys.Add(oForeignKey.Name, oForeignKey);
       end;
       /// <summary>
-      /// Coluna tabela master
+      /// Coluna tabela master (PRAGMA foreign_key_list.seq preserva a ordem da
+      /// chave composta)
       /// </summary>
       oFromField := TColumnMIK.Create(ATable);
       oFromField.Name := VarToStr(oDBResultSet.GetFieldValue('from'));
-      oForeignKey.FromFields.Add(oFromField.Name, oFromField);
+      oFromField.Position := VarAsType(oDBResultSet.GetFieldValue('seq'), varInteger);
+      oForeignKey.FromFields.Add(FormatFloat('000000', oFromField.Position), oFromField);
       /// <summary>
       /// Coluna tabela filha
       /// </summary>
       oToField := TColumnMIK.Create(ATable);
       oToField.Name := VarToStr(oDBResultSet.GetFieldValue('to'));
-      oForeignKey.ToFields.Add(oToField.Name, oToField);
+      oToField.Position := VarAsType(oDBResultSet.GetFieldValue('seq'), varInteger);
+      oForeignKey.ToFields.Add(FormatFloat('000000', oToField.Position), oToField);
     end;
   except
   end;
@@ -387,7 +399,10 @@ var
     begin
       oColumn := TColumnMIK.Create(ATable);
       oColumn.Name := VarToStr(oDBResultSet.GetFieldValue('name'));
-      AIndexeKey.Fields.Add(oColumn.Name, oColumn);
+      // PRAGMA index_info.seqno preserva a ordem das colunas no indice composto;
+      // sem isso a chave do dicionario era o nome e o indice era reordenado.
+      oColumn.Position := VarAsType(oDBResultSet.GetFieldValue('seqno'), varInteger);
+      AIndexeKey.Fields.Add(FormatFloat('000000', oColumn.Position), oColumn);
     end;
   end;
 
