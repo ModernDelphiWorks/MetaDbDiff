@@ -29,6 +29,7 @@ uses
   DataEngine.FactoryInterfaces,
   MetaDbDiff.DDL.Interfaces,
   MetaDbDiff.DDL.Commands,
+  MetaDbDiff.Migration.Executor,
   MetaDbDiff.Compare.Options;
 
 type
@@ -42,6 +43,13 @@ type
     function GetPolicy: TComparePolicy;
     procedure SetPolicy(const Value: TComparePolicy);
     function GetSuppressedCommands: TArray<String>;
+    function GetUseSequencer: Boolean;
+    procedure SetUseSequencer(const Value: Boolean);
+    function GetErrorPolicy: TMigrationErrorPolicy;
+    procedure SetErrorPolicy(const Value: TMigrationErrorPolicy);
+    function GetRaiseOnError: Boolean;
+    procedure SetRaiseOnError(const Value: Boolean);
+    function GetLastMigrationReport: TMigrationReport;
   {$ENDREGION}
     procedure BuildDatabase;
     procedure ExecuteCommands;
@@ -70,6 +78,27 @@ type
     ///   emitir mas foi bloqueada pela policy vigente.
     /// </summary>
     property SuppressedCommands: TArray<String> read GetSuppressedCommands;
+    /// <summary>
+    ///   Liga (default) o sequenciamento topol�gico por fase na gera��o. Quando
+    ///   False, GetCommandList preserva a ordem hist�rica de gera��o.
+    /// </summary>
+    property UseSequencer: Boolean read GetUseSequencer write SetUseSequencer;
+    /// <summary>
+    ///   Pol�tica de erro do executor de migra��o: StopOnError (default) ou
+    ///   ContinueOnError.
+    /// </summary>
+    property ErrorPolicy: TMigrationErrorPolicy read GetErrorPolicy write SetErrorPolicy;
+    /// <summary>
+    ///   Fail-loud (default True): re-levanta exce��o quando a execu��o registra
+    ///   falha/rollback. False deixa o resultado apenas em LastMigrationReport.
+    /// </summary>
+    property RaiseOnError: Boolean read GetRaiseOnError write SetRaiseOnError;
+    /// <summary>
+    ///   Resultado detalhado da �ltima execu��o via executor (fases, por-comando,
+    ///   rollback). Permite ao consumidor via interface inspecionar um banco
+    ///   meio-migrado mesmo com RaiseOnError=False.
+    /// </summary>
+    property LastMigrationReport: TMigrationReport read GetLastMigrationReport;
   end;
 
 implementation

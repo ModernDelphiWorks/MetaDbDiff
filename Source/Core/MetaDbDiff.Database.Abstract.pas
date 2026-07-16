@@ -53,8 +53,15 @@ type
     procedure SetErrorPolicy(const Value: TMigrationErrorPolicy);
     function GetUseSequencer: Boolean;
     procedure SetUseSequencer(const Value: Boolean);
+    function GetRaiseOnError: Boolean;
+    procedure SetRaiseOnError(const Value: Boolean);
     function GetLastMigrationReport: TMigrationReport;
     function GetLastSequenceReport: TDDLSequenceReport;
+    /// <summary>
+    ///   Monta o resumo textual de uma execu��o que falhou (n� de falhas,
+    ///   primeira mensagem + fase, ponteiro para LastMigrationReport).
+    /// </summary>
+    function BuildFailureSummary: String;
     /// <summary>
     ///   Reordena FDDLCommands IN-PLACE segundo AOrdered, preservando as MESMAS
     ///   inst�ncias (nenhum free/double-free): a TObjectList tem OwnsObjects
@@ -75,6 +82,7 @@ type
     FSuppressedCommands: TList<String>;
     FUseSequencer: Boolean;
     FErrorPolicy: TMigrationErrorPolicy;
+    FRaiseOnError: Boolean;
     FLastMigrationReport: TMigrationReport;
     FLastSequenceReport: TDDLSequenceReport;
     function GetFieldTypeValid(AFieldType: TFieldType): TFieldType; virtual; abstract;
@@ -141,6 +149,16 @@ type
     /// </summary>
     property ErrorPolicy: TMigrationErrorPolicy read GetErrorPolicy write SetErrorPolicy;
     /// <summary>
+    ///   Preserva o contrato hist�rico "fail-loud": quando True (default), uma
+    ///   execu��o que registre qualquer falha (ou rollback) RE-LEVANTA uma
+    ///   exce��o com o resumo (ver LastMigrationReport para o detalhe). Isso vale
+    ///   inclusive com ErrorPolicy=ContinueOnError - o agregado � levantado ao
+    ///   FINAL, pois o chamador precisa saber que o banco ficou meio-migrado.
+    ///   Com False, nenhuma exce��o � levantada e o resultado fica apenas em
+    ///   LastMigrationReport (semantica opt-in de inspe��o program�tica).
+    /// </summary>
+    property RaiseOnError: Boolean read GetRaiseOnError write SetRaiseOnError;
+    /// <summary>
     ///   Resultado da �ltima execu��o via executor (fases, por-comando, rollback).
     ///   Zerado a cada nova execu��o e finalizado no Destroy.
     /// </summary>
@@ -173,6 +191,8 @@ begin
   // False mant�m a ordem hist�rica (fallback de compatibilidade).
   FUseSequencer := True;
   FErrorPolicy := mepStopOnError;
+  // Contrato hist�rico: falha de migra��o RE-LEVANTA (fail-loud) por padr�o.
+  FRaiseOnError := True;
   FLastMigrationReport := Default(TMigrationReport);
   FLastSequenceReport := Default(TDDLSequenceReport);
 end;
@@ -325,6 +345,16 @@ begin
   FUseSequencer := Value;
 end;
 
+function TDatabaseAbstract.GetRaiseOnError: Boolean;
+begin
+  Result := FRaiseOnError;
+end;
+
+procedure TDatabaseAbstract.SetRaiseOnError(const Value: Boolean);
+begin
+  FRaiseOnError := Value;
+end;
+
 function TDatabaseAbstract.GetLastMigrationReport: TMigrationReport;
 begin
   Result := FLastMigrationReport;
@@ -397,6 +427,14 @@ var
 begin
   if FUseSequencer and Assigned(FCatalogMaster) then
   begin
+    // Reaproveita o relat�rio produzido na gera��o (ApplySequencer) quando ele
+    // ainda corresponde � lista atual - o sequenciamento � determin�stico, ent�o
+    // re-rodar Kahn/Tarjan daria o MESMO resultado. A contagem serve de guarda de
+    // invalida��o: qualquer altera��o em FDDLCommands (nova gera��o, inje��o de
+    // comando) muda o tamanho e for�a o re-sequenciamento abaixo.
+    if (FDDLCommands.Count > 0) and
+       (Length(FLastSequenceReport.Items) = FDDLCommands.Count) then
+      Exit(FLastSequenceReport);
     LSequencer := TDDLSequencer.Create(FCatalogMaster, FCatalogTarget);
     try
       Result := LSequencer.Sequence(FDDLCommands.ToArray);
@@ -420,6 +458,37 @@ begin
   end;
 end;
 
+function TDatabaseAbstract.BuildFailureSummary: String;
+var
+  LItem: TMigrationItemReport;
+  LFirstMsg, LFirstPhase: String;
+  LHasFirst: Boolean;
+begin
+  LHasFirst := False;
+  LFirstMsg := '';
+  LFirstPhase := '';
+  for LItem in FLastMigrationReport.Items do
+    if LItem.Status = misFailed then
+    begin
+      LFirstMsg := LItem.ErrorMessage;
+      LFirstPhase := LItem.PhaseName;
+      LHasFirst := True;
+      Break;
+    end;
+  Result := Format(
+    'MetaDbDiff: a migra��o falhou (%d falha(s), %d executada(s), %d ignorada(s)).',
+    [FLastMigrationReport.Failed, FLastMigrationReport.Succeeded,
+     FLastMigrationReport.Skipped]);
+  if LHasFirst then
+    Result := Result + sLineBreak +
+      Format('Primeira falha [fase %s]: %s', [LFirstPhase, LFirstMsg]);
+  if FLastMigrationReport.RolledBack then
+    Result := Result + sLineBreak +
+      'Ao menos uma fase sofreu rollback (dialeto transacional).';
+  Result := Result + sLineBreak +
+    'Detalhe completo (por-comando/fase) dispon�vel em LastMigrationReport.';
+end;
+
 procedure TDatabaseAbstract.ExecuteViaExecutor(const AConnection: IDBConnection);
 var
   LExecutor: TMigrationExecutor;
@@ -435,6 +504,15 @@ begin
   finally
     LExecutor.Free;
   end;
+  // Contrato fail-loud (restaurado): o executor N�O levanta em falha de comando
+  // (grava misFailed e segue conforme ErrorPolicy). Para n�o deixar o chamador
+  // cego a um banco meio-migrado, re-levantamos aqui o AGREGADO quando houve
+  // qualquer falha ou rollback - inclusive sob ContinueOnError (o agregado � a
+  // �nica forma de o chamador saber que nem tudo passou). RaiseOnError=False
+  // desliga isso e deixa o resultado apenas em LastMigrationReport.
+  if FRaiseOnError and
+     ((FLastMigrationReport.Failed > 0) or FLastMigrationReport.RolledBack) then
+    raise Exception.Create(BuildFailureSummary);
 end;
 
 function TDatabaseAbstract.GenerateScript: String;

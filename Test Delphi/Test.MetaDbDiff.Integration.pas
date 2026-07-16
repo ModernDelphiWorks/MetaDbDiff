@@ -30,6 +30,7 @@ uses
   MetaDbDiff.Database.Mapping,
   MetaDbDiff.Database.Abstract,
   MetaDbDiff.Database.Factory,
+  MetaDbDiff.Database.Interfaces,
   MetaDbDiff.Compare.Options,
   MetaDbDiff.DDL.Commands,
   MetaDbDiff.DDL.Interfaces,
@@ -94,6 +95,13 @@ type
     procedure ExecuteCommands_ProducesMigrationReportWithPhases;
     [Test]
     procedure ExecuteCommands_NeverDisconnectsFakeConnection;
+    // ---- fail-loud contract (RaiseOnError) ------------------------------
+    [Test]
+    procedure ExecuteCommands_Failure_RaisesWithSummary_ByDefault;
+    [Test]
+    procedure ExecuteCommands_Failure_NoRaiseWhenDisabled_ReportViaInterface;
+    [Test]
+    procedure BuildDatabaseAutoExec_Failure_Raises;
     // ---- convenience API ------------------------------------------------
     [Test]
     procedure GenerateScript_ReturnsTextWithCommandsAndPhases;
@@ -344,6 +352,71 @@ begin
   // no Disconnect of its own, so the caller's connection is left untouched.
   Assert.AreEqual(0, FFake.DisconnectCalls,
     'o executor nunca desconecta a conexao do chamador');
+end;
+
+procedure TTestSequencerExecutorIntegration.ExecuteCommands_Failure_RaisesWithSummary_ByDefault;
+begin
+  FFactory := TIntegrationFactory.Create(dnFirebird);
+  FFactory.Scenario := isFkChain;
+  // Fail on the 1st script actually sent to the connection.
+  FFake := TFakeDBConnection.Create(dnFirebird, 1);
+  FFactory.FakeConn := FFake;
+  FFactory.BuildDatabase;   // generation only (CommandsAutoExecute stays False)
+
+  // RaiseOnError defaults True: the fail-loud contract must re-raise.
+  Assert.WillRaise(
+    procedure
+    begin
+      FFactory.ExecuteCommands;
+    end,
+    Exception,
+    'com RaiseOnError=True uma falha de migracao deve re-levantar excecao');
+  // The report is still populated (and mentions the failure) for inspection.
+  Assert.IsTrue(FFactory.LastMigrationReport.Failed > 0,
+    'o LastMigrationReport deve registrar a falha mesmo apos o raise');
+end;
+
+procedure TTestSequencerExecutorIntegration.ExecuteCommands_Failure_NoRaiseWhenDisabled_ReportViaInterface;
+var
+  LConcrete: TIntegrationFactory;
+  LCompare: IDatabaseCompare;   // owns the lifetime via reference counting
+  LReport: TMigrationReport;
+begin
+  // Built and driven purely through IDatabaseCompare to prove a consumer using
+  // ONLY the interface can read the migration outcome (RaiseOnError=False path).
+  LConcrete := TIntegrationFactory.Create(dnFirebird);
+  LConcrete.Scenario := isFkChain;
+  FFake := TFakeDBConnection.Create(dnFirebird, 1);   // fail on the 1st script
+  LConcrete.FakeConn := FFake;
+  LCompare := LConcrete;              // interface RC now owns LConcrete
+  LCompare.RaiseOnError := False;     // opt out of fail-loud
+  LCompare.BuildDatabase;
+  // Must NOT raise even though a command fails.
+  LCompare.ExecuteCommands;
+  LReport := LCompare.LastMigrationReport;   // read VIA INTERFACE
+  Assert.IsTrue(LReport.Failed > 0,
+    'via interface o consumidor deve enxergar a falha em LastMigrationReport');
+  Assert.IsTrue(FFake.Executed.Count > 0, 'ao menos um comando foi tentado');
+  // FFactory stays nil; TearDown FreeAndNil(FFactory) is a no-op. LConcrete is
+  // freed when LCompare is released at method exit (which also frees the fake).
+end;
+
+procedure TTestSequencerExecutorIntegration.BuildDatabaseAutoExec_Failure_Raises;
+begin
+  FFactory := TIntegrationFactory.Create(dnFirebird);
+  FFactory.Scenario := isFkChain;
+  FFake := TFakeDBConnection.Create(dnFirebird, 1);
+  FFactory.FakeConn := FFake;
+  FFactory.CommandsAutoExecute := True;   // BuildDatabase both generates AND runs
+
+  // Auto-exec generation that fails must surface the failure (fail-loud default).
+  Assert.WillRaise(
+    procedure
+    begin
+      FFactory.BuildDatabase;
+    end,
+    Exception,
+    'BuildDatabase com auto-exec e falha deve re-levantar excecao');
 end;
 
 procedure TTestSequencerExecutorIntegration.GenerateScript_ReturnsTextWithCommandsAndPhases;
