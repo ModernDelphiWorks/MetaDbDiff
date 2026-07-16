@@ -29,6 +29,7 @@ uses
   DataEngine.FactoryInterfaces,
   MetaDbDiff.DDL.Interfaces,
   MetaDbDiff.DDL.Commands,
+  MetaDbDiff.DDL.AlterStrategy,
   MetaDbDiff.Migration.Executor,
   MetaDbDiff.Compare.Options;
 
@@ -47,6 +48,8 @@ type
     function GetSuppressedCommands: TArray<String>;
     function GetUseSequencer: Boolean;
     procedure SetUseSequencer(const Value: Boolean);
+    function GetAlterColumnStrategy: TAlterColumnStrategy;
+    procedure SetAlterColumnStrategy(const Value: TAlterColumnStrategy);
     function GetErrorPolicy: TMigrationErrorPolicy;
     procedure SetErrorPolicy(const Value: TMigrationErrorPolicy);
     function GetRaiseOnError: Boolean;
@@ -94,6 +97,11 @@ type
     ///   False, GetCommandList preserva a ordem hist�rica de gera��o.
     /// </summary>
     property UseSequencer: Boolean read GetUseSequencer write SetUseSequencer;
+    /// <summary>
+    ///   Estrat�gia de ALTER COLUMN (FRENTE 11): acsInPlace (default, hist�rico)
+    ///   ou acsRebuildWhenRequired (rebuild seguro com preserva��o de dados).
+    /// </summary>
+    property AlterColumnStrategy: TAlterColumnStrategy read GetAlterColumnStrategy write SetAlterColumnStrategy;
     /// <summary>
     ///   Pol�tica de erro do executor de migra��o: StopOnError (default) ou
     ///   ContinueOnError.

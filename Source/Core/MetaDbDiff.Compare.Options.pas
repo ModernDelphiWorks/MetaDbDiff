@@ -71,7 +71,14 @@ type
     DropTrigger,
     CreateSequence,
     DropSequence,
-    AlterSequence);
+    AlterSequence,
+    /// <summary>
+    ///   Opera��o composta da estrat�gia de alter column segura (FRENTE 11):
+    ///   cobre TODOS os passos do rebuild (create tmp / copy-cast / backfill /
+    ///   drop original / rename). Um �nico gate governa a sequ�ncia inteira, para
+    ///   que a lista nunca fique meio-transformada. FORA do JanusOrmProfile.
+    /// </summary>
+    RebuildColumn);
 
   TDDLOperations = set of TDDLOperation;
 
@@ -146,7 +153,15 @@ begin
      (ACommand is TDDLCommandEnableTriggers) then
     Exit(ckGuard);
   // 2) Muta��es conhecidas.
-  if ACommand is TDDLCommandCreateTable then
+  // Passos do rebuild seguro (FRENTE 11) - checados ANTES das classes-base
+  // (TDDLCommandCreateColumn/TDDLCommandDropColumn), pois as subclasses de rebuild
+  // casam com o `is` da base; todos mapeiam para a opera��o composta RebuildColumn.
+  if (ACommand is TDDLCommandCreateColumnRebuild) or
+     (ACommand is TDDLCommandDropColumnRebuild) or
+     (ACommand is TDDLCommandCopyColumnData) or
+     (ACommand is TDDLCommandRenameColumn) then
+    AOperation := TDDLOperation.RebuildColumn
+  else if ACommand is TDDLCommandCreateTable then
     AOperation := TDDLOperation.CreateTable
   else if ACommand is TDDLCommandDropTable then
     AOperation := TDDLOperation.DropTable

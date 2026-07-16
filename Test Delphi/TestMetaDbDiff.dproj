@@ -111,6 +111,7 @@
         <DCCReference Include="..\Source\Core\MetaDbDiff.Metadata.Normalize.pas"/>
         <DCCReference Include="Test.MetaDbDiff.Fakes.pas"/>
         <DCCReference Include="Test.MetaDbDiff.Sequencer.pas"/>
+        <DCCReference Include="Test.MetaDbDiff.AlterStrategy.pas"/>
         <DCCReference Include="Test.MetaDbDiff.Integration.pas"/>
         <DCCReference Include="..\Source\Core\MetaDbDiff.Mapping.Attributes.pas"/>
         <DCCReference Include="..\Source\Core\MetaDbDiff.Mapping.Classes.pas"/>
@@ -130,6 +131,7 @@
         <DCCReference Include="..\Source\Core\MetaDbDiff.Database.MetaInfo.pas"/>
         <DCCReference Include="..\Source\Core\MetaDbDiff.DDL.Commands.pas"/>
         <DCCReference Include="..\Source\Core\MetaDbDiff.DDL.Sequencer.pas"/>
+        <DCCReference Include="..\Source\Core\MetaDbDiff.DDL.AlterStrategy.pas"/>
         <DCCReference Include="..\Source\Core\MetaDbDiff.Migration.Executor.pas"/>
         <DCCReference Include="..\Source\Core\MetaDbDiff.DDL.Generator.pas"/>
         <DCCReference Include="..\Source\Core\MetaDbDiff.DDL.Interfaces.pas"/>

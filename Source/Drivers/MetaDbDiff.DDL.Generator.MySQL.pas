@@ -37,11 +37,21 @@ uses
 type
   TDDLSQLGeneratorMySQL = class(TDDLSQLGenerator)
   protected
+    /// <summary>
+    ///   Mapeia o tipo da coluna para um tipo de destino VALIDO no CAST do MySQL.
+    ///   O MySQL so aceita um conjunto restrito no CAST (CHAR, SIGNED, UNSIGNED,
+    ///   DECIMAL, DATE, DATETIME, TIME, ...) - CAST(x AS VARCHAR(n)) e ERRO de
+    ///   sintaxe. VARCHAR/CHAR -> CHAR(n); inteiros -> SIGNED; numericos -> DECIMAL.
+    /// </summary>
+    function _MySQLCastType(AColumn: TColumnMIK): String;
   public
     function GenerateCreateTable(ATable: TTableMIK): String; override;
     function GenerateEnableForeignKeys(AEnable: Boolean): String; override;
     function GenerateEnableTriggers(AEnable: Boolean): String; override;
     function GenerateAlterColumn(AColumn: TColumnMIK): String; override;
+    function GenerateCopyColumnData(AColumn: TColumnMIK; const ASourceColumn: String;
+      ABackfillNull: Boolean): String; override;
+    function GenerateRenameColumn(AColumn: TColumnMIK; const ANewName: String): String; override;
     function GenerateDropPrimaryKey(APrimaryKey: TPrimaryKeyMIK): String; override;
     function GenerateDropIndexe(AIndexe: TIndexeKeyMIK): String; override;
     function GetSupportedFeatures: TSupportedFeatures; override;
@@ -55,6 +65,74 @@ function TDDLSQLGeneratorMySQL.GenerateAlterColumn(AColumn: TColumnMIK): String;
 begin
   Result := 'ALTER TABLE %s MODIFY COLUMN %s;';
   Result := Format(Result, [AColumn.Table.Name, BuilderAlterFieldDefinition(AColumn)]);
+end;
+
+function TDDLSQLGeneratorMySQL._MySQLCastType(AColumn: TColumnMIK): String;
+var
+  LBase: String;
+  LFor, LCut: Integer;
+begin
+  LBase := UpperCase(Trim(AColumn.TypeName));
+  LCut := Length(LBase);
+  for LFor := 1 to Length(LBase) do
+    if CharInSet(LBase[LFor], ['(', ' ', '[']) then
+    begin
+      LCut := LFor - 1;
+      Break;
+    end;
+  LBase := Copy(LBase, 1, LCut);
+
+  if (Pos('CHAR', LBase) > 0) or (LBase = 'TEXT') or (LBase = 'STRING') or
+     (LBase = 'CLOB') or (LBase = 'MEMO') then
+  begin
+    if AColumn.Size > 0 then
+      Result := Format('CHAR(%d)', [AColumn.Size])
+    else
+      Result := 'CHAR';
+  end
+  else if (LBase = 'INTEGER') or (LBase = 'INT') or (LBase = 'SMALLINT') or
+          (LBase = 'BIGINT') or (LBase = 'TINYINT') or (LBase = 'INT64') then
+    Result := 'SIGNED'
+  else if (LBase = 'NUMERIC') or (LBase = 'DECIMAL') or (LBase = 'NUMBER') or
+          (LBase = 'DEC') or (LBase = 'FLOAT') or (LBase = 'DOUBLE') or (LBase = 'REAL') then
+  begin
+    if AColumn.Precision > 0 then
+      Result := Format('DECIMAL(%d,%d)', [AColumn.Precision, AColumn.Scale])
+    else
+      Result := 'DECIMAL';
+  end
+  else if LBase = 'DATE' then
+    Result := 'DATE'
+  else if (LBase = 'DATETIME') or (LBase = 'TIMESTAMP') or (LBase = 'SMALLDATETIME') then
+    Result := 'DATETIME'
+  else if LBase = 'TIME' then
+    Result := 'TIME'
+  else
+    Result := 'CHAR';   // fallback seguro (evita CAST invalido)
+end;
+
+function TDDLSQLGeneratorMySQL.GenerateCopyColumnData(AColumn: TColumnMIK;
+  const ASourceColumn: String; ABackfillNull: Boolean): String;
+begin
+  // Backfill e SQL padrao (UPDATE ... WHERE ... IS NULL): reaproveita a base.
+  if ABackfillNull then
+    Exit(inherited GenerateCopyColumnData(AColumn, ASourceColumn, ABackfillNull));
+  // Copia com CAST usando o tipo de destino VALIDO no MySQL (CHAR/SIGNED/DECIMAL...).
+  Result := 'UPDATE %s SET %s = CAST(%s AS %s);';
+  Result := Format(Result, [AColumn.Table.Name,
+                            AColumn.Name,
+                            ASourceColumn,
+                            _MySQLCastType(AColumn)]);
+end;
+
+function TDDLSQLGeneratorMySQL.GenerateRenameColumn(AColumn: TColumnMIK;
+  const ANewName: String): String;
+begin
+  // MySQL 8.0.0+ suporta ALTER TABLE ... RENAME COLUMN (padrao em 2026). Em
+  // versoes < 8.0 seria necessario CHANGE <old> <new> <definicao completa>, que
+  // exigiria repetir toda a definicao da coluna; por isso adotamos RENAME COLUMN.
+  Result := 'ALTER TABLE %s RENAME COLUMN %s TO %s;';
+  Result := Format(Result, [AColumn.Table.Name, AColumn.Name, ANewName]);
 end;
 
 function TDDLSQLGeneratorMySQL.GenerateCreateTable(ATable: TTableMIK): String;

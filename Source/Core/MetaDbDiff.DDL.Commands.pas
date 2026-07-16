@@ -36,6 +36,12 @@ type
     FCommand: String;
   public
     function BuildCommand(ASQLGeneratorCommand: IDDLGeneratorCommand): String; virtual; abstract;
+    /// <summary>
+    ///   Anexa uma nota (ex.: aviso de risco da estrategia de alter column) ao
+    ///   Warning existente. Nunca silencioso: o texto aparece no relatorio e no
+    ///   script. So APPEND - jamais sobrescreve o prefixo parseavel do Warning.
+    /// </summary>
+    procedure AppendWarning(const AText: String);
     property Warning: String read FWarning;
     property Command: String read FCommand;
   end;
@@ -78,6 +84,11 @@ type
   public
     constructor Create(AColumn: TColumnMIK);
     function BuildCommand(ASQLGeneratorCommand: IDDLGeneratorCommand): String; override;
+    /// <summary>
+    ///   Coluna MASTER (estado desejado) desta alteracao. Exposta somente-leitura
+    ///   para o TAlterColumnRebuilder decidir a estrategia sem parsear o Warning.
+    /// </summary>
+    property Column: TColumnMIK read FColumn;
   end;
 
   TDDLCommandAlterColumnPosition = class(TDDLCommand)
@@ -245,6 +256,55 @@ type
     FEnable: Boolean;
   public
     constructor Create(AEnable: Boolean);
+    function BuildCommand(ASQLGeneratorCommand: IDDLGeneratorCommand): String; override;
+  end;
+
+  { --- Safe ALTER COLUMN rebuild commands (FRENTE 11) --- }
+
+  /// <summary>
+  ///   CREATE da coluna temporaria <nome>_MDBTMP dentro de uma sequencia de
+  ///   rebuild. Reusa a geracao de TDDLCommandCreateColumn; a subclasse existe
+  ///   apenas para o Sequencer manter o comando na fase COLUMNS e para a policy
+  ///   classifica-lo como RebuildColumn (nao como CreateColumn generico).
+  /// </summary>
+  TDDLCommandCreateColumnRebuild = class(TDDLCommandCreateColumn);
+
+  /// <summary>
+  ///   DROP da coluna original dentro de uma sequencia de rebuild. Reusa a
+  ///   geracao de TDDLCommandDropColumn; a subclasse existe para o Sequencer
+  ///   NAO mover este drop para a fase 'Drop Columns' (que roda ANTES da fase
+  ///   COLUMNS e destruiria a coluna antes da copia dos dados) e para a policy
+  ///   classifica-lo como RebuildColumn.
+  /// </summary>
+  TDDLCommandDropColumnRebuild = class(TDDLCommandDropColumn);
+
+  /// <summary>
+  ///   Copia/backfill de dados de coluna (DML) usada no rebuild:
+  ///   - modo copia (ABackfillNull=False): UPDATE <t> SET <col> = CAST(<origem> AS <tipo>)
+  ///   - modo backfill (ABackfillNull=True): UPDATE <t> SET <col> = <default> WHERE <col> IS NULL
+  /// </summary>
+  TDDLCommandCopyColumnData = class(TDDLCommand)
+  strict private
+    FColumn: TColumnMIK;
+    FSourceColumn: String;
+    FBackfillNull: Boolean;
+  public
+    constructor Create(AColumn: TColumnMIK; const ASourceColumn: String;
+      ABackfillNull: Boolean);
+    function BuildCommand(ASQLGeneratorCommand: IDDLGeneratorCommand): String; override;
+  end;
+
+  /// <summary>
+  ///   RENAME de coluna (por dialeto) usado no rebuild para devolver o nome
+  ///   original a coluna temporaria. AColumn carrega o nome ATUAL (temporario) e
+  ///   a tabela; ANewName e o nome de destino.
+  /// </summary>
+  TDDLCommandRenameColumn = class(TDDLCommand)
+  strict private
+    FColumn: TColumnMIK;
+    FNewName: String;
+  public
+    constructor Create(AColumn: TColumnMIK; const ANewName: String);
     function BuildCommand(ASQLGeneratorCommand: IDDLGeneratorCommand): String; override;
   end;
 
@@ -613,6 +673,57 @@ constructor TDDLCommandAlterColumnPosition.Create(AColumn: TColumnMIK);
 begin
   FColumn := AColumn;
   FWarning := Format('Alter Column Position: %s', [AColumn.Name]);
+end;
+
+{ TDDLCommand }
+
+procedure TDDLCommand.AppendWarning(const AText: String);
+begin
+  if Trim(AText) = '' then
+    Exit;
+  if FWarning = '' then
+    FWarning := AText
+  else
+    FWarning := FWarning + ' | ' + AText;
+end;
+
+{ TDDLCommandCopyColumnData }
+
+constructor TDDLCommandCopyColumnData.Create(AColumn: TColumnMIK;
+  const ASourceColumn: String; ABackfillNull: Boolean);
+begin
+  FColumn := AColumn;
+  FSourceColumn := ASourceColumn;
+  FBackfillNull := ABackfillNull;
+  if ABackfillNull then
+    FWarning := Format('Backfill Column Data: %s', [AColumn.Name])
+  else
+    FWarning := Format('Copy Column Data: %s -> %s', [ASourceColumn, AColumn.Name]);
+end;
+
+function TDDLCommandCopyColumnData.BuildCommand(
+  ASQLGeneratorCommand: IDDLGeneratorCommand): String;
+begin
+  FCommand := ASQLGeneratorCommand.GenerateCopyColumnData(FColumn, FSourceColumn,
+    FBackfillNull);
+  Result := FCommand;
+end;
+
+{ TDDLCommandRenameColumn }
+
+constructor TDDLCommandRenameColumn.Create(AColumn: TColumnMIK;
+  const ANewName: String);
+begin
+  FColumn := AColumn;
+  FNewName := ANewName;
+  FWarning := Format('Rename Column: %s TO %s', [AColumn.Name, ANewName]);
+end;
+
+function TDDLCommandRenameColumn.BuildCommand(
+  ASQLGeneratorCommand: IDDLGeneratorCommand): String;
+begin
+  FCommand := ASQLGeneratorCommand.GenerateRenameColumn(FColumn, FNewName);
+  Result := FCommand;
 end;
 
 end.
