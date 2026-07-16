@@ -31,7 +31,8 @@ uses
   MetaDbDiff.DDL.Interfaces,
   MetaDbDiff.Database.Abstract,
   MetaDbDiff.Database.Mapping,
-  MetaDbDiff.DDL.Commands;
+  MetaDbDiff.DDL.Commands,
+  MetaDbDiff.Compare.Options;
 
 type
   TDatabaseFactory = class(TDatabaseAbstract)
@@ -111,7 +112,11 @@ begin
   GenerateDDLCommands(FCatalogMaster, FCatalogTarget);
   // Execute the generated commands only when auto execution is enabled.
   if FCommandsAutoExecute then
+  begin
+    // Dupla checagem antes de executar (defesa em profundidade).
+    ValidateCommandsPolicy;
     ExecuteDDLCommands;
+  end;
 end;
 
 function TDatabaseFactory.DeepEqualsColumn(AMasterColumn, ATargetColumn: TColumnMIK): Boolean;
@@ -176,6 +181,8 @@ var
 begin
   inherited;
   FDDLCommands.Clear;
+  // Zera o relat�rio de auditoria: cada gera��o parte de um estado limpo.
+  FSuppressedCommands.Clear;
   // Gera script que desabilita todas as ForeignKeys
   ActionEnableForeignKeys(False);
   // Gera script que desabilita todas as Triggers
@@ -306,8 +313,17 @@ begin
         // Recreate the trigger when the script differs from the model.
         if CompareText(LTriggerMaster.Value.Script, LTrigger.Script) <> 0 then
         begin
-          ActionDropTrigger(LTrigger);
-          ActionCreateTrigger(LTriggerMaster.Value);
+          // Par DROP+CREATE: s� emite se AMBAS as opera��es forem permitidas;
+          // caso contr�rio suprime o par inteiro (nunca deixa drop �rf�o).
+          if FPolicy.Allows(TDDLOperation.DropTrigger) and
+             FPolicy.Allows(TDDLOperation.CreateTrigger) then
+          begin
+            ActionDropTrigger(LTrigger);
+            ActionCreateTrigger(LTriggerMaster.Value);
+          end
+          else
+            AddSuppressed(Format('RECREATE TRIGGER %s suppressed by policy',
+              [LTrigger.Name]));
         end;
       end
       else
@@ -339,8 +355,16 @@ begin
         // Recreate the view when the script differs from the model.
         if CompareText(LViewMaster.Value.Script, LView.Script) <> 0 then
         begin
-          ActionDropView(LView);
-          ActionCreateView(LViewMaster.Value);
+          // Par DROP+CREATE: s� emite se AMBAS as opera��es forem permitidas.
+          if FPolicy.Allows(TDDLOperation.DropView) and
+             FPolicy.Allows(TDDLOperation.CreateView) then
+          begin
+            ActionDropView(LView);
+            ActionCreateView(LViewMaster.Value);
+          end
+          else
+            AddSuppressed(Format('RECREATE VIEW %s suppressed by policy',
+              [LView.Name]));
         end;
       end
       else
@@ -545,8 +569,16 @@ begin
            (not DeepEqualsForeignKeyFromColumns(LForeignKeyMaster.Value, LForeignKeyTarget.Value)) or
            (not DeepEqualsForeignKeyToColumns  (LForeignKeyMaster.Value, LForeignKeyTarget.Value)) then
         begin
-          ActionDropForeignKey(LForeignKeyTarget.Value);
-          ActionCreateForeignKey(LForeignKeyMaster.Value);
+          // Par DROP+CREATE: s� emite se AMBAS as opera��es forem permitidas.
+          if FPolicy.Allows(TDDLOperation.DropForeignKey) and
+             FPolicy.Allows(TDDLOperation.CreateForeignKey) then
+          begin
+            ActionDropForeignKey(LForeignKeyTarget.Value);
+            ActionCreateForeignKey(LForeignKeyMaster.Value);
+          end
+          else
+            AddSuppressed(Format('RECREATE FOREIGNKEY %s suppressed by policy',
+              [LForeignKeyTarget.Value.Name]));
         end;
       end
       else
@@ -673,8 +705,16 @@ begin
       if (not DeepEqualsIndexe(LIndexeMaster.Value, LIndexeTarget.Value)) or
          (not DeepEqualsIndexeColumns(LIndexeMaster.Value, LIndexeTarget.Value)) then
       begin
-        ActionDropIndexe(LIndexeTarget.Value);
-        ActionCreateIndexe(LIndexeMaster.Value);
+        // Par DROP+CREATE: s� emite se AMBAS as opera��es forem permitidas.
+        if FPolicy.Allows(TDDLOperation.DropIndexe) and
+           FPolicy.Allows(TDDLOperation.CreateIndexe) then
+        begin
+          ActionDropIndexe(LIndexeTarget.Value);
+          ActionCreateIndexe(LIndexeMaster.Value);
+        end
+        else
+          AddSuppressed(Format('RECREATE INDEXE %s suppressed by policy',
+            [LIndexeTarget.Value.Name]));
       end;
     end
     else
@@ -724,6 +764,19 @@ begin
   // Every primary key dropped by divergence must be recreated from the model.
   if LDropPK and (AMasterTable.PrimaryKey.Fields.Count > 0) then
     LRecreatePK := True;
+  // Par DROP+CREATE (recreate de PK divergente): s� emite se AMBAS as opera��es
+  // forem permitidas; caso contr�rio suprime o par inteiro (nunca dropa a PK
+  // existente deixando a tabela sem chave). Um create isolado (target sem PK) ou
+  // um drop isolado (model sem PK) seguem para o gate individual do Action*.
+  if LDropPK and LRecreatePK and
+     (not (FPolicy.Allows(TDDLOperation.DropPrimaryKey) and
+           FPolicy.Allows(TDDLOperation.CreatePrimaryKey))) then
+  begin
+    AddSuppressed(Format('RECREATE PRIMARYKEY %s suppressed by policy',
+      [ATargetTable.PrimaryKey.Name]));
+    LDropPK := False;
+    LRecreatePK := False;
+  end;
   if LDropPK then
     ActionDropPrimaryKey(ATargetTable.PrimaryKey);
   if LRecreatePK then
@@ -753,121 +806,256 @@ begin
   end;
 end;
 
+// Cada m�todo Action* � o ponto onde UMA muta��o passa individualmente. O gate
+// por policy vive aqui (mesmo padr�o do gate por TSupportedFeature existente):
+// quando a opera��o n�o � permitida, a muta��o N�O entra na lista e um registro
+// descritivo � anexado ao relat�rio de auditoria (SuppressedCommands).
+
 procedure TDatabaseFactory.ActionAlterColumn(AColumn: TColumnMIK);
 begin
+  if not FPolicy.Allows(TDDLOperation.AlterColumn) then
+  begin
+    AddSuppressed(Format('ALTER COLUMN %s.%s suppressed by policy',
+      [AColumn.Table.Name, AColumn.Name]));
+    Exit;
+  end;
   FDDLCommands.Add(TDDLCommandAlterColumn.Create(AColumn));
 end;
 
 procedure TDatabaseFactory.ActionAlterColumnPosition(AColumn: TColumnMIK);
 begin
+  if not FPolicy.Allows(TDDLOperation.AlterColumnPosition) then
+  begin
+    AddSuppressed(Format('ALTER COLUMN POSITION %s.%s suppressed by policy',
+      [AColumn.Table.Name, AColumn.Name]));
+    Exit;
+  end;
   FDDLCommands.Add(TDDLCommandAlterColumnPosition.Create(AColumn));
 end;
 
 procedure TDatabaseFactory.ActionAlterDefaultValue(AColumn: TColumnMIK);
 begin
+  if not FPolicy.Allows(TDDLOperation.AlterDefaultValue) then
+  begin
+    AddSuppressed(Format('ALTER DEFAULT %s.%s suppressed by policy',
+      [AColumn.Table.Name, AColumn.Name]));
+    Exit;
+  end;
   FDDLCommands.Add(TDDLCommandAlterDefaultValue.Create(AColumn));
 end;
 
 procedure TDatabaseFactory.ActionCreateCheck(ACheck: TCheckMIK);
 begin
+  if not FPolicy.Allows(TDDLOperation.CreateCheck) then
+  begin
+    AddSuppressed(Format('CREATE CHECK %s suppressed by policy', [ACheck.Name]));
+    Exit;
+  end;
   FDDLCommands.Add(TDDLCommandCreateCheck.Create(ACheck));
 end;
 
 procedure TDatabaseFactory.ActionAlterCheck(ACheck: TCheckMIK);
 begin
+  if not FPolicy.Allows(TDDLOperation.AlterCheck) then
+  begin
+    AddSuppressed(Format('ALTER CHECK %s suppressed by policy', [ACheck.Name]));
+    Exit;
+  end;
   FDDLCommands.Add(TDDLCommandAlterCheck.Create(ACheck));
 end;
 
 procedure TDatabaseFactory.ActionCreateColumn(AColumn: TColumnMIK);
 begin
+  if not FPolicy.Allows(TDDLOperation.CreateColumn) then
+  begin
+    AddSuppressed(Format('CREATE COLUMN %s.%s suppressed by policy',
+      [AColumn.Table.Name, AColumn.Name]));
+    Exit;
+  end;
   FDDLCommands.Add(TDDLCommandCreateColumn.Create(AColumn));
 end;
 
 procedure TDatabaseFactory.ActionCreateForeignKey(AForeignKey: TForeignKeyMIK);
 begin
+  if not FPolicy.Allows(TDDLOperation.CreateForeignKey) then
+  begin
+    AddSuppressed(Format('CREATE FOREIGNKEY %s suppressed by policy',
+      [AForeignKey.Name]));
+    Exit;
+  end;
   FDDLCommands.Add(TDDLCommandCreateForeignKey.Create(AForeignKey));
 end;
 
 procedure TDatabaseFactory.ActionCreateIndexe(AIndexe: TIndexeKeyMIK);
 begin
+  if not FPolicy.Allows(TDDLOperation.CreateIndexe) then
+  begin
+    AddSuppressed(Format('CREATE INDEXE %s suppressed by policy', [AIndexe.Name]));
+    Exit;
+  end;
   FDDLCommands.Add(TDDLCommandCreateIndexe.Create(AIndexe));
 end;
 
 procedure TDatabaseFactory.ActionCreatePrimaryKey(APrimaryKey: TPrimaryKeyMIK);
 begin
+  if not FPolicy.Allows(TDDLOperation.CreatePrimaryKey) then
+  begin
+    AddSuppressed(Format('CREATE PRIMARYKEY %s suppressed by policy',
+      [APrimaryKey.Name]));
+    Exit;
+  end;
   FDDLCommands.Add(TDDLCommandCreatePrimaryKey.Create(APrimaryKey));
 end;
 
 procedure TDatabaseFactory.ActionCreateSequence(ASequence: TSequenceMIK);
 begin
+  if not FPolicy.Allows(TDDLOperation.CreateSequence) then
+  begin
+    AddSuppressed(Format('CREATE SEQUENCE %s suppressed by policy',
+      [ASequence.Name]));
+    Exit;
+  end;
   FDDLCommands.Add(TDDLCommandCreateSequence.Create(ASequence));
 end;
 
 procedure TDatabaseFactory.ActionCreateTable(ATable: TTableMIK);
 begin
+  if not FPolicy.Allows(TDDLOperation.CreateTable) then
+  begin
+    AddSuppressed(Format('CREATE TABLE %s suppressed by policy', [ATable.Name]));
+    Exit;
+  end;
   FDDLCommands.Add(TDDLCommandCreateTable.Create(ATable));
 end;
 
 procedure TDatabaseFactory.ActionCreateView(AView: TViewMIK);
 begin
+  if not FPolicy.Allows(TDDLOperation.CreateView) then
+  begin
+    AddSuppressed(Format('CREATE VIEW %s suppressed by policy', [AView.Name]));
+    Exit;
+  end;
   FDDLCommands.Add(TDDLCommandCreateView.Create(AView));
 end;
 
 procedure TDatabaseFactory.ActionCreateTrigger(ATrigger: TTriggerMIK);
 begin
+  if not FPolicy.Allows(TDDLOperation.CreateTrigger) then
+  begin
+    AddSuppressed(Format('CREATE TRIGGER %s suppressed by policy',
+      [ATrigger.Name]));
+    Exit;
+  end;
   FDDLCommands.Add(TDDLCommandCreateTrigger.Create(ATrigger));
 end;
 
 procedure TDatabaseFactory.ActionDropCheck(ACheck: TCheckMIK);
 begin
+  if not FPolicy.Allows(TDDLOperation.DropCheck) then
+  begin
+    AddSuppressed(Format('DROP CHECK %s suppressed by policy', [ACheck.Name]));
+    Exit;
+  end;
   FDDLCommands.Add(TDDLCommandDropCheck.Create(ACheck));
 end;
 
 procedure TDatabaseFactory.ActionDropColumn(AColumn: TColumnMIK);
 begin
+  if not FPolicy.Allows(TDDLOperation.DropColumn) then
+  begin
+    AddSuppressed(Format('DROP COLUMN %s.%s suppressed by policy',
+      [AColumn.Table.Name, AColumn.Name]));
+    Exit;
+  end;
   FDDLCommands.Add(TDDLCommandDropColumn.Create(AColumn));
 end;
 
 procedure TDatabaseFactory.ActionDropDefaultValue(AColumn: TColumnMIK);
 begin
+  if not FPolicy.Allows(TDDLOperation.DropDefaultValue) then
+  begin
+    AddSuppressed(Format('DROP DEFAULT %s.%s suppressed by policy',
+      [AColumn.Table.Name, AColumn.Name]));
+    Exit;
+  end;
   FDDLCommands.Add(TDDLCommandDropDefaultValue.Create(AColumn));
 end;
 
 procedure TDatabaseFactory.ActionDropForeignKey(AForeignKey: TForeignKeyMIK);
 begin
+  if not FPolicy.Allows(TDDLOperation.DropForeignKey) then
+  begin
+    AddSuppressed(Format('DROP FOREIGNKEY %s suppressed by policy',
+      [AForeignKey.Name]));
+    Exit;
+  end;
   FDDLCommands.Add(TDDLCommandDropForeignKey.Create(AForeignKey));
 end;
 
 procedure TDatabaseFactory.ActionDropIndexe(AIndexe: TIndexeKeyMIK);
 begin
+  if not FPolicy.Allows(TDDLOperation.DropIndexe) then
+  begin
+    AddSuppressed(Format('DROP INDEXE %s suppressed by policy', [AIndexe.Name]));
+    Exit;
+  end;
   FDDLCommands.Add(TDDLCommandDropIndexe.Create(AIndexe));
 end;
 
 procedure TDatabaseFactory.ActionDropPrimaryKey(APrimaryKey: TPrimaryKeyMIK);
 begin
+  if not FPolicy.Allows(TDDLOperation.DropPrimaryKey) then
+  begin
+    AddSuppressed(Format('DROP PRIMARYKEY %s suppressed by policy',
+      [APrimaryKey.Name]));
+    Exit;
+  end;
   FDDLCommands.Add(TDDLCommandDropPrimaryKey.Create(APrimaryKey));
 end;
 
 procedure TDatabaseFactory.ActionDropSequence(ASequence: TSequenceMIK);
 begin
+  if not FPolicy.Allows(TDDLOperation.DropSequence) then
+  begin
+    AddSuppressed(Format('DROP SEQUENCE %s suppressed by policy',
+      [ASequence.Name]));
+    Exit;
+  end;
   FDDLCommands.Add(TDDLCommandDropSequence.Create(ASequence));
 end;
 
 procedure TDatabaseFactory.ActionDropTable(ATable: TTableMIK);
 begin
+  if not FPolicy.Allows(TDDLOperation.DropTable) then
+  begin
+    AddSuppressed(Format('DROP TABLE %s suppressed by policy', [ATable.Name]));
+    Exit;
+  end;
   FDDLCommands.Add(TDDLCommandDropTable.Create(ATable));
 end;
 
 procedure TDatabaseFactory.ActionDropView(AView: TViewMIK);
 begin
+  if not FPolicy.Allows(TDDLOperation.DropView) then
+  begin
+    AddSuppressed(Format('DROP VIEW %s suppressed by policy', [AView.Name]));
+    Exit;
+  end;
   FDDLCommands.Add(TDDLCommandDropView.Create(AView));
 end;
 
 procedure TDatabaseFactory.ActionDropTrigger(ATrigger: TTriggerMIK);
 begin
+  if not FPolicy.Allows(TDDLOperation.DropTrigger) then
+  begin
+    AddSuppressed(Format('DROP TRIGGER %s suppressed by policy', [ATrigger.Name]));
+    Exit;
+  end;
   FDDLCommands.Add(TDDLCommandDropTrigger.Create(ATrigger));
 end;
 
+// EnableForeignKeys / EnableTriggers s�o comandos de GUARDA (n�o muta��es):
+// sempre emitidos, independentemente da policy.
 procedure TDatabaseFactory.ActionEnableForeignKeys(AEnable: Boolean);
 begin
   FDDLCommands.Add(TDDLCommandEnableForeignKeys.Create(AEnable));
