@@ -122,6 +122,7 @@ type
 implementation
 
 uses
+  DB,
   StrUtils;
 
 { TDDLSQLGenerator }
@@ -271,8 +272,49 @@ begin
 end;
 
 function TDDLSQLGenerator.GetCreateFieldDefaultDefinition(AColumn: TColumnMIK): String;
+
+  function IsTextualFieldType(const AFieldType: TFieldType): Boolean;
+  begin
+    Result := AFieldType in [ftString, ftWideString, ftFixedChar,
+                              ftFixedWideChar, ftMemo, ftWideMemo];
+  end;
+
+  function IsAlreadyQuoted(const AValue: String): Boolean;
+  begin
+    Result := (Length(AValue) >= 2) and
+              (AValue[1] = '''') and
+              (AValue[Length(AValue)] = '''');
+  end;
+
+  function IsKnownFunctionOrKeyword(const AValue: String): Boolean;
+  var
+    LValue: String;
+  begin
+    LValue := AnsiUpperCase(Trim(AValue));
+    Result := (LValue = 'CURRENT_TIMESTAMP') or
+              (LValue = 'CURRENT_DATE') or
+              (LValue = 'CURRENT_TIME') or
+              (LValue = 'NOW()') or
+              (LValue = 'NULL');
+  end;
+
+var
+  LValue: String;
 begin
-  Result := IfThen(Length(AColumn.DefaultValue) > 0, ' DEFAULT ' + AColumn.DefaultValue, '');
+  if Length(AColumn.DefaultValue) = 0 then
+    Exit('');
+
+  LValue := AColumn.DefaultValue;
+  // Textual columns need their default literal quoted, otherwise the DDL
+  // is invalid (e.g. DEFAULT SEM NOME instead of DEFAULT 'SEM NOME').
+  // Values already quoted or known functions/keywords are left untouched,
+  // and non-textual columns keep the original (unquoted) behavior.
+  if IsTextualFieldType(AColumn.FieldType) and
+     not IsAlreadyQuoted(LValue) and
+     not IsKnownFunctionOrKeyword(LValue) then
+    LValue := QuotedStr(LValue);
+
+  Result := ' DEFAULT ' + LValue;
 end;
 
 function TDDLSQLGenerator.BuilderAlterFieldDefinition(AColumn: TColumnMIK): String;
