@@ -127,6 +127,18 @@ procedure TCatalogMetadataPostgreSQL.GetChecks(ATable: TTableMIK);
 var
   LDBResultSet: IDBResultSet;
   LCheck: TCheckMIK;
+
+  function ExtractCheckCondition(ACheckSource: String): String;
+  begin
+    // pg_get_constraintdef() devolve a definicao completa "CHECK (<condicao>)";
+    // remove a palavra-chave CHECK para guardar apenas a condicao (o gerador
+    // reconstroi "CHECK (...)"), evitando o "CHECK (CHECK (...))" invalido.
+    // Mesmo padrao ja aplicado no extractor Firebird.
+    Result := Trim(ACheckSource);
+    if UpperCase(Copy(Result, 1, 5)) = 'CHECK' then
+      Result := Trim(Copy(Result, 6, Length(Result)));
+  end;
+
 begin
   inherited;
   FSQLText := GetSelectChecks(ATable.Name);
@@ -136,7 +148,7 @@ begin
     LCheck := TCheckMIK.Create(ATable);
     LCheck.Name := VarToStr(LDBResultSet.GetFieldValue('name'));
     LCheck.Description := '';
-    LCheck.Condition := VarToStr(LDBResultSet.GetFieldValue('condition'));
+    LCheck.Condition := ExtractCheckCondition(VarToStr(LDBResultSet.GetFieldValue('condition')));
     ATable.Checks.Add(UpperCase(LCheck.Name), LCheck);
   end;
 end;
@@ -305,33 +317,42 @@ var
   LForeignKey: TForeignKeyMIK;
   LFromField: TColumnMIK;
   LToField: TColumnMIK;
+  LFKName: String;
+  LLastFKName: String;
 begin
   inherited;
+  LForeignKey := nil;
+  LLastFKName := '';
   FSQLText := GetSelectForeignKey(ATable.Name);
   LDBResultSet := Execute;
   while LDBResultSet.NotEof do
   begin
-    LForeignKey := TForeignKeyMIK.Create(ATable);
-//    LForeignKey.Name := Format('FK_%s_%s', [VarToStr(LDBResultSet.GetFieldValue('table_reference')),
-//                                            VarToStr(LDBResultSet.GetFieldValue('column_name'))]);
-    LForeignKey.Name := VarToStr(LDBResultSet.GetFieldValue('fk_name'));
-    LForeignKey.FromTable := VarToStr(LDBResultSet.GetFieldValue('table_reference'));
-//    LForeignKey.OnUpdate := GetRuleAction(VarAsType(LDBResultSet.GetFieldValue('fk_updateaction'), varInteger));
-//    LForeignKey.OnDelete := GetRuleAction(VarAsType(LDBResultSet.GetFieldValue('fk_deleteaction'), varInteger));
-    LForeignKey.OnUpdate := GetRuleAction(VarToStr(LDBResultSet.GetFieldValue('fk_updateaction')));
-    LForeignKey.OnDelete := GetRuleAction(VarToStr(LDBResultSet.GetFieldValue('fk_deleteaction')));
-    LForeignKey.Description :=  VarToStr(LDBResultSet.GetFieldValue('fk_description'));
-    ATable.ForeignKeys.Add(LForeignKey.Name, LForeignKey);
-    // Coluna tabela master
+    // information_schema.KEY_COLUMN_USAGE devolve uma linha por coluna da FK.
+    // Agrupa por CONSTRAINT_NAME: o .Add anterior lancava erro de chave
+    // duplicada assim que uma FK composta aparecia.
+    LFKName := VarToStr(LDBResultSet.GetFieldValue('fk_name'));
+    if LFKName <> LLastFKName then
+    begin
+      LForeignKey := TForeignKeyMIK.Create(ATable);
+      LForeignKey.Name := LFKName;
+      LForeignKey.FromTable := VarToStr(LDBResultSet.GetFieldValue('table_reference'));
+      // REFERENTIAL_CONSTRAINTS.UPDATE_RULE/DELETE_RULE sao textuais.
+      LForeignKey.OnUpdate := GetRuleAction(VarToStr(LDBResultSet.GetFieldValue('fk_updateaction')));
+      LForeignKey.OnDelete := GetRuleAction(VarToStr(LDBResultSet.GetFieldValue('fk_deleteaction')));
+      LForeignKey.Description := VarToStr(LDBResultSet.GetFieldValue('fk_description'));
+      ATable.ForeignKeys.Add(LForeignKey.Name, LForeignKey);
+      LLastFKName := LFKName;
+    end;
+    // Coluna tabela master (ORDINAL_POSITION ordena a chave composta)
     LFromField := TColumnMIK.Create(ATable);
     LFromField.Name := VarToStr(LDBResultSet.GetFieldValue('column_name'));
-    LForeignKey.FromFields.Add(LFromField.Name, LFromField);
-    // Coluna tabela referencia
+    LFromField.Position := VarAsType(LDBResultSet.GetFieldValue('column_position'), varInteger) - 1;
+    LForeignKey.FromFields.Add(FormatFloat('000000', LFromField.Position), LFromField);
+    // Coluna tabela referencia (POSITION_IN_UNIQUE_CONSTRAINT)
     LToField := TColumnMIK.Create(ATable);
     LToField.Name := VarToStr(LDBResultSet.GetFieldValue('column_reference'));
-    LForeignKey.ToFields.Add(LToField.Name, LToField);
-    // Gera a lista de campos do foreignkey
-//    GetForeignKeyColumns(LForeignKey);
+    LToField.Position := VarAsType(LDBResultSet.GetFieldValue('column_referenceposition'), varInteger) - 1;
+    LForeignKey.ToFields.Add(FormatFloat('000000', LToField.Position), LToField);
   end;
 end;
 
@@ -519,10 +540,14 @@ begin
             '        ''''                             as fk_description ' +
             ' from information_schema.key_column_usage kc ' +
             ' inner join information_schema.referential_constraints rc on kc.constraint_name = rc.constraint_name ' +
+            // O par kc.position_in_unique_constraint = ku.ordinal_position casa
+            // cada coluna da FK com a coluna referenciada correta; sem isso as
+            // colunas referenciadas faziam produto cartesiano em FK composta.
             ' inner join information_schema.key_column_usage ku on rc.unique_constraint_name = ku.constraint_name ' +
+            '                                                  and kc.position_in_unique_constraint = ku.ordinal_position ' +
             ' where kc.table_name in(' + QuotedStr(ATableName) + ') ' +
             ' and   kc.table_schema not in (''pg_catalog'', ''information_schema'') ' +
-            ' order by kc.constraint_name, kc.position_in_unique_constraint';
+            ' order by kc.constraint_name, kc.ordinal_position';
 end;
 
 function TCatalogMetadataPostgreSQL.GetSelectForeignKeyColumns(AForeignKeyName: String): String;
