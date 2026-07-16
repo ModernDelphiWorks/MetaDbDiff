@@ -34,7 +34,7 @@ uses
   MetaDbDiff.Database.Mapping;
 
 type
-  TDDLSQLGeneratorMySQL = class(TDDLSQLGenerator)
+  TDDLSQLGeneratorOracle = class(TDDLSQLGenerator)
   protected
   public
     function GenerateCreateTable(ATable: TTableMIK): String; override;
@@ -49,15 +49,16 @@ type
 
 implementation
 
-{ TDDLSQLGeneratorMySQL }
+{ TDDLSQLGeneratorOracle }
 
-function TDDLSQLGeneratorMySQL.GenerateAlterColumn(AColumn: TColumnMIK): String;
+function TDDLSQLGeneratorOracle.GenerateAlterColumn(AColumn: TColumnMIK): String;
 begin
-  Result := 'ALTER TABLE %s MODIFY COLUMN %s;';
+  // Oracle usa MODIFY (sem a palavra COLUMN): ALTER TABLE <tabela> MODIFY (<coluna> <definicao>);
+  Result := 'ALTER TABLE %s MODIFY (%s);';
   Result := Format(Result, [AColumn.Table.Name, BuilderAlterFieldDefinition(AColumn)]);
 end;
 
-function TDDLSQLGeneratorMySQL.GenerateCreateForeignKey(AForeignKey: TForeignKeyMIK): String;
+function TDDLSQLGeneratorOracle.GenerateCreateForeignKey(AForeignKey: TForeignKeyMIK): String;
 begin
   Result := 'ALTER TABLE %s ADD CONSTRAINT %s FOREIGN KEY (%s) REFERENCES %s(%s) %s ENABLE VALIDATE;';
   Result := Format(Result, [AForeignKey.Table.Name,
@@ -68,7 +69,7 @@ begin
                             GetRuleDeleteActionDefinition(AForeignKey.OnDelete)]);
 end;
 
-function TDDLSQLGeneratorMySQL.GenerateCreateSequence(
+function TDDLSQLGeneratorOracle.GenerateCreateSequence(
   ASequence: TSequenceMIK): String;
 begin
   Result := 'CREATE SEQUENCE %s MINVALUE 1 START WITH %s INCREMENT BY %s NOCACHE;'; // MAXVALUE ????? CACHE ??
@@ -77,7 +78,7 @@ begin
                             IntToStr(ASequence.Increment)]);
 end;
 
-function TDDLSQLGeneratorMySQL.GenerateCreateTable(ATable: TTableMIK): String;
+function TDDLSQLGeneratorOracle.GenerateCreateTable(ATable: TTableMIK): String;
 var
   oSQL: TStringBuilder;
   oColumn: TPair<String, TColumnMIK>;
@@ -136,35 +137,58 @@ begin
   end;
 end;
 
-function TDDLSQLGeneratorMySQL.GenerateDropIndexe(AIndexe: TIndexeKeyMIK): String;
+function TDDLSQLGeneratorOracle.GenerateDropIndexe(AIndexe: TIndexeKeyMIK): String;
 begin
-  Result := 'ALTER TABLE %s DROP INDEX %s;';
-  Result := Format(Result, [AIndexe.Table.Name, AIndexe.Name]);
+  // No Oracle o indice e um objeto de schema; nao existe ALTER TABLE ... DROP INDEX.
+  Result := 'DROP INDEX %s;';
+  Result := Format(Result, [AIndexe.Name]);
 end;
 
-function TDDLSQLGeneratorMySQL.GenerateDropPrimaryKey(APrimaryKey: TPrimaryKeyMIK): String;
+function TDDLSQLGeneratorOracle.GenerateDropPrimaryKey(APrimaryKey: TPrimaryKeyMIK): String;
 begin
   Result := 'ALTER TABLE %s DROP PRIMARY KEY;';
   Result := Format(Result, [APrimaryKey.Table.Name]);
 end;
 
-function TDDLSQLGeneratorMySQL.GenerateEnableForeignKeys(AEnable: Boolean): String;
+function TDDLSQLGeneratorOracle.GenerateEnableForeignKeys(AEnable: Boolean): String;
 begin
+  // Oracle nao possui comando global para habilitar/desabilitar FKs; gera um
+  // bloco PL/SQL anonimo que itera USER_CONSTRAINTS (tipo 'R' = referential)
+  // executando ENABLE/DISABLE CONSTRAINT em cada uma.
   if AEnable then
-    Result := ''
+    Result := 'BEGIN' + sLineBreak +
+              '  FOR c IN (SELECT table_name, constraint_name FROM user_constraints WHERE constraint_type = ''R'') LOOP' + sLineBreak +
+              '    EXECUTE IMMEDIATE ''ALTER TABLE "'' || c.table_name || ''" ENABLE CONSTRAINT "'' || c.constraint_name || ''"'';' + sLineBreak +
+              '  END LOOP;' + sLineBreak +
+              'END;'
   else
-    Result := '';
+    Result := 'BEGIN' + sLineBreak +
+              '  FOR c IN (SELECT table_name, constraint_name FROM user_constraints WHERE constraint_type = ''R'') LOOP' + sLineBreak +
+              '    EXECUTE IMMEDIATE ''ALTER TABLE "'' || c.table_name || ''" DISABLE CONSTRAINT "'' || c.constraint_name || ''"'';' + sLineBreak +
+              '  END LOOP;' + sLineBreak +
+              'END;';
 end;
 
-function TDDLSQLGeneratorMySQL.GenerateEnableTriggers(AEnable: Boolean): String;
+function TDDLSQLGeneratorOracle.GenerateEnableTriggers(AEnable: Boolean): String;
 begin
+  // Oracle nao possui comando global para habilitar/desabilitar triggers; gera
+  // um bloco PL/SQL anonimo que itera USER_TRIGGERS executando
+  // ALTER TRIGGER ... ENABLE/DISABLE em cada uma.
   if AEnable then
-    Result := ''
+    Result := 'BEGIN' + sLineBreak +
+              '  FOR t IN (SELECT trigger_name FROM user_triggers) LOOP' + sLineBreak +
+              '    EXECUTE IMMEDIATE ''ALTER TRIGGER "'' || t.trigger_name || ''" ENABLE'';' + sLineBreak +
+              '  END LOOP;' + sLineBreak +
+              'END;'
   else
-    Result := '';
+    Result := 'BEGIN' + sLineBreak +
+              '  FOR t IN (SELECT trigger_name FROM user_triggers) LOOP' + sLineBreak +
+              '    EXECUTE IMMEDIATE ''ALTER TRIGGER "'' || t.trigger_name || ''" DISABLE'';' + sLineBreak +
+              '  END LOOP;' + sLineBreak +
+              'END;';
 end;
 
 initialization
-  TSQLDriverRegister.GetInstance.RegisterDriver(dnOracle, TDDLSQLGeneratorMySQL.Create);
+  TSQLDriverRegister.GetInstance.RegisterDriver(dnOracle, TDDLSQLGeneratorOracle.Create);
 
 end.
