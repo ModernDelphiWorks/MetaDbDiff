@@ -111,6 +111,8 @@
         <DCCReference Include="..\Source\Core\MetaDbDiff.Database.Abstract.pas"/>
         <DCCReference Include="..\Source\Core\MetaDbDiff.Database.Compare.pas"/>
         <DCCReference Include="..\Source\Core\MetaDbDiff.Database.Factory.pas"/>
+        <DCCReference Include="..\Source\Core\MetaDbDiff.Database.ModelCompare.pas"/>
+        <DCCReference Include="..\Source\Core\MetaDbDiff.Metadata.Model.Factory.pas"/>
         <DCCReference Include="..\Source\Core\MetaDbDiff.Database.Interfaces.pas"/>
         <DCCReference Include="..\Source\Core\MetaDbDiff.Database.Mapping.pas"/>
         <DCCReference Include="..\Source\Core\MetaDbDiff.Database.MetaInfo.pas"/>
