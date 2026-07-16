@@ -72,6 +72,8 @@ type
     // --------------------------------------------------------------- Register
     [Test]
     procedure Register_GetAllIsOneShot;
+    [Test]
+    procedure Register_GetAllReturnsSameContentOnConsecutiveReads;
   end;
 
 implementation
@@ -313,14 +315,34 @@ end;
 
 procedure TTestMapping.Register_GetAllIsOneShot;
 begin
-  // Documenta o comportamento one-shot do TRegisterClass: GetAll*Class devolve
-  // o conteudo e ESVAZIA a lista - a segunda chamada devolve array vazio.
-  // Usamos a lista de TRIGGERS (nao consumida por GetRepositoryMapping) para
-  // nao drenar a lista de entidades usada pelo teste de extracao do modelo.
+  // Documents the CURRENT (fixed) behaviour of TRegisterClass: GetAll*Class
+  // returns a snapshot copy of the internal list WITHOUT clearing it, so
+  // repeated calls keep returning the same content. This used to be one-shot
+  // (the list was cleared on the first read - see MetaDbDiff.Mapping.Register.pas
+  // history), which meant a second TMappingRepository/comparison in the same
+  // process silently got an empty catalog. We use the TRIGGERS list (not
+  // consumed by GetRepositoryMapping) so we don't interfere with the entity
+  // list used by the model extraction test.
   TRegisterClass.RegisterTrigger(TClienteTest);
   Assert.AreEqual(1, Length(TRegisterClass.GetAllTriggerClass));
-  Assert.AreEqual(0, Length(TRegisterClass.GetAllTriggerClass),
-    'GetAllTriggerClass deve esvaziar a lista apos a primeira leitura (one-shot)');
+  Assert.AreEqual(1, Length(TRegisterClass.GetAllTriggerClass),
+    'GetAllTriggerClass must NOT empty the list anymore - a second read must keep returning the registered class');
+end;
+
+procedure TTestMapping.Register_GetAllReturnsSameContentOnConsecutiveReads;
+var
+  LFirst, LSecond: TArray<TClass>;
+begin
+  // Two consecutive reads must return the same content (not just the same
+  // length): this is the actual behaviour a second TMappingRepository /
+  // second comparison in the same process relies on.
+  TRegisterClass.RegisterTrigger(TPedidoTest);
+  LFirst := TRegisterClass.GetAllTriggerClass;
+  LSecond := TRegisterClass.GetAllTriggerClass;
+  Assert.AreEqual(Length(LFirst), Length(LSecond));
+  Assert.IsTrue(Length(LFirst) > 0);
+  Assert.IsTrue(LFirst[High(LFirst)] = LSecond[High(LSecond)],
+    'Consecutive reads must return the same class reference for the last registered trigger');
 end;
 
 initialization
