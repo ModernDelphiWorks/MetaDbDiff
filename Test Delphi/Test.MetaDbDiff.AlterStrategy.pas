@@ -33,7 +33,9 @@ uses
   MetaDbDiff.DDL.Register,
   // drivers register themselves in their initialization:
   MetaDbDiff.DDL.Generator.Firebird,
-  MetaDbDiff.DDL.Generator.SQLite;
+  MetaDbDiff.DDL.Generator.SQLite,
+  MetaDbDiff.DDL.Generator.MySQL,
+  MetaDbDiff.DDL.Generator.PostgreSQL;
 
 type
   /// <summary>Testable factory: hand-built catalogs + empty abstract bodies.</summary>
@@ -57,11 +59,16 @@ type
     function CountCommands(AClass: TClass): Integer;
     function HasCommand(AClass: TClass): Boolean;
     function IndexOfCommand(AClass: TClass): Integer;
+    function IndexOfCommandWithSql(AClass: TClass; const ASub: String): Integer;
     function FirstCommand(AClass: TClass): TDDLCommand;
     function SuppressedContains(const AText: String): Boolean;
-    /// <summary>CLIENTE: ID INTEGER, NOME VARCHAR(ASizeMaster/ASizeTarget) NOT NULL.</summary>
+    /// <summary>CLIENTE: ID INTEGER, NOME VARCHAR(ASizeMaster/ASizeTarget) NULLABLE.</summary>
     procedure BuildTypeScenario(out AMaster, ATarget: TCatalogMetadataMIK;
       ASizeMaster, ASizeTarget: Integer);
+    /// <summary>CLIENTE: NOME VARCHAR(ASizeMaster/ASizeTarget) NOT NULL both sides
+    ///   (narrowing + NOT NULL), same DefaultValue on both.</summary>
+    procedure BuildTypeNotNullScenario(out AMaster, ATarget: TCatalogMetadataMIK;
+      ASizeMaster, ASizeTarget: Integer; const ADefault: String);
     /// <summary>CLIENTE: FLAG VARCHAR(1); master NOT NULL, target nullable.</summary>
     procedure BuildNotNullScenario(out AMaster, ATarget: TCatalogMetadataMIK;
       const AMasterDefault: String);
@@ -75,7 +82,16 @@ type
     [Test]
     procedure Rebuild_Narrowing_EmitsAddCopyDropRenameInOrderSamePhase;
     [Test]
+    procedure Rebuild_Narrowing_TempColumnIsNullable;
+    [Test]
+    procedure Rebuild_NotNullNarrowing_FinalSetNotNullAfterRename;
+    [Test]
     procedure Rebuild_Widening_StaysInPlace;
+    // ---- rebuild: per-dialect cast / rename -----------------------------
+    [Test]
+    procedure Rebuild_MySQL_CastUsesCharNotVarchar;
+    [Test]
+    procedure Rebuild_PostgreSQL_RenameUsesRenameColumn;
     // ---- rebuild: NOT NULL on a populated column ------------------------
     [Test]
     procedure Rebuild_NotNullWithoutDefault_InPlaceWithWarning;
@@ -177,6 +193,20 @@ begin
       Exit(LFor);
 end;
 
+function TTestAlterStrategy.IndexOfCommandWithSql(AClass: TClass;
+  const ASub: String): Integer;
+var
+  LList: TArray<TDDLCommand>;
+  LFor: Integer;
+begin
+  Result := -1;
+  LList := FFactory.GetCommandList;
+  for LFor := 0 to High(LList) do
+    if (LList[LFor] is AClass) and
+       (Pos(UpperCase(ASub), UpperCase(LList[LFor].Command)) > 0) then
+      Exit(LFor);
+end;
+
 function TTestAlterStrategy.FirstCommand(AClass: TClass): TDDLCommand;
 var
   LCommand: TDDLCommand;
@@ -202,15 +232,35 @@ procedure TTestAlterStrategy.BuildTypeScenario(out AMaster,
 var
   LTable: TTableMIK;
 begin
+  // NOME e NULLABLE dos dois lados: isola a divergencia de TIPO (size) do NOT NULL.
   AMaster := TCatalogMetadataMIK.Create;
   LTable := AddTable(AMaster, 'CLIENTE');
   AddColumn(LTable, 'ID', 0, 'INTEGER', 0, True);
-  AddColumn(LTable, 'NOME', 1, 'VARCHAR(%l)', ASizeMaster, True);
+  AddColumn(LTable, 'NOME', 1, 'VARCHAR(%l)', ASizeMaster, False);
 
   ATarget := TCatalogMetadataMIK.Create;
   LTable := AddTable(ATarget, 'CLIENTE');
   AddColumn(LTable, 'ID', 0, 'INTEGER', 0, True);
-  AddColumn(LTable, 'NOME', 1, 'VARCHAR(%l)', ASizeTarget, True);
+  AddColumn(LTable, 'NOME', 1, 'VARCHAR(%l)', ASizeTarget, False);
+end;
+
+procedure TTestAlterStrategy.BuildTypeNotNullScenario(out AMaster,
+  ATarget: TCatalogMetadataMIK; ASizeMaster, ASizeTarget: Integer;
+  const ADefault: String);
+var
+  LTable: TTableMIK;
+begin
+  // Narrowing (rebuild de tipo) COM NOT NULL dos dois lados e mesmo default:
+  // exercita o passo final SET NOT NULL apos o rename.
+  AMaster := TCatalogMetadataMIK.Create;
+  LTable := AddTable(AMaster, 'CLIENTE');
+  AddColumn(LTable, 'ID', 0, 'INTEGER', 0, True);
+  AddColumn(LTable, 'NOME', 1, 'VARCHAR(%l)', ASizeMaster, True, ADefault);
+
+  ATarget := TCatalogMetadataMIK.Create;
+  LTable := AddTable(ATarget, 'CLIENTE');
+  AddColumn(LTable, 'ID', 0, 'INTEGER', 0, True);
+  AddColumn(LTable, 'NOME', 1, 'VARCHAR(%l)', ASizeTarget, True, ADefault);
 end;
 
 procedure TTestAlterStrategy.BuildNotNullScenario(out AMaster,
@@ -290,6 +340,99 @@ begin
   Assert.IsTrue(Pos('NOME_MDBTMP TO NOME',
     UpperCase(FirstCommand(TDDLCommandRenameColumn).Command)) > 0,
     'rename Firebird deve ser ALTER COLUMN NOME_MDBTMP TO NOME');
+end;
+
+procedure TTestAlterStrategy.Rebuild_Narrowing_TempColumnIsNullable;
+var
+  LMaster, LTarget: TCatalogMetadataMIK;
+  LCreateSql: String;
+begin
+  // Regressao do BLOQUEANTE: a coluna temporaria NUNCA pode ser criada NOT NULL
+  // (um ADD NOT NULL falharia em tabela populada antes mesmo do CAST). O teste
+  // asserta o TEXTO SQL do CREATE tmp - nao so a classe do comando.
+  BuildTypeScenario(LMaster, LTarget, 30, 60);
+  FFactory := TTestableAlterFactory.Create(dnFirebird);
+  FFactory.AlterColumnStrategy := acsRebuildWhenRequired;
+  FFactory.Generate(LMaster, LTarget);
+
+  LCreateSql := UpperCase(FirstCommand(TDDLCommandCreateColumnRebuild).Command);
+  Assert.IsTrue(Pos('NOME_MDBTMP', LCreateSql) > 0, 'CREATE deve ser da coluna tmp');
+  Assert.IsFalse(Pos('NOT NULL', LCreateSql) > 0,
+    'a coluna temporaria DEVE ser criada NULLABLE (sem NOT NULL)');
+end;
+
+procedure TTestAlterStrategy.Rebuild_NotNullNarrowing_FinalSetNotNullAfterRename;
+var
+  LMaster, LTarget: TCatalogMetadataMIK;
+  LiCreate, LiCast, LiDrop, LiRename, LiBackfill, LiAlter: Integer;
+  LCreateSql: String;
+begin
+  // Narrowing + NOT NULL + default: tmp nullable, copy, drop, rename, backfill,
+  // e por FIM o SET NOT NULL (ALTER original reusado) - nesta ordem, mesma fase.
+  BuildTypeNotNullScenario(LMaster, LTarget, 30, 60, 'X');
+  FFactory := TTestableAlterFactory.Create(dnFirebird);
+  FFactory.AlterColumnStrategy := acsRebuildWhenRequired;
+  FFactory.Generate(LMaster, LTarget);
+
+  // tmp ainda NULLABLE mesmo com master NOT NULL.
+  LCreateSql := UpperCase(FirstCommand(TDDLCommandCreateColumnRebuild).Command);
+  Assert.IsFalse(Pos('NOT NULL', LCreateSql) > 0,
+    'tmp nullable mesmo quando o destino e NOT NULL');
+
+  LiCreate   := IndexOfCommand(TDDLCommandCreateColumnRebuild);
+  LiCast     := IndexOfCommandWithSql(TDDLCommandCopyColumnData, 'CAST');
+  LiDrop     := IndexOfCommand(TDDLCommandDropColumnRebuild);
+  LiRename   := IndexOfCommand(TDDLCommandRenameColumn);
+  LiBackfill := IndexOfCommandWithSql(TDDLCommandCopyColumnData, 'IS NULL');
+  LiAlter    := IndexOfCommand(TDDLCommandAlterColumn);
+
+  Assert.IsTrue(LiCast > LiCreate, 'copy apos create');
+  Assert.IsTrue(LiDrop > LiCast, 'drop apos copy');
+  Assert.IsTrue(LiRename > LiDrop, 'rename apos drop');
+  Assert.IsTrue(LiBackfill > LiRename, 'backfill apos rename');
+  Assert.IsTrue(LiAlter > LiBackfill, 'SET NOT NULL (ALTER) por ultimo, apos o backfill');
+  // O backfill preenche as linhas NULL com o default antes do SET NOT NULL.
+  Assert.IsTrue(Pos('IS NULL',
+    UpperCase(FFactory.GetCommandList[LiBackfill].Command)) > 0, 'backfill WHERE IS NULL');
+end;
+
+procedure TTestAlterStrategy.Rebuild_MySQL_CastUsesCharNotVarchar;
+var
+  LMaster, LTarget: TCatalogMetadataMIK;
+  LCastSql: String;
+begin
+  // MySQL: CAST(x AS VARCHAR(n)) e ERRO; o override deve mapear para CHAR(n).
+  BuildTypeScenario(LMaster, LTarget, 30, 60);
+  FFactory := TTestableAlterFactory.Create(dnMySQL);
+  FFactory.AlterColumnStrategy := acsRebuildWhenRequired;
+  FFactory.Generate(LMaster, LTarget);
+
+  Assert.IsTrue(HasCommand(TDDLCommandCopyColumnData), 'MySQL narrowing deve gerar rebuild');
+  LCastSql := UpperCase(FirstCommand(TDDLCommandCopyColumnData).Command);
+  Assert.IsTrue(Pos('CAST', LCastSql) > 0, 'deve usar CAST');
+  Assert.IsTrue(Pos('CHAR(30)', LCastSql) > 0, 'CAST do MySQL deve usar CHAR(30)');
+  Assert.IsFalse(Pos('VARCHAR', LCastSql) > 0, 'CAST do MySQL nao pode usar VARCHAR');
+  // MySQL 8.0+ RENAME COLUMN.
+  Assert.IsTrue(Pos('RENAME COLUMN',
+    UpperCase(FirstCommand(TDDLCommandRenameColumn).Command)) > 0,
+    'rename MySQL deve usar RENAME COLUMN');
+end;
+
+procedure TTestAlterStrategy.Rebuild_PostgreSQL_RenameUsesRenameColumn;
+var
+  LMaster, LTarget: TCatalogMetadataMIK;
+begin
+  BuildTypeScenario(LMaster, LTarget, 30, 60);
+  FFactory := TTestableAlterFactory.Create(dnPostgreSQL);
+  FFactory.AlterColumnStrategy := acsRebuildWhenRequired;
+  FFactory.Generate(LMaster, LTarget);
+
+  Assert.IsTrue(HasCommand(TDDLCommandCopyColumnData), 'PG narrowing deve gerar rebuild');
+  Assert.IsTrue(Pos('CAST',
+    UpperCase(FirstCommand(TDDLCommandCopyColumnData).Command)) > 0, 'PG copy usa CAST');
+  Assert.IsTrue(Pos('RENAME COLUMN NOME_MDBTMP TO NOME',
+    UpperCase(FirstCommand(TDDLCommandRenameColumn).Command)) > 0,
+    'rename PG deve ser RENAME COLUMN NOME_MDBTMP TO NOME');
 end;
 
 procedure TTestAlterStrategy.Rebuild_Widening_StaysInPlace;

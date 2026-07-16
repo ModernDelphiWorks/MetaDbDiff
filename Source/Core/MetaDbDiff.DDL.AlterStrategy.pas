@@ -34,7 +34,8 @@
                             the ALTER COLUMN by a data-preserving SEQUENCE.
 
   Sequence emitted for an unsafe TYPE change (all in the COLUMNS phase, in order):
-    (a) CREATE temp column  <name>_MDBTMP  with the NEW type
+    (a) CREATE temp column  <name>_MDBTMP  ALWAYS NULLABLE (a NOT NULL ADD would
+        fail on a populated table before the copy even runs)
         (reuses TDDLCommandCreateColumn via the marker subclass
          TDDLCommandCreateColumnRebuild so the sequencer/policy can tell it apart)
     (b) COPY  UPDATE <table> SET <tmp> = CAST(<orig> AS <newtype>)  (per-dialect)
@@ -42,6 +43,11 @@
         (reuses TDDLCommandDropColumn via TDDLCommandDropColumnRebuild so it stays
          in the COLUMNS phase instead of migrating to the earlier Drop Columns phase)
     (d) RENAME  <tmp> back to <orig>  (per-dialect)
+    (e) [only when the target column is NOT NULL] re-assert NOT NULL as the FINAL
+        step (the tmp was nullable): backfill NULLs with the DefaultValue first when
+        one exists, then reuse the original in-place ALTER to apply SET NOT NULL.
+        Without a default the SET NOT NULL is still emitted but its Warning carries
+        an aggregated RISK note (it fails if the column has NULL rows) - never silent.
 
   Adding NOT NULL to a populated column:
     * WITH a default -> backfill (UPDATE <col> = <default> WHERE <col> IS NULL)
@@ -342,7 +348,12 @@ begin
   Result.Size := ASource.Size;
   Result.Precision := ASource.Precision;
   Result.Scale := ASource.Scale;
-  Result.NotNull := ASource.NotNull;
+  // A coluna temporaria e SEMPRE criada NULLABLE: um ADD COLUMN NOT NULL falharia
+  // em tabela populada (FB/PG/MSSQL/Oracle) ANTES mesmo do CAST, e o CAST de uma
+  // origem com NULLs violaria o NOT NULL. O NOT NULL, quando desejado, e reafirmado
+  // como PASSO FINAL da sequencia (apos rename), precedido de backfill quando ha
+  // DefaultValue - ver _EmitTypeRebuild / Rebuild.
+  Result.NotNull := False;
   Result.AutoIncrement := ASource.AutoIncrement;
   Result.SortingOrder := ASource.SortingOrder;
   Result.DefaultValue := ASource.DefaultValue;
@@ -436,8 +447,24 @@ begin
       case LAction of
         acaTypeRebuild:
           begin
+            // (a)-(d): tmp NULLABLE, copy-cast, drop original, rename.
             _EmitTypeRebuild(LOut, LMaster);
-            FReplaced.Add(LCommand);   // the single ALTER is superseded - caller frees it
+            if LMaster.NotNull then
+            begin
+              // A coluna foi recriada via tmp NULLABLE, entao o NOT NULL desejado
+              // precisa ser REAFIRMADO como passo final. (e-pre) backfill quando ha
+              // default (evita falha por NULLs vindos do CAST de origem nullable);
+              // (e/f) reusa o ALTER original como o SET NOT NULL final.
+              if Trim(LMaster.DefaultValue) <> '' then
+                _EmitBackfill(LOut, LMaster)
+              else
+                LCommand.AppendWarning(
+                  'RISK: SET NOT NULL final (rebuild) falhara se a coluna tiver ' +
+                  'linhas NULL e nao houver DefaultValue para backfill.');
+              LOut.Add(LCommand);        // ALTER original reusado como SET NOT NULL
+            end
+            else
+              FReplaced.Add(LCommand);   // sem NOT NULL: ALTER original superado - caller frees it
           end;
         acaBackfillNotNull:
           begin

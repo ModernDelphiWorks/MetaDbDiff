@@ -511,6 +511,12 @@ var
   LClone: TColumnMIK;
   LCommand: TDDLCommand;
 begin
+  // Libera os clones da execu��o ANTERIOR antes de qualquer coisa: a cada
+  // BuildDatabase re-executado os comandos antigos j� foram liberados
+  // (FDDLCommands.Clear na gera��o), ent�o nada referencia mais estes clones -
+  // limpar aqui evita ac�mulo (com a TTableMIK antiga pendurada) entre execu��es,
+  // inclusive quando a estrat�gia � alternada entre execu��es.
+  FOwnedRebuildColumns.Clear;
   // No-op default (acsInPlace): a lista fica intocada - comportamento hist�rico.
   if (FAlterColumnStrategy = acsInPlace) or (not Assigned(FCatalogMaster)) then
     Exit;
