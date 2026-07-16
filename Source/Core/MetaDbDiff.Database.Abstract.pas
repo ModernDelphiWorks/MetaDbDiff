@@ -49,6 +49,8 @@ type
     procedure SetComparerFieldPosition(const Value: Boolean);
     function GetCompareSequenceInitialValue: Boolean;
     procedure SetCompareSequenceInitialValue(const Value: Boolean);
+    function GetCompareDescriptions: Boolean;
+    procedure SetCompareDescriptions(const Value: Boolean);
     function GetPolicy: TComparePolicy;
     procedure SetPolicy(const Value: TComparePolicy);
     function GetSuppressedCommands: TArray<String>;
@@ -93,6 +95,7 @@ type
     FCommandsAutoExecute: Boolean;
     FComparerFieldPosition: Boolean;
     FCompareSequenceInitialValue: Boolean;
+    FCompareDescriptions: Boolean;
     FModelForDatabase: Boolean;
     FPolicy: TComparePolicy;
     FSuppressedCommands: TList<String>;
@@ -176,6 +179,12 @@ type
     ///   Increment e comparado.
     /// </summary>
     property CompareSequenceInitialValue: Boolean read GetCompareSequenceInitialValue write SetCompareSequenceInitialValue;
+    /// <summary>
+    ///   Opt-in (default False - FRENTE 15): compara a Description de tabelas e
+    ///   colunas e emite COMMENT ON. Divergencia com a flag OFF = silencio total
+    ///   (custo zero). Ver a interface IDatabaseCompare para o detalhe por dialeto.
+    /// </summary>
+    property CompareDescriptions: Boolean read GetCompareDescriptions write SetCompareDescriptions;
     property Policy: TComparePolicy read GetPolicy write SetPolicy;
     property SuppressedCommands: TArray<String> read GetSuppressedCommands;
     /// <summary>
@@ -251,6 +260,8 @@ begin
   // Default False: nao compara InitialValue de sequence (evita falso-positivo
   // eterno em banco vivo, onde o valor corrente avanca com o uso).
   FCompareSequenceInitialValue := False;
+  // Default False (FRENTE 15): comparacao de Description/COMMENT ON e opt-in.
+  FCompareDescriptions := False;
   // Vari�vel de controle para identificar se a compara��o est� sendo feita
   // Model vs Database ou Database vs Database.
   FModelForDatabase := False;
@@ -398,6 +409,16 @@ end;
 procedure TDatabaseAbstract.SetCompareSequenceInitialValue(const Value: Boolean);
 begin
   FCompareSequenceInitialValue := Value;
+end;
+
+function TDatabaseAbstract.GetCompareDescriptions: Boolean;
+begin
+  Result := FCompareDescriptions;
+end;
+
+procedure TDatabaseAbstract.SetCompareDescriptions(const Value: Boolean);
+begin
+  FCompareDescriptions := Value;
 end;
 
 function TDatabaseAbstract.GetPolicy: TComparePolicy;

@@ -229,7 +229,9 @@ begin
   // extractor agora retorna zero sequences; sem este gate, um modelo com
   // [Sequence] geraria CREATE SEQUENCE invalido (Database.Factory.CompareSequences
   // so roda com TSupportedFeature.Sequences no set). Remove Sequences do herdado.
-  Result := inherited GetSupportedFeatures - [TSupportedFeature.Sequences];
+  // FRENTE 15: adiciona Procedures (information_schema.ROUTINES). Sem DOMAINS.
+  Result := inherited GetSupportedFeatures - [TSupportedFeature.Sequences] +
+            [TSupportedFeature.Procedures];
 end;
 
 initialization

@@ -28,6 +28,7 @@ uses
   StrUtils,
   Generics.Collections,
   DataEngine.FactoryInterfaces,
+  MetaDbDiff.DDL.Interfaces,
   MetaDbDiff.DDL.Register,
   MetaDbDiff.DDL.Generator,
   MetaDbDiff.Database.Mapping;
@@ -41,6 +42,9 @@ type
     /// </summary>
     class function _QualifyName(const ASchema, AName: String): String; override;
   public
+    // FRENTE 15: SQL Server suporta PROCEDURES/FUNCTIONS (sys.objects P/FN +
+    // sys.sql_modules). Sem DOMAINS. COMMENT ON (extended properties) fica FORA.
+    function GetSupportedFeatures: TSupportedFeatures; override;
     function GenerateCreateTable(ATable: TTableMIK): String; override;
     function GenerateCreateSequence(ASequence: TSequenceMIK): String; override;
     function GenerateEnableForeignKeys(AEnable: Boolean): String; override;
@@ -58,6 +62,11 @@ begin
     Result := '[' + ASchema + '].[' + AName + ']'
   else
     Result := AName;
+end;
+
+function TDDLSQLGeneratorMSSQL.GetSupportedFeatures: TSupportedFeatures;
+begin
+  Result := inherited GetSupportedFeatures + [TSupportedFeature.Procedures];
 end;
 
 function TDDLSQLGeneratorMSSQL.GenerateCreateSequence(ASequence: TSequenceMIK): String;

@@ -41,6 +41,10 @@ type
     procedure _CompareTables(AMasterDB, ATargetDB: TCatalogMetadataMIK);
     procedure _CompareViews(AMasterDB, ATargetDB: TCatalogMetadataMIK);
     procedure _CompareSequences(AMasterDB, ATargetDB: TCatalogMetadataMIK);
+    // FRENTE 15.
+    procedure _CompareDomains(AMasterDB, ATargetDB: TCatalogMetadataMIK);
+    procedure _CompareProcedures(AMasterDB, ATargetDB: TCatalogMetadataMIK);
+    procedure _CompareDescriptions(AMasterDB, ATargetDB: TCatalogMetadataMIK);
     procedure _CompareTablesForeignKeys(AMasterDB, ATargetDB: TCatalogMetadataMIK);
     procedure _CompareForeignKeys(AMasterTable, ATargetTable: TTableMIK);
     procedure _CompareColumns(AMasterTable, ATargetTable: TTableMIK);
@@ -59,6 +63,13 @@ type
     procedure _ActionCreateForeignKey(AForeignKey: TForeignKeyMIK);
     procedure _ActionCreateView(AView: TViewMIK);
     procedure _ActionCreateTrigger(ATrigger: TTriggerMIK);
+    // FRENTE 15.
+    procedure _ActionCreateDomain(ADomain: TDomainMIK);
+    procedure _ActionDropDomain(ADomain: TDomainMIK);
+    procedure _ActionCreateProcedure(AProcedure: TProcedureMIK);
+    procedure _ActionDropProcedure(AProcedure: TProcedureMIK);
+    procedure _ActionSetTableComment(ATable: TTableMIK);
+    procedure _ActionSetColumnComment(AColumn: TColumnMIK);
     procedure _ActionDropTable(ATable: TTableMIK);
     procedure _ActionDropColumn(AColumn: TColumnMIK);
     procedure _ActionDropPrimaryKey(APrimaryKey: TPrimaryKeyMIK);
@@ -190,12 +201,19 @@ begin
   _ActionEnableForeignKeys(False);
   // Gera script que desabilita todas as Triggers
   _ActionEnableTriggers(False);
+  // FRENTE 15: Domains antes das tabelas (colunas podem usar domains). O
+  // sequenciador coloca CREATE DOMAIN na fase certa; aqui so importa a geracao.
+  _CompareDomains(AMasterDB, ATargetDB);
   // Compara Tabelas
   _CompareTables(AMasterDB, ATargetDB);
   // Compara Views
   _CompareViews(AMasterDB, ATargetDB);
   // Compara Sequences
   _CompareSequences(AMasterDB, ATargetDB);
+  // FRENTE 15: Procedures/Functions (DB-vs-DB/snapshot APENAS; no-op em model-mode).
+  _CompareProcedures(AMasterDB, ATargetDB);
+  // FRENTE 15: Descriptions/COMMENT ON (opt-in via CompareDescriptions).
+  _CompareDescriptions(AMasterDB, ATargetDB);
   // Compara ForeingKeys
   _CompareTablesForeignKeys(AMasterDB, ATargetDB);
   // Gera script que habilita todas as ForeignKeys
@@ -879,6 +897,142 @@ begin
   end;
 end;
 
+procedure TDatabaseFactory._CompareDomains(AMasterDB, ATargetDB: TCatalogMetadataMIK);
+var
+  LDomainMaster: TPair<String, TDomainMIK>;
+  LDomainTarget: TPair<String, TDomainMIK>;
+  LTarget: TDomainMIK;
+
+  function _DomainDiverges(AMaster, ATarget: TDomainMIK): Boolean;
+  begin
+    Result := (not SameText(AMaster.TypeName, ATarget.TypeName)) or
+              (AMaster.NotNull <> ATarget.NotNull) or
+              (not SameText(Trim(AMaster.DefaultValue), Trim(ATarget.DefaultValue))) or
+              (CompareText(TMetadataNormalizer.CanonicalizeCheckCondition(AMaster.CheckCondition),
+                           TMetadataNormalizer.CanonicalizeCheckCondition(ATarget.CheckCondition)) <> 0);
+  end;
+
+begin
+  if not (TSupportedFeature.Domains in FGeneratorCommand.SupportedFeatures) then
+    Exit;
+  // DROP de dominio orfao: mesma excecao das Views - em model-mode o modelo NAO
+  // declara dominios, entao nunca dropamos um dominio do banco so por ele nao
+  // estar mapeado (senao um FullProfile em model-mode dropava dominios em massa).
+  if not FModelForDatabase then
+    for LDomainTarget in _SortedPairs<TDomainMIK>(ATargetDB.Domains) do
+      if not AMasterDB.Domains.ContainsKey(LDomainTarget.Key) then
+        _ActionDropDomain(LDomainTarget.Value);
+  // CREATE quando falta; DIVERGENCIA de definicao = CONSERVADOR: NAO emitimos
+  // drop+create automatico (um dominio em uso nao dropa sem reescrever todas as
+  // colunas que o referenciam). Registramos a divergencia na auditoria; o ALTER
+  // DOMAIN incremental fica como evolucao futura.
+  for LDomainMaster in _SortedPairs<TDomainMIK>(AMasterDB.Domains) do
+  begin
+    if ATargetDB.Domains.ContainsKey(LDomainMaster.Key) then
+    begin
+      LTarget := ATargetDB.Domains.Items[LDomainMaster.Key];
+      if _DomainDiverges(LDomainMaster.Value, LTarget) then
+        AddSuppressed(Format('DOMAIN %s diverge (tipo/default/notnull/check) - ' +
+          'nao alterado automaticamente (dominio em uso nao dropa; ALTER DOMAIN ' +
+          'fica como evolucao). Ajuste manual necessario.', [LTarget.Name]));
+    end
+    else
+      _ActionCreateDomain(LDomainMaster.Value);
+  end;
+end;
+
+procedure TDatabaseFactory._CompareProcedures(AMasterDB, ATargetDB: TCatalogMetadataMIK);
+var
+  LProcMaster: TPair<String, TProcedureMIK>;
+  LProcTarget: TPair<String, TProcedureMIK>;
+  LProc: TProcedureMIK;
+begin
+  if not (TSupportedFeature.Procedures in FGeneratorCommand.SupportedFeatures) then
+    Exit;
+  // v1: DB-vs-DB / snapshot APENAS. O modelo decorado NAO declara procedures;
+  // em model-mode o compare e NO-OP seguro (mesmo padrao das views) - jamais
+  // dropa uma procedure do banco so porque o modelo nao a conhece.
+  if FModelForDatabase then
+    Exit;
+  // DROP de procedure orfa (existe no banco, nao no master).
+  for LProcTarget in _SortedPairs<TProcedureMIK>(ATargetDB.Procedures) do
+    if not AMasterDB.Procedures.ContainsKey(LProcTarget.Key) then
+      _ActionDropProcedure(LProcTarget.Value);
+  // CREATE quando falta; DROP+CREATE em par atomico quando o script NORMALIZADO
+  // difere (o script extraido ja e o CREATE completo).
+  for LProcMaster in _SortedPairs<TProcedureMIK>(AMasterDB.Procedures) do
+  begin
+    if ATargetDB.Procedures.ContainsKey(LProcMaster.Key) then
+    begin
+      LProc := ATargetDB.Procedures.Items[LProcMaster.Key];
+      if CompareText(TMetadataNormalizer.NormalizeScript(LProcMaster.Value.Script),
+                     TMetadataNormalizer.NormalizeScript(LProc.Script)) <> 0 then
+      begin
+        // Par DROP+CREATE: so emite se AMBAS as operacoes forem permitidas.
+        if FPolicy.Allows(TDDLOperation.DropProcedure) and
+           FPolicy.Allows(TDDLOperation.CreateProcedure) then
+        begin
+          _ActionDropProcedure(LProc);
+          _ActionCreateProcedure(LProcMaster.Value);
+        end
+        else
+          AddSuppressed(Format('RECREATE PROCEDURE %s suppressed by policy',
+            [LProc.Name]));
+      end;
+    end
+    else
+      _ActionCreateProcedure(LProcMaster.Value);
+  end;
+end;
+
+procedure TDatabaseFactory._CompareDescriptions(AMasterDB, ATargetDB: TCatalogMetadataMIK);
+var
+  LTablePair: TPair<String, TTableMIK>;
+  LMasterTable, LTargetTable: TTableMIK;
+  LColMaster: TPair<String, TColumnMIK>;
+  LTargetColumn: TColumnMIK;
+
+  function _FindColumn(ATable: TTableMIK; const AName: String): TColumnMIK;
+  var
+    LColumn: TColumnMIK;
+  begin
+    Result := nil;
+    for LColumn in ATable.Fields.Values do
+      if SameText(LColumn.Name, AName) then
+        Exit(LColumn);
+  end;
+
+begin
+  // Custo ZERO no caminho existente: com a flag OFF, divergencia de descricao e
+  // silencio total.
+  if not FCompareDescriptions then
+    Exit;
+  // COMMENT ON e emitido apenas nos dialetos onde e trivial/padrao e onde a
+  // Description e extraida (PostgreSQL/Firebird) ou trivialmente comentavel
+  // (Oracle). MSSQL (extended properties) fica FORA desta frente.
+  if not (FDriverName in [dnPostgreSQL, dnFirebird, dnInterbase, dnOracle]) then
+    Exit;
+  // Compara Description de TABELAS e COLUNAS que existem nos DOIS lados (comentar
+  // exige o objeto ja existir - a fase COMMENTS roda por ultimo, apos criar).
+  for LTablePair in AMasterDB.TablesSort do
+  begin
+    if not ATargetDB.Tables.ContainsKey(LTablePair.Key) then
+      Continue;
+    LMasterTable := LTablePair.Value;
+    LTargetTable := ATargetDB.Tables.Items[LTablePair.Key];
+    if not SameText(Trim(LMasterTable.Description), Trim(LTargetTable.Description)) then
+      _ActionSetTableComment(LMasterTable);
+    for LColMaster in LMasterTable.FieldsSort do
+    begin
+      LTargetColumn := _FindColumn(LTargetTable, LColMaster.Value.Name);
+      if LTargetColumn = nil then
+        Continue;
+      if not SameText(Trim(LColMaster.Value.Description), Trim(LTargetColumn.Description)) then
+        _ActionSetColumnComment(LColMaster.Value);
+    end;
+  end;
+end;
+
 // Cada m�todo Action* � o ponto onde UMA muta��o passa individualmente. O gate
 // por policy vive aqui (mesmo padr�o do gate por TSupportedFeature existente):
 // quando a opera��o n�o � permitida, a muta��o N�O entra na lista e um registro
@@ -1142,6 +1296,67 @@ begin
     Exit;
   end;
   FDDLCommands.Add(TDDLCommandDropTrigger.Create(ATrigger));
+end;
+
+procedure TDatabaseFactory._ActionCreateDomain(ADomain: TDomainMIK);
+begin
+  if not FPolicy.Allows(TDDLOperation.CreateDomain) then
+  begin
+    AddSuppressed(Format('CREATE DOMAIN %s suppressed by policy', [ADomain.Name]));
+    Exit;
+  end;
+  FDDLCommands.Add(TDDLCommandCreateDomain.Create(ADomain));
+end;
+
+procedure TDatabaseFactory._ActionDropDomain(ADomain: TDomainMIK);
+begin
+  if not FPolicy.Allows(TDDLOperation.DropDomain) then
+  begin
+    AddSuppressed(Format('DROP DOMAIN %s suppressed by policy', [ADomain.Name]));
+    Exit;
+  end;
+  FDDLCommands.Add(TDDLCommandDropDomain.Create(ADomain));
+end;
+
+procedure TDatabaseFactory._ActionCreateProcedure(AProcedure: TProcedureMIK);
+begin
+  if not FPolicy.Allows(TDDLOperation.CreateProcedure) then
+  begin
+    AddSuppressed(Format('CREATE PROCEDURE %s suppressed by policy', [AProcedure.Name]));
+    Exit;
+  end;
+  FDDLCommands.Add(TDDLCommandCreateProcedure.Create(AProcedure));
+end;
+
+procedure TDatabaseFactory._ActionDropProcedure(AProcedure: TProcedureMIK);
+begin
+  if not FPolicy.Allows(TDDLOperation.DropProcedure) then
+  begin
+    AddSuppressed(Format('DROP PROCEDURE %s suppressed by policy', [AProcedure.Name]));
+    Exit;
+  end;
+  FDDLCommands.Add(TDDLCommandDropProcedure.Create(AProcedure));
+end;
+
+procedure TDatabaseFactory._ActionSetTableComment(ATable: TTableMIK);
+begin
+  if not FPolicy.Allows(TDDLOperation.SetComment) then
+  begin
+    AddSuppressed(Format('COMMENT ON TABLE %s suppressed by policy', [ATable.Name]));
+    Exit;
+  end;
+  FDDLCommands.Add(TDDLCommandSetComment.Create(ATable, nil));
+end;
+
+procedure TDatabaseFactory._ActionSetColumnComment(AColumn: TColumnMIK);
+begin
+  if not FPolicy.Allows(TDDLOperation.SetComment) then
+  begin
+    AddSuppressed(Format('COMMENT ON COLUMN %s.%s suppressed by policy',
+      [AColumn.Table.Name, AColumn.Name]));
+    Exit;
+  end;
+  FDDLCommands.Add(TDDLCommandSetComment.Create(nil, AColumn));
 end;
 
 // EnableForeignKeys / EnableTriggers s�o comandos de GUARDA (n�o muta��es):

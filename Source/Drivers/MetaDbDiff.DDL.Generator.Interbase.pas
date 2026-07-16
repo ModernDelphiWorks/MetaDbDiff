@@ -25,15 +25,25 @@ interface
 
 uses
   DataEngine.FactoryInterfaces,
+  MetaDbDiff.DDL.Interfaces,
   MetaDbDiff.DDL.Register,
   MetaDbDiff.DDL.Generator,
   MetaDbDiff.DDL.Generator.Firebird;
 
 type
   TDDLSQLGeneratorInterbase = class(TDDLSQLGeneratorFirebird)
+  public
+    // FRENTE 15: Interbase anuncia DOMAINS (herdado do Firebird) mas NAO
+    // Procedures (extracao nao implementada nesta frente - matriz de suporte).
+    function GetSupportedFeatures: TSupportedFeatures; override;
   end;
 
 implementation
+
+function TDDLSQLGeneratorInterbase.GetSupportedFeatures: TSupportedFeatures;
+begin
+  Result := inherited GetSupportedFeatures - [TSupportedFeature.Procedures];
+end;
 
 initialization
   TSQLDriverRegister.GetInstance.RegisterDriver(dnInterbase, TDDLSQLGeneratorInterbase.Create);
