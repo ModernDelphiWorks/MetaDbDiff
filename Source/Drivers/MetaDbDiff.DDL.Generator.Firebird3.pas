@@ -31,9 +31,22 @@ uses
 
 type
   TDDLSQLGeneratorFirebird3 = class(TDDLSQLGeneratorFirebird)
+  public
+    function GenerateEnableTriggers(AEnable: Boolean): String; override;
   end;
 
 implementation
+
+function TDDLSQLGeneratorFirebird3.GenerateEnableTriggers(AEnable: Boolean): String;
+begin
+  // Firebird 3+ torna as tabelas de sistema READ-ONLY: o UPDATE RDB$TRIGGERS
+  // herdado do gerador 2.5 falharia em tempo de execucao. Desligar/ligar todas
+  // as triggers exigiria "ALTER TRIGGER <nome> ACTIVE/INACTIVE" por trigger, o
+  // que esta assinatura (apenas um Boolean) nao permite enumerar. Retorna vazio
+  // -- o pipeline descarta comandos vazios (MetaDbDiff.Database.Compare exige
+  // Length(LCommand) > 0), preservando o comportamento sem gerar SQL invalido.
+  Result := '';
+end;
 
 initialization
   TSQLDriverRegister.GetInstance.RegisterDriver(dnFirebird3, TDDLSQLGeneratorFirebird3.Create);
