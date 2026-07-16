@@ -27,6 +27,17 @@
         TMetadataClasseFactory          -> TMetadataModelFactory
     - Everything else (fields, constructor/destructor logic, ExtractMetadata
       behaviour) is a faithful port of Janus.Metadata.Classe.Factory.pas.
+
+  WARNING - Core/Drivers dependency direction: even though this unit lives in
+  Source\Core, it (and MetaDbDiff.Database.ModelCompare.pas, which uses it)
+  depends on MetaDbDiff.Metadata.Model.pas from Source\Drivers (for
+  TModelMetadata) - unlike the rest of Source\Core, which only reaches driver
+  code indirectly through the TMetadataRegister/TSQLDriverRegister registries.
+  DO NOT add this unit (or MetaDbDiff.Database.ModelCompare.pas) to
+  Components\Packages\Delphi\MetaDbDiffCore.dpk's "contains" clause without
+  also bringing MetaDbDiff.Metadata.Model.pas (and whatever it needs) into
+  that package - MetaDbDiffCore.dpk currently contains NO Source\Drivers
+  units at all, so doing so naively will fail to link.
 }
 
 unit MetaDbDiff.Metadata.Model.Factory;

@@ -314,19 +314,42 @@ begin
 end;
 
 procedure TTestMapping.Register_GetAllIsOneShot;
+var
+  LFirst, LSecond: TArray<TClass>;
+
+  function ContainsClass(const AList: TArray<TClass>; AClass: TClass): Boolean;
+  var
+    LClass: TClass;
+  begin
+    Result := False;
+    for LClass in AList do
+      if LClass = AClass then
+        Exit(True);
+  end;
+
 begin
   // Documents the CURRENT (fixed) behaviour of TRegisterClass: GetAll*Class
   // returns a snapshot copy of the internal list WITHOUT clearing it, so
   // repeated calls keep returning the same content. This used to be one-shot
   // (the list was cleared on the first read - see MetaDbDiff.Mapping.Register.pas
   // history), which meant a second TMappingRepository/comparison in the same
-  // process silently got an empty catalog. We use the TRIGGERS list (not
-  // consumed by GetRepositoryMapping) so we don't interfere with the entity
-  // list used by the model extraction test.
+  // process silently got an empty catalog.
+  // TRegisterClass.TriggerList is process-wide state shared with other tests
+  // (e.g. Register_GetAllReturnsSameContentOnConsecutiveReads registers
+  // TPedidoTest into the same list), and DUnitX does not guarantee execution
+  // order between fixtures. So instead of asserting an absolute Length, we
+  // only assert that the class registered HERE is present in both reads and
+  // that the count does not change between the two reads (which is exactly
+  // what "not one-shot anymore" means, regardless of what else is registered).
   TRegisterClass.RegisterTrigger(TClienteTest);
-  Assert.AreEqual(1, Length(TRegisterClass.GetAllTriggerClass));
-  Assert.AreEqual(1, Length(TRegisterClass.GetAllTriggerClass),
-    'GetAllTriggerClass must NOT empty the list anymore - a second read must keep returning the registered class');
+  LFirst := TRegisterClass.GetAllTriggerClass;
+  Assert.IsTrue(ContainsClass(LFirst, TClienteTest),
+    'First read must contain the just-registered class');
+  LSecond := TRegisterClass.GetAllTriggerClass;
+  Assert.IsTrue(ContainsClass(LSecond, TClienteTest),
+    'GetAllTriggerClass must NOT empty the list anymore - a second read must still contain the registered class');
+  Assert.AreEqual(Length(LFirst), Length(LSecond),
+    'A second read must not change the number of registered triggers');
 end;
 
 procedure TTestMapping.Register_GetAllReturnsSameContentOnConsecutiveReads;

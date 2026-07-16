@@ -58,6 +58,17 @@
       CommandsAutoExecute is True. No change was needed here since
       ExtractDatabase/ExecuteDDLCommands are still the two extension points
       BuildDatabase calls into.
+
+  WARNING - Core/Drivers dependency direction: even though this unit lives in
+  Source\Core, it depends (via MetaDbDiff.Metadata.Model.Factory.pas) on
+  MetaDbDiff.Metadata.Model.pas from Source\Drivers (for TModelMetadata) -
+  unlike the rest of Source\Core, which only reaches driver code indirectly
+  through the TMetadataRegister/TSQLDriverRegister registries. DO NOT add this
+  unit (or MetaDbDiff.Metadata.Model.Factory.pas) to
+  Components\Packages\Delphi\MetaDbDiffCore.dpk's "contains" clause without
+  also bringing MetaDbDiff.Metadata.Model.pas (and whatever it needs) into
+  that package - MetaDbDiffCore.dpk currently contains NO Source\Drivers
+  units at all, so doing so naively will fail to link.
 }
 
 unit MetaDbDiff.Database.ModelCompare;

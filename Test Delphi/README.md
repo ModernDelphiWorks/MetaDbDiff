@@ -55,10 +55,14 @@ localmente antes de abrir PR.
 
 ## Armadilhas conhecidas (leia antes de escrever testes)
 
-- `TRegisterClass.GetAllEntityClass/GetAllViewClass/GetAllTriggerClass` são
-  **one-shot**: esvaziam a lista após a primeira leitura. Registre entidades em
-  `initialization` e nunca chame `GetAll*` diretamente em teste (exceto o teste
-  dedicado, que usa a lista de triggers para não drenar as entidades).
+- `TRegisterClass.GetAllEntityClass/GetAllViewClass/GetAllTriggerClass`
+  devolvem uma **cópia (snapshot)** da lista interna e NÃO a esvaziam mais:
+  leituras repetidas continuam retornando o mesmo conteúdo. Isso é o que
+  permite um segundo `TMappingRepository`/uma segunda comparação no mesmo
+  processo. Ainda assim, registre entidades em `initialization` — o cache do
+  `TMappingExplorer.GetRepositoryMapping` (ver abaixo) continua valendo: ele só
+  monta o `TMappingRepository` na primeira chamada, então registros feitos
+  depois dela não aparecem no snapshot cacheado.
 - `TMappingExplorer` cacheia todo `GetMapping*` por `ClassName` e cacheia o
   `TMappingRepository` na primeira chamada de `GetRepositoryMapping`.
 - Comparações de SQL devem normalizar whitespace: os geradores emitem espaços

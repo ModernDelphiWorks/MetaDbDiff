@@ -7,16 +7,17 @@
   Copyright (c) 2025-2026 Isaque Pinheiro
   ------------------------------------------------------------------------------
 
-  IMPORTANT - one-shot registry behaviour:
-  TRegisterClass.GetAllEntityClass/GetAllViewClass/GetAllTriggerClass EMPTY the
-  internal list after the first read (see MetaDbDiff.Mapping.Register.pas), and
-  TMappingExplorer.GetRepositoryMapping caches the resulting TMappingRepository
-  the first time it is invoked. Therefore:
+  IMPORTANT - registry/cache behaviour:
+  TRegisterClass.GetAllEntityClass/GetAllViewClass/GetAllTriggerClass return a
+  snapshot COPY of the internal list and no longer empty it (see
+  MetaDbDiff.Mapping.Register.pas) - repeated reads keep returning the same
+  content. TMappingExplorer.GetRepositoryMapping, however, still caches the
+  resulting TMappingRepository the first time it is invoked. Therefore:
     - Entities MUST be registered in an initialization section (before any
       test runs), so that the first call to GetRepositoryMapping - whenever it
-      happens - snapshots them.
-    - Tests must NEVER call TRegisterClass.GetAllEntityClass directly, or they
-      would drain the list and starve GetRepositoryMapping.
+      happens - snapshots them. Anything registered after that first call is
+      invisible to the cached TMappingRepository (though a fresh call to
+      TRegisterClass.GetAllEntityClass directly would see it).
   TMappingExplorer also caches every GetMapping* result per ClassName, so all
   fixtures observe the same (first) mapping instances.
 }
