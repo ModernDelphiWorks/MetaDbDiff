@@ -37,7 +37,7 @@ uses
 type
   TCatalogMetadataSQLite = class(TCatalogMetadataAbstract)
   private
-    procedure ResolveFieldType(AColumn: TColumnMIK; ATypeName: String);
+    procedure _ResolveFieldType(AColumn: TColumnMIK; ATypeName: String);
   protected
     function GetSelectTables: String; override;
     function GetSelectTableColumns(ATableName: String): String; override;
@@ -215,7 +215,7 @@ begin
     /// oColumn.Precision: Integer;
     /// oColumn.Scale: Integer;
     /// </remarks>
-    ResolveFieldType(oColumn, VarToStr(oDBResultSet.GetFieldValue('type')));
+    _ResolveFieldType(oColumn, VarToStr(oDBResultSet.GetFieldValue('type')));
     ///
     oColumn.NotNull := oDBResultSet.GetFieldValue('notnull') = 1;
     oColumn.DefaultValue := VarToStr(oDBResultSet.GetFieldValue('dflt_value'));
@@ -466,7 +466,7 @@ begin
   end;
 end;
 
-procedure TCatalogMetadataSQLite.ResolveFieldType(AColumn: TColumnMIK; ATypeName: String);
+procedure TCatalogMetadataSQLite._ResolveFieldType(AColumn: TColumnMIK; ATypeName: String);
 var
   iPos1, iPos2: Integer;
   sDefArgs: String;
