@@ -208,6 +208,11 @@ begin
   // ExecuteDDLCommands overrides just reassigns the same text.
   for LDDLCommand in FDDLCommands do
     LDDLCommand.BuildCommand(FGeneratorCommand);
+  // Estrat�gia de ALTER COLUMN (FRENTE 11): quando acsRebuildWhenRequired,
+  // substitui ALTER COLUMN inseguros pela sequ�ncia segura (add/copy/drop/rename)
+  // ou backfill+SET NOT NULL. No-op no default acsInPlace. Roda AP�S BuildCommand
+  // (para os comandos mantidos) e ANTES do sequenciador (para agrupar por fase).
+  ApplyAlterStrategy;
   // Reordena a lista final em ordem topol�gica por fase (dependency-safe) e
   // guarda o TDDLSequenceReport (fases/ciclos). No-op quando UseSequencer=False
   // (mant�m a ordem hist�rica de gera��o - fallback de compatibilidade).

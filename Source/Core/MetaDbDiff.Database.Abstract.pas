@@ -36,6 +36,7 @@ uses
   MetaDbDiff.DDL.Register,
   MetaDbDiff.DDL.Commands,
   MetaDbDiff.DDL.Sequencer,
+  MetaDbDiff.DDL.AlterStrategy,
   MetaDbDiff.Migration.Executor,
   MetaDbDiff.Compare.Options;
 
@@ -55,6 +56,8 @@ type
     procedure SetErrorPolicy(const Value: TMigrationErrorPolicy);
     function GetUseSequencer: Boolean;
     procedure SetUseSequencer(const Value: Boolean);
+    function GetAlterColumnStrategy: TAlterColumnStrategy;
+    procedure SetAlterColumnStrategy(const Value: TAlterColumnStrategy);
     function GetRaiseOnError: Boolean;
     procedure SetRaiseOnError(const Value: Boolean);
     function GetLastMigrationReport: TMigrationReport;
@@ -71,6 +74,14 @@ type
     ///   nova ordem. Exige mesmo tamanho (o sequenciador preserva a contagem).
     /// </summary>
     procedure ReorderCommandsInPlace(const AOrdered: TArray<TDDLCommand>);
+    /// <summary>
+    ///   Troca o CONTE�DO de FDDLCommands pela nova lista (tamanho pode diferir),
+    ///   preservando as inst�ncias mantidas (sem free/double-free): a TObjectList
+    ///   tem OwnsObjects desligado enquanto as refer�ncias s�o trocadas. Usada
+    ///   ap�s a transforma��o do TAlterColumnRebuilder, que pode substituir 1
+    ///   ALTER por v�rios comandos.
+    /// </summary>
+    procedure ReplaceCommandsInPlace(const ANew: TArray<TDDLCommand>);
   protected
     FDriverName: TDriverName;
     FGeneratorCommand: IDDLGeneratorCommand;
@@ -84,6 +95,13 @@ type
     FPolicy: TComparePolicy;
     FSuppressedCommands: TList<String>;
     FUseSequencer: Boolean;
+    FAlterColumnStrategy: TAlterColumnStrategy;
+    /// <summary>
+    ///   Dono �NICO dos TColumnMIK clonados (<nome>_MDBTMP) que a estrat�gia de
+    ///   rebuild cria. As inst�ncias s�o referenciadas pelos comandos da sequ�ncia
+    ///   e precisam viver enquanto FDDLCommands viver; liberadas no Destroy.
+    /// </summary>
+    FOwnedRebuildColumns: TObjectList<TColumnMIK>;
     FErrorPolicy: TMigrationErrorPolicy;
     FRaiseOnError: Boolean;
     FLastMigrationReport: TMigrationReport;
@@ -100,6 +118,15 @@ type
     ///   (fallback de compatibilidade: preserva a ordem hist�rica).
     /// </summary>
     procedure ApplySequencer;
+    /// <summary>
+    ///   Aplica a estrat�gia de altera��o de coluna (FRENTE 11) sobre a lista
+    ///   atual de comandos: quando AlterColumnStrategy=acsRebuildWhenRequired,
+    ///   substitui os ALTER COLUMN inseguros pela sequ�ncia segura de preserva��o
+    ///   de dados (add tmp / copy-cast / drop / rename) ou pelo backfill+SET NOT
+    ///   NULL, via TAlterColumnRebuilder. No-op quando acsInPlace (default) ou sem
+    ///   cat�logo mestre. Deve rodar AP�S BuildCommand e ANTES de ApplySequencer.
+    /// </summary>
+    procedure ApplyAlterStrategy;
     /// <summary>
     ///   Monta o plano de execu��o (TDDLSequenceReport) a partir dos comandos
     ///   atuais: sequenciado por fase quando UseSequencer + cat�logo dispon�vel;
@@ -154,6 +181,12 @@ type
     /// </summary>
     property UseSequencer: Boolean read GetUseSequencer write SetUseSequencer;
     /// <summary>
+    ///   Estrat�gia de ALTER COLUMN (FRENTE 11). Default acsInPlace (comportamento
+    ///   hist�rico intocado). acsRebuildWhenRequired ativa o rebuild seguro com
+    ///   preserva��o de dados quando a altera��o � insegura para o dialeto.
+    /// </summary>
+    property AlterColumnStrategy: TAlterColumnStrategy read GetAlterColumnStrategy write SetAlterColumnStrategy;
+    /// <summary>
     ///   Pol�tica de erro do executor de migra��o: StopOnError (default) ou
     ///   ContinueOnError. Consumida no caminho de execu��o via TMigrationExecutor.
     /// </summary>
@@ -203,6 +236,10 @@ begin
   // Sequenciamento topol�gico ligado por padr�o (palavra de ordem do dono);
   // False mant�m a ordem hist�rica (fallback de compatibilidade).
   FUseSequencer := True;
+  // Estrat�gia de alter column: default acsInPlace preserva o comportamento
+  // hist�rico (mudan�a � opt-in). O dono � �nico dos clones criados no rebuild.
+  FAlterColumnStrategy := acsInPlace;
+  FOwnedRebuildColumns := TObjectList<TColumnMIK>.Create(True);
   FErrorPolicy := mepStopOnError;
   // Contrato hist�rico: falha de migra��o RE-LEVANTA (fail-loud) por padr�o.
   FRaiseOnError := True;
@@ -215,6 +252,9 @@ begin
   // The commands are freed before the catalogs because they reference the
   // metadata objects owned by the catalogs (see TDatabaseFactory.BuildDatabase).
   FDDLCommands.Free;
+  // Clones do rebuild s�o liberados AP�S os comandos (que apenas os referenciam)
+  // e independentes dos cat�logos (referenciam a TTableMIK do master, sem poss�-la).
+  FOwnedRebuildColumns.Free;
   FCatalogMaster.Free;
   FCatalogTarget.Free;
   FSuppressedCommands.Free;
@@ -368,6 +408,16 @@ begin
   FUseSequencer := Value;
 end;
 
+function TDatabaseAbstract.GetAlterColumnStrategy: TAlterColumnStrategy;
+begin
+  Result := FAlterColumnStrategy;
+end;
+
+procedure TDatabaseAbstract.SetAlterColumnStrategy(const Value: TAlterColumnStrategy);
+begin
+  FAlterColumnStrategy := Value;
+end;
+
 function TDatabaseAbstract.GetRaiseOnError: Boolean;
 begin
   Result := FRaiseOnError;
@@ -419,6 +469,71 @@ begin
     FDDLCommands.Clear;
     for LCommand in AOrdered do
       FDDLCommands.Add(LCommand);
+  end;
+end;
+
+procedure TDatabaseAbstract.ReplaceCommandsInPlace(
+  const ANew: TArray<TDDLCommand>);
+var
+  LObjList: TObjectList<TDDLCommand>;
+  LOwned: Boolean;
+  LCommand: TDDLCommand;
+begin
+  if FDDLCommands is TObjectList<TDDLCommand> then
+  begin
+    LObjList := TObjectList<TDDLCommand>(FDDLCommands);
+    LOwned := LObjList.OwnsObjects;
+    // Desliga a posse: Clear + Add s� mexem nas REFER�NCIAS, sem free algum. Os
+    // comandos substitu�dos (que N�O est�o em ANew) s�o liberados pelo chamador.
+    LObjList.OwnsObjects := False;
+    try
+      LObjList.Clear;
+      for LCommand in ANew do
+        LObjList.Add(LCommand);
+    finally
+      LObjList.OwnsObjects := LOwned;
+    end;
+  end
+  else
+  begin
+    FDDLCommands.Clear;
+    for LCommand in ANew do
+      FDDLCommands.Add(LCommand);
+  end;
+end;
+
+procedure TDatabaseAbstract.ApplyAlterStrategy;
+var
+  LRebuilder: TAlterColumnRebuilder;
+  LNew, LReplaced: TArray<TDDLCommand>;
+  LClones: TArray<TColumnMIK>;
+  LNote: String;
+  LClone: TColumnMIK;
+  LCommand: TDDLCommand;
+begin
+  // No-op default (acsInPlace): a lista fica intocada - comportamento hist�rico.
+  if (FAlterColumnStrategy = acsInPlace) or (not Assigned(FCatalogMaster)) then
+    Exit;
+  LRebuilder := TAlterColumnRebuilder.Create(FDriverName, FAlterColumnStrategy,
+    FCatalogMaster, FCatalogTarget, FPolicy, FGeneratorCommand);
+  try
+    LNew := LRebuilder.Rebuild(FDDLCommands.ToArray);
+    LReplaced := LRebuilder.ReplacedCommands;
+    // Assume a posse �NICA dos clones criados (o rebuilder libera a sua).
+    LClones := LRebuilder.ExtractOwnedColumns;
+    for LClone in LClones do
+      FOwnedRebuildColumns.Add(LClone);
+    // Auditoria: registra o que o rebuild quis fazer e n�o p�de (policy).
+    for LNote in LRebuilder.SuppressedNotes do
+      AddSuppressed(LNote);
+    // Troca a lista pelas MESMAS inst�ncias mantidas + os novos comandos.
+    ReplaceCommandsInPlace(LNew);
+    // Os ALTER substitu�dos por um rebuild n�o est�o mais na lista: libera aqui
+    // (uma �nica vez - n�o est�o em LNew, ent�o n�o h� double free).
+    for LCommand in LReplaced do
+      LCommand.Free;
+  finally
+    LRebuilder.Free;
   end;
 end;
 
