@@ -322,20 +322,24 @@ begin
       ATable.ForeignKeys.Add(oForeignKey.Name, oForeignKey);
       LLastFKName := LFKName;
     end;
-    /// <summary>
-    /// Coluna tabela master (constraint_column_id ordena a chave composta)
-    /// </summary>
-    oFromField := TColumnMIK.Create(ATable);
-    oFromField.Name := VarToStr(oDBResultSet.GetFieldValue('column_name'));
-    oFromField.Position := VarAsType(oDBResultSet.GetFieldValue('column_position'), varInteger) - 1;
-    oForeignKey.FromFields.Add(FormatFloat('000000', oFromField.Position), oFromField);
-    /// <summary>
-    /// Coluna tabela referencia
-    /// </summary>
-    oToField := TColumnMIK.Create(ATable);
-    oToField.Name := VarToStr(oDBResultSet.GetFieldValue('column_reference'));
-    oToField.Position := VarAsType(oDBResultSet.GetFieldValue('column_position'), varInteger) - 1;
-    oForeignKey.ToFields.Add(FormatFloat('000000', oToField.Position), oToField);
+    // Assigned blinda um eventual fk_name vazio e silencia o W1036.
+    if Assigned(oForeignKey) then
+    begin
+      /// <summary>
+      /// Coluna tabela master (constraint_column_id ordena a chave composta)
+      /// </summary>
+      oFromField := TColumnMIK.Create(ATable);
+      oFromField.Name := VarToStr(oDBResultSet.GetFieldValue('column_name'));
+      oFromField.Position := VarAsType(oDBResultSet.GetFieldValue('column_position'), varInteger) - 1;
+      oForeignKey.FromFields.Add(FormatFloat('000000', oFromField.Position), oFromField);
+      /// <summary>
+      /// Coluna tabela referencia
+      /// </summary>
+      oToField := TColumnMIK.Create(ATable);
+      oToField.Name := VarToStr(oDBResultSet.GetFieldValue('column_reference'));
+      oToField.Position := VarAsType(oDBResultSet.GetFieldValue('column_position'), varInteger) - 1;
+      oForeignKey.ToFields.Add(FormatFloat('000000', oToField.Position), oToField);
+    end;
  end;
 end;
 

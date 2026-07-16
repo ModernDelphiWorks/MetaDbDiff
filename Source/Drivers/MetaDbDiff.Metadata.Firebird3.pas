@@ -73,7 +73,7 @@ var
   function ResolveIntNull(AValue: Variant; ADefault: Integer): Integer;
   begin
     Result := ADefault;
-    if AValue <> Null then
+    if not VarIsNull(AValue) then
       Result := VarAsType(AValue, varInteger);
   end;
 

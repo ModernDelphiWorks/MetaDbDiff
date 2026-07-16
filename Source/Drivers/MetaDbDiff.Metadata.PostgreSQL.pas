@@ -30,6 +30,7 @@ uses
   Generics.Collections,
   MetaDbDiff.Metadata.Register,
   MetaDbDiff.Metadata.Extract,
+  MetaDbDiff.Metadata.Firebird,
   MetaDbDiff.Database.Mapping,
   DataEngine.FactoryInterfaces;
 
@@ -127,18 +128,6 @@ procedure TCatalogMetadataPostgreSQL.GetChecks(ATable: TTableMIK);
 var
   LDBResultSet: IDBResultSet;
   LCheck: TCheckMIK;
-
-  function ExtractCheckCondition(ACheckSource: String): String;
-  begin
-    // pg_get_constraintdef() devolve a definicao completa "CHECK (<condicao>)";
-    // remove a palavra-chave CHECK para guardar apenas a condicao (o gerador
-    // reconstroi "CHECK (...)"), evitando o "CHECK (CHECK (...))" invalido.
-    // Mesmo padrao ja aplicado no extractor Firebird.
-    Result := Trim(ACheckSource);
-    if UpperCase(Copy(Result, 1, 5)) = 'CHECK' then
-      Result := Trim(Copy(Result, 6, Length(Result)));
-  end;
-
 begin
   inherited;
   FSQLText := GetSelectChecks(ATable.Name);
@@ -148,7 +137,10 @@ begin
     LCheck := TCheckMIK.Create(ATable);
     LCheck.Name := VarToStr(LDBResultSet.GetFieldValue('name'));
     LCheck.Description := '';
-    LCheck.Condition := ExtractCheckCondition(VarToStr(LDBResultSet.GetFieldValue('condition')));
+    // pg_get_constraintdef() traz "CHECK ((<cond>))"; canoniza (strip CHECK +
+    // parens externos balanceados) via helper compartilhado com o Firebird,
+    // evitando o "CHECK (CHECK (...))" invalido no gerador.
+    LCheck.Condition := CanonicalizeCheckCondition(VarToStr(LDBResultSet.GetFieldValue('condition')));
     ATable.Checks.Add(UpperCase(LCheck.Name), LCheck);
   end;
 end;
@@ -343,16 +335,20 @@ begin
       ATable.ForeignKeys.Add(LForeignKey.Name, LForeignKey);
       LLastFKName := LFKName;
     end;
-    // Coluna tabela master (ORDINAL_POSITION ordena a chave composta)
-    LFromField := TColumnMIK.Create(ATable);
-    LFromField.Name := VarToStr(LDBResultSet.GetFieldValue('column_name'));
-    LFromField.Position := VarAsType(LDBResultSet.GetFieldValue('column_position'), varInteger) - 1;
-    LForeignKey.FromFields.Add(FormatFloat('000000', LFromField.Position), LFromField);
-    // Coluna tabela referencia (POSITION_IN_UNIQUE_CONSTRAINT)
-    LToField := TColumnMIK.Create(ATable);
-    LToField.Name := VarToStr(LDBResultSet.GetFieldValue('column_reference'));
-    LToField.Position := VarAsType(LDBResultSet.GetFieldValue('column_referenceposition'), varInteger) - 1;
-    LForeignKey.ToFields.Add(FormatFloat('000000', LToField.Position), LToField);
+    // Assigned blinda um eventual CONSTRAINT_NAME vazio e silencia o W1036.
+    if Assigned(LForeignKey) then
+    begin
+      // Coluna tabela master (ORDINAL_POSITION ordena a chave composta)
+      LFromField := TColumnMIK.Create(ATable);
+      LFromField.Name := VarToStr(LDBResultSet.GetFieldValue('column_name'));
+      LFromField.Position := VarAsType(LDBResultSet.GetFieldValue('column_position'), varInteger) - 1;
+      LForeignKey.FromFields.Add(FormatFloat('000000', LFromField.Position), LFromField);
+      // Coluna tabela referencia (POSITION_IN_UNIQUE_CONSTRAINT)
+      LToField := TColumnMIK.Create(ATable);
+      LToField.Name := VarToStr(LDBResultSet.GetFieldValue('column_reference'));
+      LToField.Position := VarAsType(LDBResultSet.GetFieldValue('column_referenceposition'), varInteger) - 1;
+      LForeignKey.ToFields.Add(FormatFloat('000000', LToField.Position), LToField);
+    end;
   end;
 end;
 
