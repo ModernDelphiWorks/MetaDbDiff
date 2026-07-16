@@ -45,6 +45,9 @@ type
   public
     procedure GetColumns(ATable: TTableMIK); override;
     procedure GetSequences; override;
+    // FRENTE 15: FB3+ tem RDB$FUNCTIONS (PSQL functions) alem das RDB$PROCEDURES
+    // herdadas. Extrai as functions como TProcedureMIK(IsFunction=True).
+    procedure GetFunctions; override;
   end;
 
 implementation
@@ -114,6 +117,31 @@ begin
     for LPair in ATable.Fields do
       if SameText(Trim(LPair.Value.Name), LColumnName) then
         LPair.Value.AutoIncrement := True;
+  end;
+end;
+
+procedure TCatalogMetadataFirebird3.GetFunctions;
+var
+  LDBResultSet: IDBResultSet;
+  LFunction: TProcedureMIK;
+begin
+  // FB3+ PSQL functions (RDB$FUNCTIONS). Guardadas como TProcedureMIK com
+  // IsFunction=True para que o DROP correto (DROP FUNCTION) seja gerado.
+  FSQLText := ' select f.rdb$function_name   as name, ' +
+              '        f.rdb$function_source as source ' +
+              ' from rdb$functions f ' +
+              ' where (f.rdb$system_flag = 0 or f.rdb$system_flag is null) ' +
+              '   and f.rdb$function_source is not null ' +
+              ' order by f.rdb$function_name ';
+  LDBResultSet := Execute;
+  while LDBResultSet.NotEof do
+  begin
+    LFunction := TProcedureMIK.Create(FCatalogMetadata);
+    LFunction.Name := Trim(VarToStr(LDBResultSet.GetFieldValue('name')));
+    LFunction.IsFunction := True;
+    LFunction.Script := 'CREATE FUNCTION ' + Trim(LFunction.Name) + ' AS ' +
+                        VarToStr(LDBResultSet.GetFieldValue('source'));
+    FCatalogMetadata.Procedures.Add(UpperCase(LFunction.Name), LFunction);
   end;
 end;
 

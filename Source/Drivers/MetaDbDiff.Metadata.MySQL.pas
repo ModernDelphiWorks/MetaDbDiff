@@ -148,6 +148,8 @@ begin
   // view_description. MySQL nao possui SEQUENCE nem TRIGGER catalogado aqui
   // (GetSelectTriggers vazio) - so views entram no catalogo.
   GetViews;
+  // FRENTE 15: procedures/functions via information_schema.ROUTINES.
+  GetProcedures;
 end;
 
 procedure TCatalogMetadataMySQL.GetTables;
@@ -375,9 +377,40 @@ begin
 end;
 
 procedure TCatalogMetadataMySQL.GetProcedures;
+var
+  LDBResultSet: IDBResultSet;
+  LProcedure: TProcedureMIK;
+  LBody: String;
 begin
   inherited;
-
+  FSQLText := ' select r.routine_name as name, ' +
+              '        r.routine_type as rtype, ' +
+              '        r.routine_definition as source ' +
+              ' from information_schema.routines r ' +
+              ' where r.routine_schema = database() ' +
+              ' order by r.routine_name ';
+  LDBResultSet := Execute;
+  while LDBResultSet.NotEof do
+  begin
+    LBody := VarToStr(LDBResultSet.GetFieldValue('source'));
+    // ROUTINE_DEFINITION pode vir NULL/vazio quando o usuario nao tem privilegio
+    // (SHOW ROUTINE / SELECT em mysql.proc): sem corpo nao ha o que comparar nem
+    // recriar - pulamos a rotina (documentado). Evita gerar um CREATE vazio. O
+    // proprio NotEof avanca o cursor (padrao deste IDBResultSet), entao Continue
+    // ja passa para a proxima linha.
+    if Trim(LBody) = '' then
+      Continue;
+    LProcedure := TProcedureMIK.Create(FCatalogMetadata);
+    LProcedure.Name := Trim(VarToStr(LDBResultSet.GetFieldValue('name')));
+    LProcedure.IsFunction := SameText(Trim(VarToStr(LDBResultSet.GetFieldValue('rtype'))), 'FUNCTION');
+    // information_schema so expoe o CORPO (nao o CREATE completo com assinatura);
+    // best-effort documentado - suficiente para detectar divergencia/drop.
+    if LProcedure.IsFunction then
+      LProcedure.Script := 'CREATE FUNCTION ' + LProcedure.Name + ' ' + LBody
+    else
+      LProcedure.Script := 'CREATE PROCEDURE ' + LProcedure.Name + ' ' + LBody;
+    FCatalogMetadata.Procedures.AddOrSetValue(UpperCase(LProcedure.Name), LProcedure);
+  end;
 end;
 
 procedure TCatalogMetadataMySQL.GetSequences;
