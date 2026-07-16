@@ -35,6 +35,11 @@ uses
 type
   TDDLSQLGeneratorPostgreSQL = class(TDDLSQLGenerator)
   protected
+    /// <summary>
+    ///   Qualificacao PostgreSQL: "schema"."nome" quando ha schema; caso
+    ///   contrario apenas o nome cru (default '' preserva o SQL historico).
+    /// </summary>
+    class function _QualifyName(const ASchema, AName: String): String; override;
   public
     function GenerateCreateTable(ATable: TTableMIK): String; override;
     function GenerateCreateSequence(ASequence: TSequenceMIK): String; override;
@@ -49,15 +54,24 @@ implementation
 
 { TDDLSQLGeneratorPostgreSQL }
 
+class function TDDLSQLGeneratorPostgreSQL._QualifyName(const ASchema, AName: String): String;
+begin
+  if ASchema <> '' then
+    Result := '"' + ASchema + '"."' + AName + '"'
+  else
+    Result := AName;
+end;
+
 function TDDLSQLGeneratorPostgreSQL.GenerateAlterColumn(AColumn: TColumnMIK): String;
 var
-  LSchemaName: String;
+  LQualifiedTable: String;
   LBuilder: TStringBuilder;
 begin
-  LSchemaName := AColumn.Table.Database.Schema;
-  Result := Format('ALTER TABLE %s.%s ALTER COLUMN %s', [LSchemaName,
-                                                         AColumn.Table.Name,
-                                                         AColumn.Name]);
+  // Antes qualificava sempre como "<schema>.<tabela>", produzindo ".<tabela>"
+  // (SQL invalido) quando nao havia schema. Agora usa _QualifyTable: com schema
+  // vira "schema"."tabela"; sem schema, apenas a tabela.
+  LQualifiedTable := _QualifyTable(AColumn.Table);
+  Result := Format('ALTER TABLE %s ALTER COLUMN %s', [LQualifiedTable, AColumn.Name]);
   LBuilder := TStringBuilder.Create;
   try
     LBuilder.Append(Result + Format(' TYPE %s;', [GetFieldTypeDefinition(AColumn)]));
@@ -72,10 +86,9 @@ begin
     else
       LBuilder.Append(Result + ' DROP NOT NULL;');
 
-    LBuilder.Append(Format('COMMENT ON COLUMN %s.%s.%s IS %s', [LSchemaName,
-                                                                AColumn.Table.Name,
-                                                                AColumn.Name,
-                                                                QuoTedStr(AColumn.Description)]));
+    LBuilder.Append(Format('COMMENT ON COLUMN %s.%s IS %s', [LQualifiedTable,
+                                                             AColumn.Name,
+                                                             QuoTedStr(AColumn.Description)]));
     Result := LBuilder.ToString;
   finally
     LBuilder.Free;
@@ -98,10 +111,7 @@ begin
   LSQL := TStringBuilder.Create;
   Result := inherited GenerateCreateTable(ATable);
   try
-    if ATable.Database.Schema <> '' then
-      LSQL.Append(Format(Result, [ATable.Database.Schema + '.' + ATable.Name]))
-    else
-      LSQL.Append(Format(Result, [ATable.Name]));
+    LSQL.Append(Format(Result, [_QualifyTable(ATable)]));
     /// <summary>
     ///   Add Colunas
     /// </summary>
@@ -158,7 +168,7 @@ end;
 function TDDLSQLGeneratorPostgreSQL.GenerateDropPrimaryKey(APrimaryKey: TPrimaryKeyMIK): String;
 begin
   Result := 'ALTER TABLE %s DROP PRIMARY KEY;';
-  Result := Format(Result, [APrimaryKey.Table.Name]);
+  Result := Format(Result, [_QualifyTable(APrimaryKey.Table)]);
 end;
 
 function TDDLSQLGeneratorPostgreSQL.GenerateEnableForeignKeys(AEnable: Boolean): String;

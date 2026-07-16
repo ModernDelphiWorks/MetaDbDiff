@@ -35,6 +35,11 @@ uses
 type
   TDDLSQLGeneratorMSSQL = class(TDDLSQLGenerator)
   protected
+    /// <summary>
+    ///   Qualificacao SQL Server: [schema].[nome] quando ha schema; caso
+    ///   contrario apenas o nome cru (default '' preserva o SQL historico).
+    /// </summary>
+    class function _QualifyName(const ASchema, AName: String): String; override;
   public
     function GenerateCreateTable(ATable: TTableMIK): String; override;
     function GenerateCreateSequence(ASequence: TSequenceMIK): String; override;
@@ -46,6 +51,14 @@ type
 implementation
 
 { TDDLSQLGeneratorMSSQL }
+
+class function TDDLSQLGeneratorMSSQL._QualifyName(const ASchema, AName: String): String;
+begin
+  if ASchema <> '' then
+    Result := '[' + ASchema + '].[' + AName + ']'
+  else
+    Result := AName;
+end;
 
 function TDDLSQLGeneratorMSSQL.GenerateCreateSequence(ASequence: TSequenceMIK): String;
 begin
@@ -63,10 +76,7 @@ begin
   oSQL := TStringBuilder.Create;
   Result := inherited GenerateCreateTable(ATable);
   try
-    if ATable.Database.Schema <> '' then
-      oSQL.Append(Format(Result, [ATable.Database.Schema + '.' + ATable.Name]))
-    else
-      oSQL.Append(Format(Result, [ATable.Name]));
+    oSQL.Append(Format(Result, [_QualifyTable(ATable)]));
     /// <summary>
     /// Add Colunas
     /// </summary>
@@ -134,9 +144,10 @@ function TDDLSQLGeneratorMSSQL.GenerateRenameColumn(AColumn: TColumnMIK;
   const ANewName: String): String;
 begin
   // SQL Server nao tem RENAME COLUMN; usa a stored procedure sp_rename com o
-  // qualificador 'COLUMN' e o alvo no formato 'tabela.coluna'.
+  // qualificador 'COLUMN' e o alvo no formato 'tabela.coluna' ([schema].[tabela]
+  // .coluna quando ha schema; default '' preserva 'tabela.coluna').
   Result := 'EXEC sp_rename ''%s.%s'', ''%s'', ''COLUMN'';';
-  Result := Format(Result, [AColumn.Table.Name, AColumn.Name, ANewName]);
+  Result := Format(Result, [_QualifyTable(AColumn.Table), AColumn.Name, ANewName]);
 end;
 
 initialization

@@ -58,13 +58,49 @@ type
     property ModelForDatabase: Boolean read _GetModelForDatabase write _SetModelForDatabase;
   end;
 
+  /// <summary>
+  ///   Levantada quando o nome de schema configurado (property Schema do
+  ///   compare, propagada ate o extractor) contem caracteres que nao formam um
+  ///   identificador SQL valido. Como o nome do schema entra na montagem dos
+  ///   selects de extracao (via QuotedStr apos esta validacao), rejeitar aqui
+  ///   um nome malicioso ('x; DROP', aspas, espacos, ";" etc.) e a barreira que
+  ///   impede injecao no metadata-scan. String vazia ('') e sempre valida e
+  ///   significa "comportamento historico (sem filtro de schema)".
+  /// </summary>
+  EMetaDbDiffSchema = class(Exception);
+
   TCatalogMetadataAbstract = class(TMetadataAbstract, IDatabaseMetadata)
   private
     function GetConnection: IDBConnection;
     procedure SetConnection(const Value: IDBConnection);
+    procedure SetSchema(const Value: String);
   protected
     FSQLText: String;
+    FSchema: String;
     FFieldType: TDictionary<String, TFieldType>;
+    /// <summary>
+    ///   Schema efetivo do FILTRO de extracao, ja validado: '' (default) = sem
+    ///   filtro (comportamento historico), ou o identificador configurado. Os
+    ///   GetSelect* dos extractors multi-schema (PostgreSQL/MSSQL) so acrescentam
+    ///   o filtro de schema quando este retorna nao-vazio, garantindo SQL de
+    ///   extracao identico ao historico quando nada e configurado.
+    /// </summary>
+    function EffectiveSchema: String;
+    /// <summary>
+    ///   Schema DEFAULT do dialeto usado para carimbar o catalogo/qualificar o
+    ///   DDL quando NENHUM schema foi configurado. Base: '' (dialetos sem schema
+    ///   - o DDL sai sem qualificacao). O extractor PostgreSQL sobrescreve para
+    ///   'public', restaurando o comportamento historico (catalogo/DDL public).
+    /// </summary>
+    function DefaultSchema: String; virtual;
+    /// <summary>
+    ///   Schema efetivamente gravado no catalogo (e, portanto, usado pelo
+    ///   generator para qualificar o DDL): o schema configurado quando nao-vazio,
+    ///   senao o DefaultSchema do dialeto. NAO e o mesmo que EffectiveSchema, que
+    ///   governa apenas o FILTRO dos selects (este permanece '' no default para
+    ///   nao alterar o SQL historico de extracao).
+    /// </summary>
+    function CatalogSchema: String;
     procedure SetFieldType(var AColumnMIK: TColumnMIK); virtual;
     function GetSelectTables: String; virtual; abstract;
     function GetSelectTableColumns(ATableName: String): String; virtual; abstract;
@@ -96,6 +132,22 @@ type
     procedure GetFunctions; virtual; abstract;
     procedure GetViews; virtual; abstract;
     procedure GetDatabaseMetadata; virtual; abstract;
+    /// <summary>
+    ///   Valida um nome de schema como identificador SQL seguro. '' e sempre
+    ///   valido (default = sem qualificacao). Um nome nao-vazio deve conter
+    ///   apenas letras/digitos/underscore, comecar por letra ou underscore e ter
+    ///   no maximo 128 caracteres - qualquer outra coisa (aspas, espacos, ";",
+    ///   etc.) levanta EMetaDbDiffSchema. Retorna o proprio nome quando valido,
+    ///   para uso fluente na montagem dos selects.
+    /// </summary>
+    class function ValidateSchemaName(const ASchema: String): String; static;
+    /// <summary>
+    ///   Schema configurado a ser comparado/qualificado. Default '' preserva o
+    ///   comportamento historico POR DIALETO (PostgreSQL: catalogo/DDL 'public';
+    ///   demais: sem qualificacao). O write valida o identificador
+    ///   (ValidateSchemaName) - schema malicioso e rejeitado ja na atribuicao.
+    /// </summary>
+    property Schema: String read FSchema write SetSchema;
     property Connection: IDBConnection read GetConnection write SetConnection;
   end;
 
@@ -143,6 +195,57 @@ destructor TCatalogMetadataAbstract.Destroy;
 begin
   FFieldType.Free;
   inherited;
+end;
+
+class function TCatalogMetadataAbstract.ValidateSchemaName(const ASchema: String): String;
+var
+  LFor: Integer;
+  LChar: Char;
+begin
+  Result := ASchema;
+  // '' = default (comportamento historico, sem filtro/qualificacao): valido.
+  if ASchema = '' then
+    Exit;
+  if Length(ASchema) > 128 then
+    raise EMetaDbDiffSchema.CreateFmt(
+      'MetaDbDiff: nome de schema invalido "%s" (excede 128 caracteres).', [ASchema]);
+  // Primeiro caractere nao pode ser digito (regra de identificador SQL).
+  if CharInSet(ASchema[1], ['0'..'9']) then
+    raise EMetaDbDiffSchema.CreateFmt(
+      'MetaDbDiff: nome de schema invalido "%s": nao pode comecar por digito.', [ASchema]);
+  for LFor := 1 to Length(ASchema) do
+  begin
+    LChar := ASchema[LFor];
+    // Whitelist estrita: sem aspas, espacos, ";", pontos ou qualquer outro
+    // metacaractere - so assim o QuotedStr posterior nao pode ser subvertido.
+    if not CharInSet(LChar, ['A'..'Z', 'a'..'z', '0'..'9', '_']) then
+      raise EMetaDbDiffSchema.CreateFmt(
+        'MetaDbDiff: nome de schema invalido "%s": apenas letras, digitos e ' +
+        'underscore sao permitidos (sem aspas, espacos, ";" ou pontos).', [ASchema]);
+  end;
+end;
+
+function TCatalogMetadataAbstract.EffectiveSchema: String;
+begin
+  Result := ValidateSchemaName(FSchema);
+end;
+
+function TCatalogMetadataAbstract.DefaultSchema: String;
+begin
+  // Base (dialetos sem schema): sem default - DDL sem qualificacao.
+  Result := '';
+end;
+
+function TCatalogMetadataAbstract.CatalogSchema: String;
+begin
+  Result := EffectiveSchema;
+  if Result = '' then
+    Result := DefaultSchema;
+end;
+
+procedure TCatalogMetadataAbstract.SetSchema(const Value: String);
+begin
+  FSchema := ValidateSchemaName(Value);
 end;
 
 function TCatalogMetadataAbstract.GetConnection: IDBConnection;
