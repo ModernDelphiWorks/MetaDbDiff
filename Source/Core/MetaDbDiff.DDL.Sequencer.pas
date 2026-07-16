@@ -302,6 +302,9 @@ begin
 
   // Creates / alters.
   if ACommand is TDDLCommandCreateSequence then Exit(dphCreateSequences);
+  // ALTER SEQUENCE roda na mesma fase de SEQUENCES: a sequence ja existe (create
+  // nao ocorre) e o alter apenas ajusta InitialValue/Increment antes das tabelas.
+  if ACommand is TDDLCommandAlterSequence then Exit(dphCreateSequences);
   if ACommand is TDDLCommandCreateTable then Exit(dphCreateTables);
   if ACommand is TDDLCommandCreateColumn then Exit(dphColumns);
   if ACommand is TDDLCommandAlterColumnPosition then Exit(dphColumns);

@@ -39,6 +39,7 @@ type
   public
     function GenerateCreateTable(ATable: TTableMIK): String; override;
     function GenerateCreateSequence(ASequence: TSequenceMIK): String; override;
+    function GenerateAlterSequence(ASequence: TSequenceMIK): String; override;
     function GenerateCreateForeignKey(AForeignKey: TForeignKeyMIK): String; override;
     function GenerateEnableForeignKeys(AEnable: Boolean): String; override;
     function GenerateEnableTriggers(AEnable: Boolean): String; override;
@@ -76,6 +77,17 @@ begin
   Result := Format(Result, [ASequence.Name,
                             IntToStr(ASequence.InitialValue),
                             IntToStr(ASequence.Increment)]);
+end;
+
+function TDDLSQLGeneratorOracle.GenerateAlterSequence(ASequence: TSequenceMIK): String;
+begin
+  // Oracle NAO possui RESTART WITH em ALTER SEQUENCE ate a versao 12c Release 2
+  // (12.2). Para maxima compatibilidade emitimos apenas INCREMENT BY, que e
+  // valido desde sempre. O valor inicial (InitialValue) e um alvo movel em
+  // producao e por default nem e comparado (ver CompareSequenceInitialValue),
+  // logo omitir RESTART aqui e a escolha segura/portavel para Oracle.
+  Result := 'ALTER SEQUENCE %s INCREMENT BY %d;';
+  Result := Format(Result, [ASequence.Name, ASequence.Increment]);
 end;
 
 function TDDLSQLGeneratorOracle.GenerateCreateTable(ATable: TTableMIK): String;

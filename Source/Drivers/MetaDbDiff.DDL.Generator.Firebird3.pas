@@ -24,18 +24,32 @@ unit MetaDbDiff.DDL.Generator.Firebird3;
 interface
 
 uses
+  SysUtils,
   DataEngine.FactoryInterfaces,
   MetaDbDiff.DDL.Register,
   MetaDbDiff.DDL.Generator,
-  MetaDbDiff.DDL.Generator.Firebird;
+  MetaDbDiff.DDL.Generator.Firebird,
+  MetaDbDiff.Database.Mapping;
 
 type
   TDDLSQLGeneratorFirebird3 = class(TDDLSQLGeneratorFirebird)
   public
     function GenerateEnableTriggers(AEnable: Boolean): String; override;
+    function GenerateAlterSequence(ASequence: TSequenceMIK): String; override;
   end;
 
 implementation
+
+function TDDLSQLGeneratorFirebird3.GenerateAlterSequence(ASequence: TSequenceMIK): String;
+begin
+  // Firebird 3+ introduziu a clausula INCREMENT em ALTER/CREATE SEQUENCE, ao
+  // contrario do 2.5 herdado (que so aceita RESTART WITH). Reintroduz a sintaxe
+  // ANSI completa (valor corrente + passo).
+  Result := 'ALTER SEQUENCE %s RESTART WITH %d INCREMENT BY %d;';
+  Result := Format(Result, [ASequence.Name,
+                            ASequence.InitialValue,
+                            ASequence.Increment]);
+end;
 
 function TDDLSQLGeneratorFirebird3.GenerateEnableTriggers(AEnable: Boolean): String;
 begin

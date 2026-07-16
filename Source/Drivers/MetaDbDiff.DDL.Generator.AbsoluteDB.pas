@@ -40,6 +40,7 @@ type
   public
     function GenerateCreateTable(ATable: TTableMIK): String; override;
     function GenerateCreateSequence(ASequence: TSequenceMIK): String; override;
+    function GenerateAlterSequence(ASequence: TSequenceMIK): String; override;
     function GenerateDropTable(ATable: TTableMIK): String; override;
     function GenerateDropSequence(ASequence: TSequenceMIK): String; override;
     function GetSupportedFeatures: TSupportedFeatures; override;
@@ -118,6 +119,15 @@ begin
   finally
     oSQL.Free;
   end;
+end;
+
+function TDDLSQLGeneratorAbsoluteDB.GenerateAlterSequence(ASequence: TSequenceMIK): String;
+begin
+  // AbsoluteDB emula o contador via SQLITE_SEQUENCE (mesma familia do SQLite):
+  // nao ha objeto SEQUENCE nem INCREMENT alteravel. NAO emitimos ALTER SEQUENCE -
+  // o gate em Database.Factory.CompareSequences ja evita cria-lo; este override e
+  // defesa em profundidade (retorna vazio, descartado pelo pipeline).
+  Result := '';
 end;
 
 function TDDLSQLGeneratorAbsoluteDB.GenerateDropSequence(ASequence: TSequenceMIK): String;

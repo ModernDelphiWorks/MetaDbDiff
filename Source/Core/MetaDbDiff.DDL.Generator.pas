@@ -50,6 +50,7 @@ type
     function GenerateAlterColumnPosition(AColumn: TColumnMIK): String; virtual; abstract;
     function GenerateAlterDefaultValue(AColumn: TColumnMIK): String; virtual; abstract;
     function GenerateAlterCheck(ACheck: TCheckMIK): String; virtual; abstract;
+    function GenerateAlterSequence(ASequence: TSequenceMIK): String; virtual; abstract;
     function GenerateAddPrimaryKey(APrimaryKey: TPrimaryKeyMIK): String; virtual; abstract;
     function GenerateDropTable(ATable: TTableMIK): String; virtual; abstract;
     function GenerateDropPrimaryKey(APrimaryKey: TPrimaryKeyMIK): String; virtual; abstract;
@@ -109,6 +110,7 @@ type
     function GenerateCreateCheck(ACheck: TCheckMIK): String; override;
     function GenerateAlterColumn(AColumn: TColumnMIK): String; override;
     function GenerateAlterCheck(ACheck: TCheckMIK): String; override;
+    function GenerateAlterSequence(ASequence: TSequenceMIK): String; override;
     function GenerateAddPrimaryKey(APrimaryKey: TPrimaryKeyMIK): String; override;
     function GenerateDropTable(ATable: TTableMIK): String; override;
     function GenerateDropColumn(AColumn: TColumnMIK): String; override;
@@ -195,6 +197,17 @@ function TDDLSQLGenerator.GenerateAlterCheck(ACheck: TCheckMIK): String;
 begin
   Result := 'ALTER TABLE %s ADD CONSTRAINT %s CHECK (%s);';
   Result := Format(Result, [ACheck.Table.Name,  ACheck.Name, ACheck.Condition]);
+end;
+
+function TDDLSQLGenerator.GenerateAlterSequence(ASequence: TSequenceMIK): String;
+begin
+  // Sintaxe SQL:2003 (ANSI) suportada por PostgreSQL, SQL Server 2012+ e
+  // Firebird 3+: reinicia o valor corrente e ajusta o passo. Dialetos que
+  // divergem (Firebird 2.5 sem INCREMENT, Oracle sem RESTART) sobrescrevem.
+  Result := 'ALTER SEQUENCE %s RESTART WITH %d INCREMENT BY %d;';
+  Result := Format(Result, [ASequence.Name,
+                            ASequence.InitialValue,
+                            ASequence.Increment]);
 end;
 
 function TDDLSQLGenerator.GenerateCreateColumn(AColumn: TColumnMIK): String;

@@ -143,6 +143,11 @@ begin
   FCatalogMetadata.Schema := '';
   GetSequences;
   GetTables;
+  // Views ligadas (F10): GetSelectViews/GetViews do MySQL sao reais
+  // (information_schema.views.view_definition) e leem view_name/view_script/
+  // view_description. MySQL nao possui SEQUENCE nem TRIGGER catalogado aqui
+  // (GetSelectTriggers vazio) - so views entram no catalogo.
+  GetViews;
 end;
 
 procedure TCatalogMetadataMySQL.GetTables;

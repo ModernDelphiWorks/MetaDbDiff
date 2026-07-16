@@ -48,6 +48,7 @@ type
     function GenerateAlterColumnPosition(AColumn: TColumnMIK): String;
     function GenerateAlterDefaultValue(AColumn: TColumnMIK): String;
     function GenerateAlterCheck(ACheck: TCheckMIK): String;
+    function GenerateAlterSequence(ASequence: TSequenceMIK): String;
     function GenerateDropTable(ATable: TTableMIK): String;
     function GenerateDropPrimaryKey(APrimaryKey: TPrimaryKeyMIK): String;
     function GenerateDropForeignKey(AForeignKey: TForeignKeyMIK): String;

@@ -70,7 +70,8 @@ type
     CreateTrigger,
     DropTrigger,
     CreateSequence,
-    DropSequence);
+    DropSequence,
+    AlterSequence);
 
   TDDLOperations = set of TDDLOperation;
 
@@ -191,6 +192,8 @@ begin
     AOperation := TDDLOperation.CreateSequence
   else if ACommand is TDDLCommandDropSequence then
     AOperation := TDDLOperation.DropSequence
+  else if ACommand is TDDLCommandAlterSequence then
+    AOperation := TDDLOperation.AlterSequence
   else
     // 3) Classe n�o mapeada: NEGA por fail-closed (jamais tratada como guarda).
     Exit(ckUnknown);

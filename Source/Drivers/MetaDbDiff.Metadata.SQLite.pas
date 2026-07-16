@@ -30,6 +30,7 @@ uses
   Generics.Collections,
   MetaDbDiff.Metadata.Register,
   MetaDbDiff.Metadata.Extract,
+  MetaDbDiff.Metadata.Normalize,
   MetaDbDiff.Database.Mapping,
   DataEngine.FactoryInterfaces;
 
@@ -134,7 +135,15 @@ procedure TCatalogMetadataSQLite.GetSchemas;
 begin
   inherited;
   FCatalogMetadata.Schema := '';
+  // Sequences ligadas (F10): GetSequences agora e robusto (trata sqlite_sequence
+  // inexistente e nao le coluna 'description'). Antes nunca era chamado no SQLite.
+  GetSequences;
   GetTables;
+  // Views ligadas (F10): GetSelectViews agora seleciona name+sql e GetViews le as
+  // duas. Triggers permanecem DESLIGADAS: embora GetSelectTriggers seja real, a
+  // extracao de trigger no SQLite nao esta amarrada a GetTables (GetTriggers nunca
+  // e chamado por tabela) - deixado como esta, documentado.
+  GetViews;
 end;
 
 procedure TCatalogMetadataSQLite.GetTables;
@@ -354,13 +363,25 @@ var
   oSequence: TSequenceMIK;
 begin
   inherited;
+  // A tabela interna sqlite_sequence SO passa a existir depois que ao menos uma
+  // tabela com coluna INTEGER PRIMARY KEY AUTOINCREMENT e criada. Num banco sem
+  // nenhum AUTOINCREMENT o SELECT abaixo levanta "no such table: sqlite_sequence".
+  // Tratamos como "zero sequences" (estado valido), sem abortar a extracao.
   FSQLText := GetSelectSequences;
-  oDBResultSet := Execute;
+  try
+    oDBResultSet := Execute;
+  except
+    // sqlite_sequence inexistente => nenhuma sequence a extrair.
+    Exit;
+  end;
   while oDBResultSet.NotEof do
   begin
     oSequence := TSequenceMIK.Create(FCatalogMetadata);
     oSequence.Name := VarToStr(oDBResultSet.GetFieldValue('name'));
-    oSequence.Description := VarToStr(oDBResultSet.GetFieldValue('description'));;
+    // GetSelectSequences seleciona apenas 'name' (sqlite_sequence nao possui
+    // coluna 'description'); ler 'description' aqui levantava erro de campo
+    // inexistente. Description fica vazia para sequences SQLite.
+    oSequence.Description := '';
     FCatalogMetadata.Sequences.Add(UpperCase(oSequence.Name), oSequence);
   end;
 end;
@@ -438,7 +459,9 @@ begin
     oView := TViewMIK.Create(FCatalogMetadata);
     oView.Name := VarToStr(oDBResultSet.GetFieldValue('name'));
     oView.Description := '';
-    oView.Script := VarToStr(oDBResultSet.GetFieldValue('sql'));
+    // sqlite_master.sql traz o "CREATE VIEW <nome> AS ..." COMPLETO; guarda so o
+    // corpo (como PG/MySQL/Firebird) para o recreate montar SQL valido.
+    oView.Script := TMetadataNormalizer.StripCreateViewPrefix(VarToStr(oDBResultSet.GetFieldValue('sql')));
     FCatalogMetadata.Views.Add(UpperCase(oView.Name), oView);
   end;
 end;
@@ -541,7 +564,10 @@ end;
 
 function TCatalogMetadataSQLite.GetSelectViews: String;
 begin
-  Result := ' select name ' +
+  // Inclui a coluna 'sql' (definicao completa "CREATE VIEW ..."): GetViews le
+  // name E sql; sem 'sql' no select a extracao de view falhava por campo
+  // inexistente.
+  Result := ' select name, sql ' +
             ' from sqlite_master ' +
             ' where type = ''view'' ' +
             ' and tbl_name not like ''sqlite_%'' ' +

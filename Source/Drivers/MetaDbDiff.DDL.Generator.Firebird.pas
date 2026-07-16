@@ -39,6 +39,7 @@ type
   public
     function GenerateCreateTable(ATable: TTableMIK): String; override;
     function GenerateCreateSequence(ASequence: TSequenceMIK): String; override;
+    function GenerateAlterSequence(ASequence: TSequenceMIK): String; override;
     function GenerateCreateForeignKey(AForeignKey: TForeignKeyMIK): String; override;
     function GenerateDropSequence(ASequence: TSequenceMIK): String; override;
     function GenerateDropIndexe(AIndexe: TIndexeKeyMIK): String; override;
@@ -81,6 +82,19 @@ function TDDLSQLGeneratorFirebird.GenerateCreateSequence(ASequence: TSequenceMIK
 begin
   Result := 'CREATE GENERATOR %s;';
   Result := Format(Result, [ASequence.Name]);
+end;
+
+function TDDLSQLGeneratorFirebird.GenerateAlterSequence(ASequence: TSequenceMIK): String;
+begin
+  // Firebird 2.5: apenas o VALOR CORRENTE do generator/sequence e alteravel
+  // (ALTER SEQUENCE ... RESTART WITH == SET GENERATOR ... TO). O passo
+  // (INCREMENT) NAO existe em 2.5 - so foi introduzido no Firebird 3
+  // (ver TDDLSQLGeneratorFirebird3.GenerateAlterSequence). Por isso este override
+  // emite somente RESTART WITH; uma divergencia apenas de Increment num alvo 2.5
+  // nao pode ser corrigida por DDL (documentado; recriar o generator perderia o
+  // valor corrente).
+  Result := 'ALTER SEQUENCE %s RESTART WITH %d;';
+  Result := Format(Result, [ASequence.Name, ASequence.InitialValue]);
 end;
 
 function TDDLSQLGeneratorFirebird.GenerateCreateTable(ATable: TTableMIK): String;

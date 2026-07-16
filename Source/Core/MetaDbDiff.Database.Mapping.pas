@@ -401,6 +401,9 @@ procedure TCatalogMetadataMIK.Clear;
 begin
   Tables.Clear;
   Sequences.Clear;
+  // Views tambem sao owned por este catalogo (doOwnsValues); nao limpa-las aqui
+  // vazava as TViewMIK a cada reuso do catalogo.
+  Views.Clear;
 end;
 
 constructor TCatalogMetadataMIK.Create;

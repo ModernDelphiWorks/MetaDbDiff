@@ -46,6 +46,8 @@ type
     procedure SetCommandsAutoExecute(const Value: Boolean);
     function GetComparerFieldPosition: Boolean;
     procedure SetComparerFieldPosition(const Value: Boolean);
+    function GetCompareSequenceInitialValue: Boolean;
+    procedure SetCompareSequenceInitialValue(const Value: Boolean);
     function GetPolicy: TComparePolicy;
     procedure SetPolicy(const Value: TComparePolicy);
     function GetSuppressedCommands: TArray<String>;
@@ -77,6 +79,7 @@ type
     FCatalogTarget: TCatalogMetadataMIK;
     FCommandsAutoExecute: Boolean;
     FComparerFieldPosition: Boolean;
+    FCompareSequenceInitialValue: Boolean;
     FModelForDatabase: Boolean;
     FPolicy: TComparePolicy;
     FSuppressedCommands: TList<String>;
@@ -136,6 +139,13 @@ type
     property ModelForDatabase: Boolean read FModelForDatabase;
     property CommandsAutoExecute: Boolean read GetCommandsAutoExecute write SetCommandsAutoExecute;
     property ComparerFieldPosition: Boolean read GetComparerFieldPosition write SetComparerFieldPosition;
+    /// <summary>
+    ///   Opt-in (default False): compara tambem o InitialValue das sequences.
+    ///   Desligado por padrao porque o valor corrente avanca com o uso (alvo movel
+    ///   em producao) e geraria ALTER SEQUENCE ... RESTART eterno. Por default so o
+    ///   Increment e comparado.
+    /// </summary>
+    property CompareSequenceInitialValue: Boolean read GetCompareSequenceInitialValue write SetCompareSequenceInitialValue;
     property Policy: TComparePolicy read GetPolicy write SetPolicy;
     property SuppressedCommands: TArray<String> read GetSuppressedCommands;
     /// <summary>
@@ -181,6 +191,9 @@ begin
   FGeneratorCommand := TSQLDriverRegister.GetInstance.GetDriver(ADriverName);
   FDDLCommands := TObjectList<TDDLCommand>.Create;
   FComparerFieldPosition := False;
+  // Default False: nao compara InitialValue de sequence (evita falso-positivo
+  // eterno em banco vivo, onde o valor corrente avanca com o uso).
+  FCompareSequenceInitialValue := False;
   // Vari�vel de controle para identificar se a compara��o est� sendo feita
   // Model vs Database ou Database vs Database.
   FModelForDatabase := False;
@@ -308,6 +321,16 @@ end;
 procedure TDatabaseAbstract.SetComparerFieldPosition(const Value: Boolean);
 begin
   FComparerFieldPosition := Value;
+end;
+
+function TDatabaseAbstract.GetCompareSequenceInitialValue: Boolean;
+begin
+  Result := FCompareSequenceInitialValue;
+end;
+
+procedure TDatabaseAbstract.SetCompareSequenceInitialValue(const Value: Boolean);
+begin
+  FCompareSequenceInitialValue := Value;
 end;
 
 function TDatabaseAbstract.GetPolicy: TComparePolicy;
