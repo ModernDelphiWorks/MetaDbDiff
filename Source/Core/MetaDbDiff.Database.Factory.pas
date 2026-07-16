@@ -205,6 +205,10 @@ begin
   // ExecuteDDLCommands overrides just reassigns the same text.
   for LDDLCommand in FDDLCommands do
     LDDLCommand.BuildCommand(FGeneratorCommand);
+  // Reordena a lista final em ordem topol�gica por fase (dependency-safe) e
+  // guarda o TDDLSequenceReport (fases/ciclos). No-op quando UseSequencer=False
+  // (mant�m a ordem hist�rica de gera��o - fallback de compatibilidade).
+  ApplySequencer;
 end;
 
 function TDatabaseFactory.GetFieldTypeValid(AFieldType: TFieldType): TFieldType;

@@ -47,6 +47,17 @@ type
     procedure ExecuteCommands;
     function GetCommandList: TArray<TDDLCommand>;
     function GeneratorCommand: IDDLGeneratorCommand;
+    /// <summary>
+    ///   Gera o script consolidado da migra��o (DryRun do executor) sem tocar
+    ///   no banco: fases anotadas como coment�rio SQL, ordem topol�gica quando
+    ///   UseSequencer est� ligado. N�o abre transa��o nem executa nada.
+    /// </summary>
+    function GenerateScript: String;
+    /// <summary>
+    ///   Grava o script consolidado (mesmo conte�do de GenerateScript) em
+    ///   AFileName como UTF-8 (ScriptOut do executor). N�o toca no banco.
+    /// </summary>
+    procedure SaveScriptToFile(const AFileName: String);
     property CommandsAutoExecute: Boolean read GetCommandsAutoExecute write SetCommandsAutoExecute;
     property ComparerFieldPosition: Boolean read GetComparerFieldPosition write SetComparerFieldPosition;
     /// <summary>
