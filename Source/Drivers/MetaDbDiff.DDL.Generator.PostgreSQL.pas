@@ -163,18 +163,24 @@ end;
 
 function TDDLSQLGeneratorPostgreSQL.GenerateEnableForeignKeys(AEnable: Boolean): String;
 begin
+  // SET session_replication_role = replica desativa, na sessao corrente, o
+  // disparo das triggers de usuario e das triggers internas que validam FKs;
+  // por isso o mesmo comando atende GenerateEnableForeignKeys e
+  // GenerateEnableTriggers. Requer superusuario (ou permissao equivalente).
   if AEnable then
-    Result := ''
+    Result := 'SET session_replication_role = DEFAULT;'
   else
-    Result := '';
+    Result := 'SET session_replication_role = replica;';
 end;
 
 function TDDLSQLGeneratorPostgreSQL.GenerateEnableTriggers(AEnable: Boolean): String;
 begin
+  // Mesmo mecanismo de GenerateEnableForeignKeys: session_replication_role
+  // suspende triggers de usuario e a validacao de FKs na sessao corrente.
   if AEnable then
-    Result := ''
+    Result := 'SET session_replication_role = DEFAULT;'
   else
-    Result := '';
+    Result := 'SET session_replication_role = replica;';
 end;
 
 initialization

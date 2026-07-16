@@ -129,17 +129,18 @@ end;
 function TDDLSQLGeneratorMySQL.GenerateEnableForeignKeys(AEnable: Boolean): String;
 begin
   if AEnable then
-    Result := ''
+    Result := 'SET FOREIGN_KEY_CHECKS = 1;'
   else
-    Result := '';
+    Result := 'SET FOREIGN_KEY_CHECKS = 0;';
 end;
 
 function TDDLSQLGeneratorMySQL.GenerateEnableTriggers(AEnable: Boolean): String;
 begin
-  if AEnable then
-    Result := ''
-  else
-    Result := '';
+  // MySQL nao possui comando para habilitar/desabilitar triggers em bloco nem
+  // por sessao (a unica alternativa seria DROP/CREATE de cada trigger).
+  // Retorna vazio; comandos vazios sao descartados pelo pipeline
+  // (MetaDbDiff.Database.Compare -> Length(LCommand) > 0).
+  Result := '';
 end;
 
 initialization
