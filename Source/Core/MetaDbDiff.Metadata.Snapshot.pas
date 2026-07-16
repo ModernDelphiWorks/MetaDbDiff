@@ -101,7 +101,12 @@ const
   ///   this constant is rejected with a clear error (see LoadInto): this
   ///   library refuses to guess the shape of a format from the future.
   /// </summary>
-  MetadataSnapshotFormatVersion = 1;
+  // FRENTE 15: v2 acrescenta as colecoes Domains e Procedures ao Catalog. A
+  // RETROCOMPATIBILIDADE e total: um envelope v1 (sem essas chaves) carrega
+  // normalmente - _JsonArrayOrNil devolve nil para chaves ausentes e as colecoes
+  // ficam vazias. A rejeicao continua identica para FormatVersion > 2 (futuro) e
+  // < 1 (arquivo adulterado).
+  MetadataSnapshotFormatVersion = 2;
 
 type
   /// <summary>
@@ -144,6 +149,8 @@ type
     class function _TableToJson(ATable: TTableMIK): TJSONObject; static;
     class function _ViewToJson(AView: TViewMIK): TJSONObject; static;
     class function _SequenceToJson(ASequence: TSequenceMIK): TJSONObject; static;
+    class function _DomainToJson(ADomain: TDomainMIK): TJSONObject; static;
+    class function _ProcedureToJson(AProcedure: TProcedureMIK): TJSONObject; static;
     class function _CatalogToJson(ACatalog: TCatalogMetadataMIK): TJSONObject; static;
 
     { --- JSON -> MIK --- }
@@ -156,6 +163,8 @@ type
     class function _JsonToTable(AJson: TJSONObject; ACatalog: TCatalogMetadataMIK): TTableMIK; static;
     class function _JsonToView(AJson: TJSONObject; ACatalog: TCatalogMetadataMIK): TViewMIK; static;
     class function _JsonToSequence(AJson: TJSONObject; ACatalog: TCatalogMetadataMIK): TSequenceMIK; static;
+    class function _JsonToDomain(AJson: TJSONObject; ACatalog: TCatalogMetadataMIK): TDomainMIK; static;
+    class function _JsonToProcedure(AJson: TJSONObject; ACatalog: TCatalogMetadataMIK): TProcedureMIK; static;
     class procedure _JsonToCatalog(AJson: TJSONObject; ACatalog: TCatalogMetadataMIK); static;
   public
     /// <summary>
@@ -478,12 +487,34 @@ begin
   Result.AddPair('Increment', ASequence.Increment);
 end;
 
+class function TMetadataSnapshot._DomainToJson(ADomain: TDomainMIK): TJSONObject;
+begin
+  Result := TJSONObject.Create;
+  Result.AddPair('Name', ADomain.Name);
+  Result.AddPair('Description', ADomain.Description);
+  Result.AddPair('TypeName', ADomain.TypeName);
+  Result.AddPair('NotNull', ADomain.NotNull);
+  Result.AddPair('DefaultValue', ADomain.DefaultValue);
+  Result.AddPair('CheckCondition', ADomain.CheckCondition);
+end;
+
+class function TMetadataSnapshot._ProcedureToJson(AProcedure: TProcedureMIK): TJSONObject;
+begin
+  Result := TJSONObject.Create;
+  Result.AddPair('Name', AProcedure.Name);
+  Result.AddPair('Description', AProcedure.Description);
+  Result.AddPair('Script', AProcedure.Script);
+  Result.AddPair('IsFunction', AProcedure.IsFunction);
+end;
+
 class function TMetadataSnapshot._CatalogToJson(ACatalog: TCatalogMetadataMIK): TJSONObject;
 var
   LArr: TJSONArray;
   LTablePair: TPair<String, TTableMIK>;
   LSeqPair: TPair<String, TSequenceMIK>;
   LViewPair: TPair<String, TViewMIK>;
+  LDomPair: TPair<String, TDomainMIK>;
+  LProcPair: TPair<String, TProcedureMIK>;
 begin
   Result := TJSONObject.Create;
   Result.AddPair('Name', ACatalog.Name);
@@ -504,6 +535,17 @@ begin
   for LViewPair in _SortedPairs<TViewMIK>(ACatalog.Views) do
     LArr.Add(_ViewToJson(LViewPair.Value));
   Result.AddPair('Views', LArr);
+
+  // FRENTE 15 (v2).
+  LArr := TJSONArray.Create;
+  for LDomPair in _SortedPairs<TDomainMIK>(ACatalog.Domains) do
+    LArr.Add(_DomainToJson(LDomPair.Value));
+  Result.AddPair('Domains', LArr);
+
+  LArr := TJSONArray.Create;
+  for LProcPair in _SortedPairs<TProcedureMIK>(ACatalog.Procedures) do
+    LArr.Add(_ProcedureToJson(LProcPair.Value));
+  Result.AddPair('Procedures', LArr);
 end;
 
 { --- JSON -> MIK --- }
@@ -744,6 +786,36 @@ begin
   end;
 end;
 
+class function TMetadataSnapshot._JsonToDomain(AJson: TJSONObject; ACatalog: TCatalogMetadataMIK): TDomainMIK;
+begin
+  Result := TDomainMIK.Create(ACatalog);
+  try
+    Result.Name := AJson.GetValue<String>('Name');
+    Result.Description := AJson.GetValue<String>('Description', '');
+    Result.TypeName := AJson.GetValue<String>('TypeName', '');
+    Result.NotNull := AJson.GetValue<Boolean>('NotNull', False);
+    Result.DefaultValue := AJson.GetValue<String>('DefaultValue', '');
+    Result.CheckCondition := AJson.GetValue<String>('CheckCondition', '');
+  except
+    Result.Free;
+    raise;
+  end;
+end;
+
+class function TMetadataSnapshot._JsonToProcedure(AJson: TJSONObject; ACatalog: TCatalogMetadataMIK): TProcedureMIK;
+begin
+  Result := TProcedureMIK.Create(ACatalog);
+  try
+    Result.Name := AJson.GetValue<String>('Name');
+    Result.Description := AJson.GetValue<String>('Description', '');
+    Result.Script := AJson.GetValue<String>('Script', '');
+    Result.IsFunction := AJson.GetValue<Boolean>('IsFunction', False);
+  except
+    Result.Free;
+    raise;
+  end;
+end;
+
 class procedure TMetadataSnapshot._JsonToCatalog(AJson: TJSONObject; ACatalog: TCatalogMetadataMIK);
 var
   LArr: TJSONArray;
@@ -751,10 +823,15 @@ var
   LTable: TTableMIK;
   LSequence: TSequenceMIK;
   LView: TViewMIK;
+  LDomain: TDomainMIK;
+  LProcedure: TProcedureMIK;
 begin
   ACatalog.Tables.Clear;
   ACatalog.Sequences.Clear;
   ACatalog.Views.Clear;
+  // FRENTE 15: limpa tambem as colecoes v2 (armadilha das Views).
+  ACatalog.Domains.Clear;
+  ACatalog.Procedures.Clear;
   ACatalog.Name := AJson.GetValue<String>('Name', '');
   ACatalog.Schema := AJson.GetValue<String>('Schema', '');
   ACatalog.Description := AJson.GetValue<String>('Description', '');
@@ -781,6 +858,24 @@ begin
     begin
       LView := _JsonToView(TJSONObject(LArr.Items[LFor]), ACatalog);
       ACatalog.Views.AddOrSetValue(UpperCase(LView.Name), LView);
+    end;
+
+  // FRENTE 15 (v2): ausentes num snapshot v1 -> _JsonArrayOrNil devolve nil e as
+  // colecoes ficam vazias (retrocompatibilidade transparente).
+  LArr := _JsonArrayOrNil(AJson, 'Domains');
+  if LArr <> nil then
+    for LFor := 0 to LArr.Count - 1 do
+    begin
+      LDomain := _JsonToDomain(TJSONObject(LArr.Items[LFor]), ACatalog);
+      ACatalog.Domains.AddOrSetValue(UpperCase(LDomain.Name), LDomain);
+    end;
+
+  LArr := _JsonArrayOrNil(AJson, 'Procedures');
+  if LArr <> nil then
+    for LFor := 0 to LArr.Count - 1 do
+    begin
+      LProcedure := _JsonToProcedure(TJSONObject(LArr.Items[LFor]), ACatalog);
+      ACatalog.Procedures.AddOrSetValue(UpperCase(LProcedure.Name), LProcedure);
     end;
 end;
 
