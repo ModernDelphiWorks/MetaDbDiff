@@ -24,6 +24,7 @@ unit MetaDbDiff.DDL.Generator;
 interface
 
 uses
+  DB,
   SysUtils,
   Generics.Collections,
   MetaDbDiff.DDL.Interfaces,
@@ -83,6 +84,13 @@ type
     function GetFieldNotNullDefinition(AColumn: TColumnMIK): String;
     function GetCreateFieldDefaultDefinition(AColumn: TColumnMIK): String;
     function GetAlterFieldDefaultDefinition(AColumn: TColumnMIK): String;
+    // Shared helpers for GetCreateFieldDefaultDefinition/GetAlterFieldDefaultDefinition:
+    // quote a textual DEFAULT value's literal so it produces valid SQL, without
+    // touching values that are already quoted or known functions/keywords.
+    function IsTextualFieldType(const AFieldType: TFieldType): Boolean;
+    function IsAlreadyQuoted(const AValue: String): Boolean;
+    function IsKnownFunctionOrKeyword(const AValue: String): Boolean;
+    function QuoteDefaultValueIfNeeded(AColumn: TColumnMIK; const AValue: String): String;
     function BuilderCreateFieldDefinition(AColumn: TColumnMIK): String; virtual;
     function BuilderAlterFieldDefinition(AColumn: TColumnMIK): String; virtual;
     function BuilderPrimayKeyDefinition(ATable: TTableMIK): String; virtual;
@@ -265,14 +273,60 @@ begin
   Result := Format(Result, [ASequence.Name]);
 end;
 
+function TDDLSQLGenerator.IsTextualFieldType(const AFieldType: TFieldType): Boolean;
+begin
+  Result := AFieldType in [ftString, ftWideString, ftFixedChar,
+                            ftFixedWideChar, ftMemo, ftWideMemo];
+end;
+
+function TDDLSQLGenerator.IsAlreadyQuoted(const AValue: String): Boolean;
+begin
+  // Length >= 2 guard: a lone apostrophe ("'") must NOT be treated as an
+  // already-quoted value (its single char would otherwise satisfy both the
+  // opening and closing quote check), or it would be emitted unescaped.
+  Result := (Length(AValue) >= 2) and
+            (AValue[1] = '''') and
+            (AValue[Length(AValue)] = '''');
+end;
+
+function TDDLSQLGenerator.IsKnownFunctionOrKeyword(const AValue: String): Boolean;
+var
+  LValue: String;
+begin
+  LValue := AnsiUpperCase(Trim(AValue));
+  Result := (LValue = 'CURRENT_TIMESTAMP') or
+            (LValue = 'CURRENT_DATE') or
+            (LValue = 'CURRENT_TIME') or
+            (LValue = 'NOW()') or
+            (LValue = 'NULL');
+end;
+
+function TDDLSQLGenerator.QuoteDefaultValueIfNeeded(AColumn: TColumnMIK;
+  const AValue: String): String;
+begin
+  Result := AValue;
+  // Textual columns need their default literal quoted, otherwise the DDL
+  // is invalid (e.g. DEFAULT SEM NOME instead of DEFAULT 'SEM NOME').
+  // Values already quoted or known functions/keywords are left untouched,
+  // and non-textual columns keep the original (unquoted) behavior.
+  if IsTextualFieldType(AColumn.FieldType) and
+     not IsAlreadyQuoted(Result) and
+     not IsKnownFunctionOrKeyword(Result) then
+    Result := QuotedStr(Result);
+end;
+
 function TDDLSQLGenerator.GetAlterFieldDefaultDefinition(AColumn: TColumnMIK): String;
 begin
-  Result := IfThen(Length(AColumn.DefaultValue) > 0, AColumn.DefaultValue, '');
+  if Length(AColumn.DefaultValue) = 0 then
+    Exit('');
+  Result := QuoteDefaultValueIfNeeded(AColumn, AColumn.DefaultValue);
 end;
 
 function TDDLSQLGenerator.GetCreateFieldDefaultDefinition(AColumn: TColumnMIK): String;
 begin
-  Result := IfThen(Length(AColumn.DefaultValue) > 0, ' DEFAULT ' + AColumn.DefaultValue, '');
+  if Length(AColumn.DefaultValue) = 0 then
+    Exit('');
+  Result := ' DEFAULT ' + QuoteDefaultValueIfNeeded(AColumn, AColumn.DefaultValue);
 end;
 
 function TDDLSQLGenerator.BuilderAlterFieldDefinition(AColumn: TColumnMIK): String;

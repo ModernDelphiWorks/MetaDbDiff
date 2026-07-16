@@ -646,7 +646,15 @@ begin
   FFieldType := AFieldType;
   FPrecision := APrecision;
   FScale := AScale;
-  FSize := AScale;
+  // Numeric columns are sized via Precision/Scale (see GetFieldTypeDefinition,
+  // which substitutes %p/%s for DECIMAL/NUMERIC/NUMBER/FLOAT types), not via
+  // Size (%l, used only by string/CHAR types and the generic BIGINT fallback).
+  // Leaving FSize at 0 also keeps this in sync with the metadata extraction
+  // path (MetaDbDiff.Metadata.Extract.pas resets Size to 0 for those same
+  // %p/%s type names), so DeepEqualsColumn (MetaDbDiff.Database.Factory.pas)
+  // does not report a spurious Size mismatch between the attribute-mapped
+  // model and the database-extracted metadata for numeric columns.
+  FSize := 0;
   FDescription := ADescription;
 end;
 

@@ -62,6 +62,8 @@ type
     [Test]
     procedure Model_Columns_TypesResolvedForFirebird;
     [Test]
+    procedure Model_Columns_DateTime_OracleKeepsDATE;
+    [Test]
     procedure Model_Columns_NotNullAndDefault;
     [Test]
     procedure Model_PrimaryKey_SimpleAndComposite;
@@ -75,6 +77,8 @@ type
     procedure Model_Sequences_FromModel;
     [Test]
     procedure Model_EndToEnd_FirebirdCreateTableFromExtractedModel;
+    [Test]
+    procedure Model_DefaultValue_QuotingEdgeCases;
   end;
 
 implementation
@@ -150,11 +154,47 @@ begin
   Assert.AreEqual('DECIMAL(%p,%s)', Cliente.Fields['000003'].TypeName);
   Assert.AreEqual(18, Cliente.Fields['000003'].Precision);
   Assert.AreEqual(2, Cliente.Fields['000003'].Scale);
-  // -- documenta comportamento atual, bug conhecido:
-  // ftDateTime em Firebird resolve para 'DATE' (Metadata.Extract.pas,
-  // GetFieldTypeDefinition), perdendo a parte de hora (seria TIMESTAMP).
+  // ftDateTime carries date+time, so on Firebird (dialect 3+) it must resolve
+  // to TIMESTAMP, not DATE (DATE is date-only since dialect 3). Fixed in
+  // Metadata.Extract.pas, GetFieldTypeDefinition.
   Assert.AreEqual('CRIADO_EM', Cliente.Fields['000004'].Name);
-  Assert.AreEqual('DATE', Cliente.Fields['000004'].TypeName);
+  Assert.AreEqual('TIMESTAMP', Cliente.Fields['000004'].TypeName);
+end;
+
+procedure TTestMetadataModel.Model_Columns_DateTime_OracleKeepsDATE;
+var
+  LFDConnection: TFDConnection;
+  LConnection: IDBConnection;
+  LCatalog: TCatalogMetadataMIK;
+  LModel: TModelMetadata;
+begin
+  // Not a bug: Oracle's DATE type stores date+time down to the second, so
+  // ftDateTime must keep mapping to DATE on Oracle (unlike Firebird/
+  // Interbase/PostgreSQL, whose DATE is date-only).
+  LFDConnection := TFDConnection.Create(nil);
+  try
+    LConnection := TFactoryFireDAC.Create(LFDConnection, dnOracle);
+    LCatalog := TCatalogMetadataMIK.Create;
+    try
+      LModel := TModelMetadata.Create;
+      try
+        LModel.Connection := LConnection;
+        LModel.CatalogMetadata := LCatalog;
+        LModel.ModelForDatabase := False;
+        LModel.GetModelMetadata;
+        Assert.AreEqual('CRIADO_EM', LCatalog.Tables['CLIENTE'].Fields['000004'].Name);
+        Assert.AreEqual('DATE', LCatalog.Tables['CLIENTE'].Fields['000004'].TypeName,
+          'Oracle DATE deveria ser mantido para ftDateTime');
+      finally
+        LModel.Free;
+      end;
+    finally
+      LCatalog.Free;
+    end;
+  finally
+    LConnection := nil;
+    LFDConnection.Free;
+  end;
 end;
 
 procedure TTestMetadataModel.Model_Columns_NotNullAndDefault;
@@ -235,11 +275,10 @@ begin
   LSQL := NormalizeSQL(LGenerator.GenerateCreateTable(Cliente));
   Assert.IsTrue(Pos('CREATE TABLE CLIENTE', LSQL) > 0, 'CREATE TABLE ausente: ' + LSQL);
   Assert.IsTrue(Pos('VARCHAR(60)', LSQL) > 0, 'VARCHAR(60) ausente: ' + LSQL);
-  // -- documenta comportamento atual, bug conhecido:
-  // O DefaultExpression string do [Dictionary] vai para o DDL SEM aspas
-  // ("DEFAULT SEM NOME" em vez de "DEFAULT 'SEM NOME'") - ver
-  // TDDLSQLGenerator.GetCreateFieldDefaultDefinition (DDL.Generator.pas).
-  Assert.IsTrue(Pos('DEFAULT SEM NOME', LSQL) > 0, 'DEFAULT ausente: ' + LSQL);
+  // O DefaultExpression string do [Dictionary] deve ir para o DDL COM aspas
+  // simples ("DEFAULT 'SEM NOME'"), pois NOME e uma coluna textual (ftString).
+  // Fixed em TDDLSQLGenerator.GetCreateFieldDefaultDefinition (DDL.Generator.pas).
+  Assert.IsTrue(Pos('DEFAULT ''SEM NOME''', LSQL) > 0, 'DEFAULT ausente ou sem aspas: ' + LSQL);
   Assert.IsTrue(Pos('DECIMAL(18,2)', LSQL) > 0, 'DECIMAL(18,2) ausente: ' + LSQL);
   Assert.IsTrue(Pos('CONSTRAINT PK_CLIENTE PRIMARY KEY (ID)', LSQL) > 0,
     'PK ausente: ' + LSQL);
@@ -247,6 +286,125 @@ begin
     'Indice ausente: ' + LSQL);
   Assert.IsTrue(Pos('CONSTRAINT CK_CLIENTE_IDADE CHECK (IDADE >= 0)', LSQL) > 0,
     'Check ausente: ' + LSQL);
+end;
+
+procedure TTestMetadataModel.Model_DefaultValue_QuotingEdgeCases;
+var
+  LGenerator: IDDLGeneratorCommand;
+  LColumn: TColumnMIK;
+  LSQL: String;
+begin
+  LGenerator := TSQLDriverRegister.GetInstance.GetDriver(dnFirebird);
+
+  // Textual default already quoted by the caller: must not be re-quoted.
+  LColumn := TColumnMIK.Create(Cliente);
+  try
+    LColumn.Name := 'APELIDO';
+    LColumn.FieldType := ftString;
+    LColumn.TypeName := 'VARCHAR(%l)';
+    LColumn.Size := 30;
+    LColumn.DefaultValue := '''JA QUOTADO''';
+    LSQL := NormalizeSQL(LGenerator.GenerateCreateColumn(LColumn));
+    Assert.IsTrue(Pos('DEFAULT ''JA QUOTADO''', LSQL) > 0,
+      'Valor ja quotado deveria permanecer intacto: ' + LSQL);
+    Assert.IsFalse(Pos('DEFAULT ''''JA QUOTADO', LSQL) > 0,
+      'Valor ja quotado nao deveria ser re-quotado: ' + LSQL);
+  finally
+    LColumn.Free;
+  end;
+
+  // Known function/keyword: must not be quoted (case-insensitive).
+  LColumn := TColumnMIK.Create(Cliente);
+  try
+    LColumn.Name := 'ATUALIZADO_EM';
+    LColumn.FieldType := ftDateTime;
+    LColumn.TypeName := 'TIMESTAMP';
+    LColumn.DefaultValue := 'current_timestamp';
+    LSQL := NormalizeSQL(LGenerator.GenerateCreateColumn(LColumn));
+    Assert.IsTrue(Pos('DEFAULT current_timestamp', LSQL) > 0,
+      'CURRENT_TIMESTAMP ausente: ' + LSQL);
+    Assert.IsFalse(Pos('''current_timestamp''', LSQL) > 0,
+      'CURRENT_TIMESTAMP nao deveria ser quotado: ' + LSQL);
+  finally
+    LColumn.Free;
+  end;
+
+  // Internal single quote must be escaped by doubling (SQL standard).
+  LColumn := TColumnMIK.Create(Cliente);
+  try
+    LColumn.Name := 'OBS';
+    LColumn.FieldType := ftString;
+    LColumn.TypeName := 'VARCHAR(%l)';
+    LColumn.Size := 50;
+    LColumn.DefaultValue := 'O''Brien';
+    LSQL := NormalizeSQL(LGenerator.GenerateCreateColumn(LColumn));
+    Assert.IsTrue(Pos('DEFAULT ' + QuotedStr('O''Brien'), LSQL) > 0,
+      'Aspas internas nao escapadas corretamente: ' + LSQL);
+  finally
+    LColumn.Free;
+  end;
+
+  // Numeric column: default must remain unquoted (behavior unchanged).
+  LColumn := TColumnMIK.Create(Cliente);
+  try
+    LColumn.Name := 'QTD';
+    LColumn.FieldType := ftInteger;
+    LColumn.TypeName := 'INTEGER';
+    LColumn.DefaultValue := '0';
+    LSQL := NormalizeSQL(LGenerator.GenerateCreateColumn(LColumn));
+    Assert.IsTrue(Pos('DEFAULT 0', LSQL) > 0, 'Default numerico ausente: ' + LSQL);
+    Assert.IsFalse(Pos('DEFAULT ''0''', LSQL) > 0,
+      'Default numerico nao deveria ser quotado: ' + LSQL);
+  finally
+    LColumn.Free;
+  end;
+
+  // Lone apostrophe: length-1 value equal to ' must NOT be treated as
+  // "already quoted" (IsAlreadyQuoted requires Length >= 2), otherwise it
+  // would be emitted unescaped and break the generated SQL.
+  LColumn := TColumnMIK.Create(Cliente);
+  try
+    LColumn.Name := 'X';
+    LColumn.FieldType := ftString;
+    LColumn.TypeName := 'VARCHAR(%l)';
+    LColumn.Size := 1;
+    LColumn.DefaultValue := '''';
+    LSQL := NormalizeSQL(LGenerator.GenerateCreateColumn(LColumn));
+    Assert.IsTrue(Pos('DEFAULT ' + QuotedStr(''''), LSQL) > 0,
+      'Apostrofo solitario deveria ser escapado corretamente: ' + LSQL);
+  finally
+    LColumn.Free;
+  end;
+
+  // ALTER path (GenerateAlterDefaultValue / GetAlterFieldDefaultDefinition):
+  // textual default must be quoted, same as the CREATE path.
+  LColumn := TColumnMIK.Create(Cliente);
+  try
+    LColumn.Name := 'APELIDO';
+    LColumn.FieldType := ftString;
+    LColumn.TypeName := 'VARCHAR(%l)';
+    LColumn.Size := 30;
+    LColumn.DefaultValue := 'SEM APELIDO';
+    LSQL := NormalizeSQL(LGenerator.GenerateAlterDefaultValue(LColumn));
+    Assert.IsTrue(Pos('SET DEFAULT ''SEM APELIDO''', LSQL) > 0,
+      'ALTER com default textual deveria vir quotado: ' + LSQL);
+  finally
+    LColumn.Free;
+  end;
+
+  // ALTER path: known function/keyword must not be quoted.
+  LColumn := TColumnMIK.Create(Cliente);
+  try
+    LColumn.Name := 'ATUALIZADO_EM';
+    LColumn.FieldType := ftDateTime;
+    LColumn.TypeName := 'TIMESTAMP';
+    LColumn.DefaultValue := 'CURRENT_TIMESTAMP';
+    LSQL := NormalizeSQL(LGenerator.GenerateAlterDefaultValue(LColumn));
+    Assert.IsTrue(Pos('SET DEFAULT CURRENT_TIMESTAMP;', LSQL) > 0,
+      'ALTER com CURRENT_TIMESTAMP nao deveria ser quotado: ' + LSQL);
+  finally
+    LColumn.Free;
+  end;
 end;
 
 initialization
