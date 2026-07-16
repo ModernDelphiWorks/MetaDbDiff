@@ -47,9 +47,9 @@ type
     FConnection: IDBConnection;
     FCatalog: TCatalogMetadataMIK;
     FModel: TModelMetadata;
-    function Cliente: TTableMIK;
-    function Pedido: TTableMIK;
-    function NormalizeSQL(const ASQL: String): String;
+    function _Cliente: TTableMIK;
+    function _Pedido: TTableMIK;
+    function _NormalizeSQL(const ASQL: String): String;
   public
     [Setup]
     procedure Setup;
@@ -106,17 +106,17 @@ begin
   FFDConnection.Free;
 end;
 
-function TTestMetadataModel.Cliente: TTableMIK;
+function TTestMetadataModel._Cliente: TTableMIK;
 begin
   Result := FCatalog.Tables['CLIENTE'];
 end;
 
-function TTestMetadataModel.Pedido: TTableMIK;
+function TTestMetadataModel._Pedido: TTableMIK;
 begin
   Result := FCatalog.Tables['PEDIDO'];
 end;
 
-function TTestMetadataModel.NormalizeSQL(const ASQL: String): String;
+function TTestMetadataModel._NormalizeSQL(const ASQL: String): String;
 begin
   Result := StringReplace(ASQL, #13, ' ', [rfReplaceAll]);
   Result := StringReplace(Result, #10, ' ', [rfReplaceAll]);
@@ -137,28 +137,28 @@ begin
   Assert.AreEqual(2, FCatalog.Tables.Count);
   Assert.IsTrue(FCatalog.Tables.ContainsKey('CLIENTE'), 'CLIENTE nao extraida');
   Assert.IsTrue(FCatalog.Tables.ContainsKey('PEDIDO'), 'PEDIDO nao extraida');
-  Assert.AreEqual('Tabela de clientes', Cliente.Description);
+  Assert.AreEqual('Tabela de clientes', _Cliente.Description);
 end;
 
 procedure TTestMetadataModel.Model_Columns_TypesResolvedForFirebird;
 begin
-  Assert.AreEqual(5, Cliente.Fields.Count);
+  Assert.AreEqual(5, _Cliente.Fields.Count);
   // Chave = FormatFloat('000000', Position)
-  Assert.AreEqual('ID', Cliente.Fields['000000'].Name);
-  Assert.AreEqual('INTEGER', Cliente.Fields['000000'].TypeName);
-  Assert.AreEqual('NOME', Cliente.Fields['000001'].Name);
+  Assert.AreEqual('ID', _Cliente.Fields['000000'].Name);
+  Assert.AreEqual('INTEGER', _Cliente.Fields['000000'].TypeName);
+  Assert.AreEqual('NOME', _Cliente.Fields['000001'].Name);
   // O placeholder %l so e substituido na geracao do DDL, nao na extracao.
-  Assert.AreEqual('VARCHAR(%l)', Cliente.Fields['000001'].TypeName);
-  Assert.AreEqual(60, Cliente.Fields['000001'].Size);
-  Assert.AreEqual('SALDO', Cliente.Fields['000003'].Name);
-  Assert.AreEqual('DECIMAL(%p,%s)', Cliente.Fields['000003'].TypeName);
-  Assert.AreEqual(18, Cliente.Fields['000003'].Precision);
-  Assert.AreEqual(2, Cliente.Fields['000003'].Scale);
+  Assert.AreEqual('VARCHAR(%l)', _Cliente.Fields['000001'].TypeName);
+  Assert.AreEqual(60, _Cliente.Fields['000001'].Size);
+  Assert.AreEqual('SALDO', _Cliente.Fields['000003'].Name);
+  Assert.AreEqual('DECIMAL(%p,%s)', _Cliente.Fields['000003'].TypeName);
+  Assert.AreEqual(18, _Cliente.Fields['000003'].Precision);
+  Assert.AreEqual(2, _Cliente.Fields['000003'].Scale);
   // ftDateTime carries date+time, so on Firebird (dialect 3+) it must resolve
   // to TIMESTAMP, not DATE (DATE is date-only since dialect 3). Fixed in
   // Metadata.Extract.pas, GetFieldTypeDefinition.
-  Assert.AreEqual('CRIADO_EM', Cliente.Fields['000004'].Name);
-  Assert.AreEqual('TIMESTAMP', Cliente.Fields['000004'].TypeName);
+  Assert.AreEqual('CRIADO_EM', _Cliente.Fields['000004'].Name);
+  Assert.AreEqual('TIMESTAMP', _Cliente.Fields['000004'].TypeName);
 end;
 
 procedure TTestMetadataModel.Model_Columns_DateTime_OracleKeepsDATE;
@@ -199,35 +199,35 @@ end;
 
 procedure TTestMetadataModel.Model_Columns_NotNullAndDefault;
 begin
-  Assert.IsTrue(Cliente.Fields['000000'].NotNull, 'ID deveria ser NOT NULL');
-  Assert.IsTrue(Cliente.Fields['000001'].NotNull, 'NOME deveria ser NOT NULL');
-  Assert.IsFalse(Cliente.Fields['000002'].NotNull, 'IDADE nao tem [Restrictions]');
+  Assert.IsTrue(_Cliente.Fields['000000'].NotNull, 'ID deveria ser NOT NULL');
+  Assert.IsTrue(_Cliente.Fields['000001'].NotNull, 'NOME deveria ser NOT NULL');
+  Assert.IsFalse(_Cliente.Fields['000002'].NotNull, 'IDADE nao tem [Restrictions]');
   // Default vem do [Dictionary] (DefaultExpression)
-  Assert.AreEqual('SEM NOME', Cliente.Fields['000001'].DefaultValue);
-  Assert.AreEqual('', Cliente.Fields['000002'].DefaultValue);
+  Assert.AreEqual('SEM NOME', _Cliente.Fields['000001'].DefaultValue);
+  Assert.AreEqual('', _Cliente.Fields['000002'].DefaultValue);
 end;
 
 procedure TTestMetadataModel.Model_PrimaryKey_SimpleAndComposite;
 begin
-  Assert.AreEqual('PK_CLIENTE', Cliente.PrimaryKey.Name);
-  Assert.IsTrue(Cliente.PrimaryKey.AutoIncrement);
-  Assert.AreEqual(1, Cliente.PrimaryKey.Fields.Count);
-  Assert.AreEqual('ID', Cliente.PrimaryKey.Fields['000000'].Name);
+  Assert.AreEqual('PK_CLIENTE', _Cliente.PrimaryKey.Name);
+  Assert.IsTrue(_Cliente.PrimaryKey.AutoIncrement);
+  Assert.AreEqual(1, _Cliente.PrimaryKey.Fields.Count);
+  Assert.AreEqual('ID', _Cliente.PrimaryKey.Fields['000000'].Name);
 
-  Assert.AreEqual('PK_PEDIDO', Pedido.PrimaryKey.Name);
-  Assert.IsFalse(Pedido.PrimaryKey.AutoIncrement);
-  Assert.AreEqual(2, Pedido.PrimaryKey.Fields.Count);
-  Assert.AreEqual('ID_EMPRESA', Pedido.PrimaryKey.Fields['000000'].Name);
-  Assert.AreEqual('ID_PEDIDO', Pedido.PrimaryKey.Fields['000001'].Name);
+  Assert.AreEqual('PK_PEDIDO', _Pedido.PrimaryKey.Name);
+  Assert.IsFalse(_Pedido.PrimaryKey.AutoIncrement);
+  Assert.AreEqual(2, _Pedido.PrimaryKey.Fields.Count);
+  Assert.AreEqual('ID_EMPRESA', _Pedido.PrimaryKey.Fields['000000'].Name);
+  Assert.AreEqual('ID_PEDIDO', _Pedido.PrimaryKey.Fields['000001'].Name);
 end;
 
 procedure TTestMetadataModel.Model_ForeignKey_FromModel;
 var
   LForeignKey: TForeignKeyMIK;
 begin
-  Assert.AreEqual(1, Pedido.ForeignKeys.Count);
-  Assert.IsTrue(Pedido.ForeignKeys.ContainsKey('FK_PEDIDO_CLIENTE'));
-  LForeignKey := Pedido.ForeignKeys['FK_PEDIDO_CLIENTE'];
+  Assert.AreEqual(1, _Pedido.ForeignKeys.Count);
+  Assert.IsTrue(_Pedido.ForeignKeys.ContainsKey('FK_PEDIDO_CLIENTE'));
+  LForeignKey := _Pedido.ForeignKeys['FK_PEDIDO_CLIENTE'];
   Assert.AreEqual('CLIENTE', LForeignKey.FromTable);
   Assert.IsTrue(LForeignKey.OnDelete = TRuleAction.Cascade);
   Assert.IsTrue(LForeignKey.OnUpdate = TRuleAction.SetNull);
@@ -235,27 +235,27 @@ begin
   Assert.AreEqual('ID_CLIENTE', LForeignKey.FromFields['000000'].Name);
   Assert.AreEqual(1, LForeignKey.ToFields.Count);
   Assert.AreEqual('ID', LForeignKey.ToFields['000000'].Name);
-  Assert.AreEqual(0, Cliente.ForeignKeys.Count);
+  Assert.AreEqual(0, _Cliente.ForeignKeys.Count);
 end;
 
 procedure TTestMetadataModel.Model_Checks_FromModel;
 begin
-  Assert.AreEqual(1, Cliente.Checks.Count);
-  Assert.IsTrue(Cliente.Checks.ContainsKey('CK_CLIENTE_IDADE'));
-  Assert.AreEqual('IDADE >= 0', Cliente.Checks['CK_CLIENTE_IDADE'].Condition);
-  Assert.AreEqual(0, Pedido.Checks.Count);
+  Assert.AreEqual(1, _Cliente.Checks.Count);
+  Assert.IsTrue(_Cliente.Checks.ContainsKey('CK_CLIENTE_IDADE'));
+  Assert.AreEqual('IDADE >= 0', _Cliente.Checks['CK_CLIENTE_IDADE'].Condition);
+  Assert.AreEqual(0, _Pedido.Checks.Count);
 end;
 
 procedure TTestMetadataModel.Model_Indexes_FromModel;
 begin
-  Assert.AreEqual(1, Cliente.IndexeKeys.Count);
-  Assert.IsTrue(Cliente.IndexeKeys.ContainsKey('IDX_CLIENTE_NOME'));
-  Assert.IsFalse(Cliente.IndexeKeys['IDX_CLIENTE_NOME'].Unique);
-  Assert.AreEqual('NOME', Cliente.IndexeKeys['IDX_CLIENTE_NOME'].Fields['000000'].Name);
+  Assert.AreEqual(1, _Cliente.IndexeKeys.Count);
+  Assert.IsTrue(_Cliente.IndexeKeys.ContainsKey('IDX_CLIENTE_NOME'));
+  Assert.IsFalse(_Cliente.IndexeKeys['IDX_CLIENTE_NOME'].Unique);
+  Assert.AreEqual('NOME', _Cliente.IndexeKeys['IDX_CLIENTE_NOME'].Fields['000000'].Name);
 
-  Assert.AreEqual(1, Pedido.IndexeKeys.Count);
-  Assert.IsTrue(Pedido.IndexeKeys['IDX_PEDIDO_UNQ'].Unique);
-  Assert.AreEqual(2, Pedido.IndexeKeys['IDX_PEDIDO_UNQ'].Fields.Count);
+  Assert.AreEqual(1, _Pedido.IndexeKeys.Count);
+  Assert.IsTrue(_Pedido.IndexeKeys['IDX_PEDIDO_UNQ'].Unique);
+  Assert.AreEqual(2, _Pedido.IndexeKeys['IDX_PEDIDO_UNQ'].Fields.Count);
 end;
 
 procedure TTestMetadataModel.Model_Sequences_FromModel;
@@ -272,7 +272,7 @@ var
 begin
   // Integracao: entidade decorada -> extracao MIK -> DDL Firebird.
   LGenerator := TSQLDriverRegister.GetInstance.GetDriver(dnFirebird);
-  LSQL := NormalizeSQL(LGenerator.GenerateCreateTable(Cliente));
+  LSQL := _NormalizeSQL(LGenerator.GenerateCreateTable(_Cliente));
   Assert.IsTrue(Pos('CREATE TABLE CLIENTE', LSQL) > 0, 'CREATE TABLE ausente: ' + LSQL);
   Assert.IsTrue(Pos('VARCHAR(60)', LSQL) > 0, 'VARCHAR(60) ausente: ' + LSQL);
   // O DefaultExpression string do [Dictionary] deve ir para o DDL COM aspas
@@ -297,14 +297,14 @@ begin
   LGenerator := TSQLDriverRegister.GetInstance.GetDriver(dnFirebird);
 
   // Textual default already quoted by the caller: must not be re-quoted.
-  LColumn := TColumnMIK.Create(Cliente);
+  LColumn := TColumnMIK.Create(_Cliente);
   try
     LColumn.Name := 'APELIDO';
     LColumn.FieldType := ftString;
     LColumn.TypeName := 'VARCHAR(%l)';
     LColumn.Size := 30;
     LColumn.DefaultValue := '''JA QUOTADO''';
-    LSQL := NormalizeSQL(LGenerator.GenerateCreateColumn(LColumn));
+    LSQL := _NormalizeSQL(LGenerator.GenerateCreateColumn(LColumn));
     Assert.IsTrue(Pos('DEFAULT ''JA QUOTADO''', LSQL) > 0,
       'Valor ja quotado deveria permanecer intacto: ' + LSQL);
     Assert.IsFalse(Pos('DEFAULT ''''JA QUOTADO', LSQL) > 0,
@@ -314,13 +314,13 @@ begin
   end;
 
   // Known function/keyword: must not be quoted (case-insensitive).
-  LColumn := TColumnMIK.Create(Cliente);
+  LColumn := TColumnMIK.Create(_Cliente);
   try
     LColumn.Name := 'ATUALIZADO_EM';
     LColumn.FieldType := ftDateTime;
     LColumn.TypeName := 'TIMESTAMP';
     LColumn.DefaultValue := 'current_timestamp';
-    LSQL := NormalizeSQL(LGenerator.GenerateCreateColumn(LColumn));
+    LSQL := _NormalizeSQL(LGenerator.GenerateCreateColumn(LColumn));
     Assert.IsTrue(Pos('DEFAULT current_timestamp', LSQL) > 0,
       'CURRENT_TIMESTAMP ausente: ' + LSQL);
     Assert.IsFalse(Pos('''current_timestamp''', LSQL) > 0,
@@ -330,14 +330,14 @@ begin
   end;
 
   // Internal single quote must be escaped by doubling (SQL standard).
-  LColumn := TColumnMIK.Create(Cliente);
+  LColumn := TColumnMIK.Create(_Cliente);
   try
     LColumn.Name := 'OBS';
     LColumn.FieldType := ftString;
     LColumn.TypeName := 'VARCHAR(%l)';
     LColumn.Size := 50;
     LColumn.DefaultValue := 'O''Brien';
-    LSQL := NormalizeSQL(LGenerator.GenerateCreateColumn(LColumn));
+    LSQL := _NormalizeSQL(LGenerator.GenerateCreateColumn(LColumn));
     Assert.IsTrue(Pos('DEFAULT ' + QuotedStr('O''Brien'), LSQL) > 0,
       'Aspas internas nao escapadas corretamente: ' + LSQL);
   finally
@@ -345,13 +345,13 @@ begin
   end;
 
   // Numeric column: default must remain unquoted (behavior unchanged).
-  LColumn := TColumnMIK.Create(Cliente);
+  LColumn := TColumnMIK.Create(_Cliente);
   try
     LColumn.Name := 'QTD';
     LColumn.FieldType := ftInteger;
     LColumn.TypeName := 'INTEGER';
     LColumn.DefaultValue := '0';
-    LSQL := NormalizeSQL(LGenerator.GenerateCreateColumn(LColumn));
+    LSQL := _NormalizeSQL(LGenerator.GenerateCreateColumn(LColumn));
     Assert.IsTrue(Pos('DEFAULT 0', LSQL) > 0, 'Default numerico ausente: ' + LSQL);
     Assert.IsFalse(Pos('DEFAULT ''0''', LSQL) > 0,
       'Default numerico nao deveria ser quotado: ' + LSQL);
@@ -362,14 +362,14 @@ begin
   // Lone apostrophe: length-1 value equal to ' must NOT be treated as
   // "already quoted" (IsAlreadyQuoted requires Length >= 2), otherwise it
   // would be emitted unescaped and break the generated SQL.
-  LColumn := TColumnMIK.Create(Cliente);
+  LColumn := TColumnMIK.Create(_Cliente);
   try
     LColumn.Name := 'X';
     LColumn.FieldType := ftString;
     LColumn.TypeName := 'VARCHAR(%l)';
     LColumn.Size := 1;
     LColumn.DefaultValue := '''';
-    LSQL := NormalizeSQL(LGenerator.GenerateCreateColumn(LColumn));
+    LSQL := _NormalizeSQL(LGenerator.GenerateCreateColumn(LColumn));
     Assert.IsTrue(Pos('DEFAULT ' + QuotedStr(''''), LSQL) > 0,
       'Apostrofo solitario deveria ser escapado corretamente: ' + LSQL);
   finally
@@ -378,14 +378,14 @@ begin
 
   // ALTER path (GenerateAlterDefaultValue / GetAlterFieldDefaultDefinition):
   // textual default must be quoted, same as the CREATE path.
-  LColumn := TColumnMIK.Create(Cliente);
+  LColumn := TColumnMIK.Create(_Cliente);
   try
     LColumn.Name := 'APELIDO';
     LColumn.FieldType := ftString;
     LColumn.TypeName := 'VARCHAR(%l)';
     LColumn.Size := 30;
     LColumn.DefaultValue := 'SEM APELIDO';
-    LSQL := NormalizeSQL(LGenerator.GenerateAlterDefaultValue(LColumn));
+    LSQL := _NormalizeSQL(LGenerator.GenerateAlterDefaultValue(LColumn));
     Assert.IsTrue(Pos('SET DEFAULT ''SEM APELIDO''', LSQL) > 0,
       'ALTER com default textual deveria vir quotado: ' + LSQL);
   finally
@@ -393,13 +393,13 @@ begin
   end;
 
   // ALTER path: known function/keyword must not be quoted.
-  LColumn := TColumnMIK.Create(Cliente);
+  LColumn := TColumnMIK.Create(_Cliente);
   try
     LColumn.Name := 'ATUALIZADO_EM';
     LColumn.FieldType := ftDateTime;
     LColumn.TypeName := 'TIMESTAMP';
     LColumn.DefaultValue := 'CURRENT_TIMESTAMP';
-    LSQL := NormalizeSQL(LGenerator.GenerateAlterDefaultValue(LColumn));
+    LSQL := _NormalizeSQL(LGenerator.GenerateAlterDefaultValue(LColumn));
     Assert.IsTrue(Pos('SET DEFAULT CURRENT_TIMESTAMP;', LSQL) > 0,
       'ALTER com CURRENT_TIMESTAMP nao deveria ser quotado: ' + LSQL);
   finally

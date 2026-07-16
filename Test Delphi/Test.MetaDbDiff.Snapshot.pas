@@ -72,20 +72,20 @@ type
   TTestMetadataSnapshot = class
   private
     FSnapshotFile: String;
-    function BuildRichCatalog: TCatalogMetadataMIK;
-    procedure AssertColumnsEqual(AExpected, AActual: TColumnMIK; const AContext: String);
-    procedure AssertColumnDictEqual(AExpected, AActual: TObjectDictionary<String, TColumnMIK>;
+    function _BuildRichCatalog: TCatalogMetadataMIK;
+    procedure _AssertColumnsEqual(AExpected, AActual: TColumnMIK; const AContext: String);
+    procedure _AssertColumnDictEqual(AExpected, AActual: TObjectDictionary<String, TColumnMIK>;
       const AContext: String);
-    procedure AssertPrimaryKeyEqual(AExpected, AActual: TPrimaryKeyMIK; const AContext: String);
-    procedure AssertForeignKeysEqual(AExpected, AActual: TTableMIK; const AContext: String);
-    procedure AssertIndexesEqual(AExpected, AActual: TTableMIK; const AContext: String);
-    procedure AssertChecksEqual(AExpected, AActual: TTableMIK; const AContext: String);
-    procedure AssertTriggersEqual(AExpected, AActual: TTableMIK; const AContext: String);
-    procedure AssertTablesEqual(AExpected, AActual: TCatalogMetadataMIK);
-    procedure AssertSequencesEqual(AExpected, AActual: TCatalogMetadataMIK);
-    procedure AssertViewsEqual(AExpected, AActual: TCatalogMetadataMIK);
-    procedure AssertCatalogsEqual(AExpected, AActual: TCatalogMetadataMIK);
-    function DiffCommandCount(AMaster, ATarget: TCatalogMetadataMIK): Integer;
+    procedure _AssertPrimaryKeyEqual(AExpected, AActual: TPrimaryKeyMIK; const AContext: String);
+    procedure _AssertForeignKeysEqual(AExpected, AActual: TTableMIK; const AContext: String);
+    procedure _AssertIndexesEqual(AExpected, AActual: TTableMIK; const AContext: String);
+    procedure _AssertChecksEqual(AExpected, AActual: TTableMIK; const AContext: String);
+    procedure _AssertTriggersEqual(AExpected, AActual: TTableMIK; const AContext: String);
+    procedure _AssertTablesEqual(AExpected, AActual: TCatalogMetadataMIK);
+    procedure _AssertSequencesEqual(AExpected, AActual: TCatalogMetadataMIK);
+    procedure _AssertViewsEqual(AExpected, AActual: TCatalogMetadataMIK);
+    procedure _AssertCatalogsEqual(AExpected, AActual: TCatalogMetadataMIK);
+    function _DiffCommandCount(AMaster, ATarget: TCatalogMetadataMIK): Integer;
   public
     [Setup]
     procedure Setup;
@@ -154,7 +154,7 @@ begin
     TFile.Delete(FSnapshotFile);
 end;
 
-function TTestMetadataSnapshot.BuildRichCatalog: TCatalogMetadataMIK;
+function TTestMetadataSnapshot._BuildRichCatalog: TCatalogMetadataMIK;
 var
   LCliente, LPedido: TTableMIK;
   LColumn: TColumnMIK;
@@ -359,7 +359,7 @@ begin
   Result.Views.Add(UpperCase(LView.Name), LView);
 end;
 
-procedure TTestMetadataSnapshot.AssertColumnsEqual(AExpected, AActual: TColumnMIK; const AContext: String);
+procedure TTestMetadataSnapshot._AssertColumnsEqual(AExpected, AActual: TColumnMIK; const AContext: String);
 begin
   Assert.AreEqual(AExpected.Name, AActual.Name, AContext + '.Name');
   Assert.AreEqual(AExpected.Description, AActual.Description, AContext + '.Description');
@@ -377,7 +377,7 @@ begin
   Assert.AreEqual(AExpected.CharSet, AActual.CharSet, AContext + '.CharSet');
 end;
 
-procedure TTestMetadataSnapshot.AssertColumnDictEqual(AExpected, AActual: TObjectDictionary<String, TColumnMIK>;
+procedure TTestMetadataSnapshot._AssertColumnDictEqual(AExpected, AActual: TObjectDictionary<String, TColumnMIK>;
   const AContext: String);
 var
   LPair: TPair<String, TColumnMIK>;
@@ -387,19 +387,19 @@ begin
   begin
     Assert.IsTrue(AActual.ContainsKey(LPair.Key),
       AContext + ': chave "' + LPair.Key + '" ausente apos o round-trip');
-    AssertColumnsEqual(LPair.Value, AActual[LPair.Key], AContext + '[' + LPair.Key + ']');
+    _AssertColumnsEqual(LPair.Value, AActual[LPair.Key], AContext + '[' + LPair.Key + ']');
   end;
 end;
 
-procedure TTestMetadataSnapshot.AssertPrimaryKeyEqual(AExpected, AActual: TPrimaryKeyMIK; const AContext: String);
+procedure TTestMetadataSnapshot._AssertPrimaryKeyEqual(AExpected, AActual: TPrimaryKeyMIK; const AContext: String);
 begin
   Assert.AreEqual(AExpected.Name, AActual.Name, AContext + '.PrimaryKey.Name');
   Assert.AreEqual(AExpected.Description, AActual.Description, AContext + '.PrimaryKey.Description');
   Assert.AreEqual(AExpected.AutoIncrement, AActual.AutoIncrement, AContext + '.PrimaryKey.AutoIncrement');
-  AssertColumnDictEqual(AExpected.Fields, AActual.Fields, AContext + '.PrimaryKey.Fields');
+  _AssertColumnDictEqual(AExpected.Fields, AActual.Fields, AContext + '.PrimaryKey.Fields');
 end;
 
-procedure TTestMetadataSnapshot.AssertForeignKeysEqual(AExpected, AActual: TTableMIK; const AContext: String);
+procedure TTestMetadataSnapshot._AssertForeignKeysEqual(AExpected, AActual: TTableMIK; const AContext: String);
 var
   LPair: TPair<String, TForeignKeyMIK>;
   LOther: TForeignKeyMIK;
@@ -415,12 +415,12 @@ begin
     Assert.AreEqual(LPair.Value.FromTable, LOther.FromTable, AContext + '.ForeignKeys.FromTable');
     Assert.IsTrue(LPair.Value.OnUpdate = LOther.OnUpdate, AContext + '.ForeignKeys.OnUpdate');
     Assert.IsTrue(LPair.Value.OnDelete = LOther.OnDelete, AContext + '.ForeignKeys.OnDelete');
-    AssertColumnDictEqual(LPair.Value.FromFields, LOther.FromFields, AContext + '.ForeignKeys.FromFields');
-    AssertColumnDictEqual(LPair.Value.ToFields, LOther.ToFields, AContext + '.ForeignKeys.ToFields');
+    _AssertColumnDictEqual(LPair.Value.FromFields, LOther.FromFields, AContext + '.ForeignKeys.FromFields');
+    _AssertColumnDictEqual(LPair.Value.ToFields, LOther.ToFields, AContext + '.ForeignKeys.ToFields');
   end;
 end;
 
-procedure TTestMetadataSnapshot.AssertIndexesEqual(AExpected, AActual: TTableMIK; const AContext: String);
+procedure TTestMetadataSnapshot._AssertIndexesEqual(AExpected, AActual: TTableMIK; const AContext: String);
 var
   LPair: TPair<String, TIndexeKeyMIK>;
   LOther: TIndexeKeyMIK;
@@ -434,11 +434,11 @@ begin
     Assert.AreEqual(LPair.Value.Name, LOther.Name, AContext + '.IndexeKeys.Name');
     Assert.AreEqual(LPair.Value.Description, LOther.Description, AContext + '.IndexeKeys.Description');
     Assert.AreEqual(LPair.Value.Unique, LOther.Unique, AContext + '.IndexeKeys.Unique');
-    AssertColumnDictEqual(LPair.Value.Fields, LOther.Fields, AContext + '.IndexeKeys.Fields');
+    _AssertColumnDictEqual(LPair.Value.Fields, LOther.Fields, AContext + '.IndexeKeys.Fields');
   end;
 end;
 
-procedure TTestMetadataSnapshot.AssertChecksEqual(AExpected, AActual: TTableMIK; const AContext: String);
+procedure TTestMetadataSnapshot._AssertChecksEqual(AExpected, AActual: TTableMIK; const AContext: String);
 var
   LPair: TPair<String, TCheckMIK>;
   LOther: TCheckMIK;
@@ -455,7 +455,7 @@ begin
   end;
 end;
 
-procedure TTestMetadataSnapshot.AssertTriggersEqual(AExpected, AActual: TTableMIK; const AContext: String);
+procedure TTestMetadataSnapshot._AssertTriggersEqual(AExpected, AActual: TTableMIK; const AContext: String);
 var
   LPair: TPair<String, TTriggerMIK>;
   LOther: TTriggerMIK;
@@ -472,7 +472,7 @@ begin
   end;
 end;
 
-procedure TTestMetadataSnapshot.AssertTablesEqual(AExpected, AActual: TCatalogMetadataMIK);
+procedure TTestMetadataSnapshot._AssertTablesEqual(AExpected, AActual: TCatalogMetadataMIK);
 var
   LPair: TPair<String, TTableMIK>;
   LOther: TTableMIK;
@@ -487,16 +487,16 @@ begin
     LContext := 'Tables[' + LPair.Key + ']';
     Assert.AreEqual(LPair.Value.Name, LOther.Name, LContext + '.Name');
     Assert.AreEqual(LPair.Value.Description, LOther.Description, LContext + '.Description');
-    AssertColumnDictEqual(LPair.Value.Fields, LOther.Fields, LContext + '.Fields');
-    AssertPrimaryKeyEqual(LPair.Value.PrimaryKey, LOther.PrimaryKey, LContext);
-    AssertIndexesEqual(LPair.Value, LOther, LContext);
-    AssertForeignKeysEqual(LPair.Value, LOther, LContext);
-    AssertChecksEqual(LPair.Value, LOther, LContext);
-    AssertTriggersEqual(LPair.Value, LOther, LContext);
+    _AssertColumnDictEqual(LPair.Value.Fields, LOther.Fields, LContext + '.Fields');
+    _AssertPrimaryKeyEqual(LPair.Value.PrimaryKey, LOther.PrimaryKey, LContext);
+    _AssertIndexesEqual(LPair.Value, LOther, LContext);
+    _AssertForeignKeysEqual(LPair.Value, LOther, LContext);
+    _AssertChecksEqual(LPair.Value, LOther, LContext);
+    _AssertTriggersEqual(LPair.Value, LOther, LContext);
   end;
 end;
 
-procedure TTestMetadataSnapshot.AssertSequencesEqual(AExpected, AActual: TCatalogMetadataMIK);
+procedure TTestMetadataSnapshot._AssertSequencesEqual(AExpected, AActual: TCatalogMetadataMIK);
 var
   LPair: TPair<String, TSequenceMIK>;
   LOther: TSequenceMIK;
@@ -515,7 +515,7 @@ begin
   end;
 end;
 
-procedure TTestMetadataSnapshot.AssertViewsEqual(AExpected, AActual: TCatalogMetadataMIK);
+procedure TTestMetadataSnapshot._AssertViewsEqual(AExpected, AActual: TCatalogMetadataMIK);
 var
   LPair: TPair<String, TViewMIK>;
   LOther: TViewMIK;
@@ -529,21 +529,21 @@ begin
     Assert.AreEqual(LPair.Value.Name, LOther.Name, 'Views.Name');
     Assert.AreEqual(LPair.Value.Description, LOther.Description, 'Views.Description');
     Assert.AreEqual(LPair.Value.Script, LOther.Script, 'Views.Script');
-    AssertColumnDictEqual(LPair.Value.Fields, LOther.Fields, 'Views.Fields');
+    _AssertColumnDictEqual(LPair.Value.Fields, LOther.Fields, 'Views.Fields');
   end;
 end;
 
-procedure TTestMetadataSnapshot.AssertCatalogsEqual(AExpected, AActual: TCatalogMetadataMIK);
+procedure TTestMetadataSnapshot._AssertCatalogsEqual(AExpected, AActual: TCatalogMetadataMIK);
 begin
   Assert.AreEqual(AExpected.Name, AActual.Name, 'Catalog.Name');
   Assert.AreEqual(AExpected.Schema, AActual.Schema, 'Catalog.Schema');
   Assert.AreEqual(AExpected.Description, AActual.Description, 'Catalog.Description');
-  AssertTablesEqual(AExpected, AActual);
-  AssertSequencesEqual(AExpected, AActual);
-  AssertViewsEqual(AExpected, AActual);
+  _AssertTablesEqual(AExpected, AActual);
+  _AssertSequencesEqual(AExpected, AActual);
+  _AssertViewsEqual(AExpected, AActual);
 end;
 
-function TTestMetadataSnapshot.DiffCommandCount(AMaster, ATarget: TCatalogMetadataMIK): Integer;
+function TTestMetadataSnapshot._DiffCommandCount(AMaster, ATarget: TCatalogMetadataMIK): Integer;
 var
   LFactory: TDiffOnlyFactory;
   LCommand: TDDLCommand;
@@ -573,14 +573,14 @@ procedure TTestMetadataSnapshot.RoundTrip_FieldByField_IsFaithful;
 var
   LOriginal, LLoaded: TCatalogMetadataMIK;
 begin
-  LOriginal := BuildRichCatalog;
+  LOriginal := _BuildRichCatalog;
   try
     TMetadataSnapshot.SaveToFile(LOriginal, FSnapshotFile, dnFirebird, 'teste de round-trip');
     Assert.IsTrue(FileExists(FSnapshotFile), 'SaveToFile deveria ter criado o arquivo');
 
     LLoaded := TMetadataSnapshot.LoadFromFile(FSnapshotFile);
     try
-      AssertCatalogsEqual(LOriginal, LLoaded);
+      _AssertCatalogsEqual(LOriginal, LLoaded);
     finally
       LLoaded.Free;
     end;
@@ -593,12 +593,12 @@ procedure TTestMetadataSnapshot.RoundTrip_DiffAgainstOriginal_ProducesZeroComman
 var
   LOriginal, LLoaded: TCatalogMetadataMIK;
 begin
-  LOriginal := BuildRichCatalog;
+  LOriginal := _BuildRichCatalog;
   try
     TMetadataSnapshot.SaveToFile(LOriginal, FSnapshotFile, dnFirebird, 'teste de diff zero');
     LLoaded := TMetadataSnapshot.LoadFromFile(FSnapshotFile);
     try
-      Assert.AreEqual(0, DiffCommandCount(LOriginal, LLoaded),
+      Assert.AreEqual(0, _DiffCommandCount(LOriginal, LLoaded),
         'Diff entre o catalogo original e o catalogo recarregado do snapshot ' +
         'deveria gerar ZERO comandos DDL');
     finally
@@ -770,7 +770,7 @@ var
   LOriginal, LCatalog: TCatalogMetadataMIK;
   LFactory: TMetadataSnapshotFactory;
 begin
-  LOriginal := BuildRichCatalog;
+  LOriginal := _BuildRichCatalog;
   try
     TMetadataSnapshot.SaveToFile(LOriginal, FSnapshotFile, dnFirebird, '');
   finally
@@ -840,7 +840,7 @@ begin
           LModel.Free;
         end;
 
-        Assert.AreEqual(0, DiffCommandCount(LFreshCatalog, LLoadedCatalog),
+        Assert.AreEqual(0, _DiffCommandCount(LFreshCatalog, LLoadedCatalog),
           'Diff entre o modelo extraido direto e o modelo recarregado do ' +
           'snapshot deveria gerar ZERO comandos DDL');
       finally

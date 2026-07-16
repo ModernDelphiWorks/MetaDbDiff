@@ -42,21 +42,21 @@ type
   private
     FCatalog: TCatalogMetadataMIK;
     FCommands: TObjectList<TDDLCommand>;
-    function AddTable(const AName: String): TTableMIK;
+    function _AddTable(const AName: String): TTableMIK;
     /// <summary>Adds a FK on AChild referencing AParentName (AParentName is the
     ///   parent/referenced table = TForeignKeyMIK.FromTable).</summary>
-    procedure AddFK(AChild: TTableMIK; const AParentName: String);
-    function AddColumn(ATable: TTableMIK; const AName: String): TColumnMIK;
-    function NewCreateTable(ATable: TTableMIK): TDDLCommand;
-    function NewDropTable(ATable: TTableMIK): TDDLCommand;
-    function Add(ACommand: TDDLCommand): TDDLCommand;
+    procedure _AddFK(AChild: TTableMIK; const AParentName: String);
+    function _AddColumn(ATable: TTableMIK; const AName: String): TColumnMIK;
+    function _NewCreateTable(ATable: TTableMIK): TDDLCommand;
+    function _NewDropTable(ATable: TTableMIK): TDDLCommand;
+    function _Add(ACommand: TDDLCommand): TDDLCommand;
     /// <summary>ObjectNames of the items classified into APhase, in final order.</summary>
-    function PhaseNames(const AReport: TDDLSequenceReport; APhase: TDDLPhase): TArray<String>;
-    function Firebird: IDDLGeneratorCommand;
+    function _PhaseNames(const AReport: TDDLSequenceReport; APhase: TDDLPhase): TArray<String>;
+    function _Firebird: IDDLGeneratorCommand;
     /// <summary>Builds a CREATE TABLE command (with SQL) for a table with 1 column.</summary>
-    function BuiltCreateTable(const AName: String): TDDLCommand;
+    function _BuiltCreateTable(const AName: String): TDDLCommand;
     /// <summary>Builds a CREATE SEQUENCE command (with SQL).</summary>
-    function BuiltCreateSequence(const AName: String): TDDLCommand;
+    function _BuiltCreateSequence(const AName: String): TDDLCommand;
   public
     [Setup]
     procedure Setup;
@@ -119,14 +119,14 @@ begin
   FCatalog.Free;     // owns the MIK objects (doOwnsValues)
 end;
 
-function TTestDDLSequencer.AddTable(const AName: String): TTableMIK;
+function TTestDDLSequencer._AddTable(const AName: String): TTableMIK;
 begin
   Result := TTableMIK.Create(FCatalog);
   Result.Name := AName;
   FCatalog.Tables.Add(AName, Result);
 end;
 
-function TTestDDLSequencer.AddColumn(ATable: TTableMIK;
+function TTestDDLSequencer._AddColumn(ATable: TTableMIK;
   const AName: String): TColumnMIK;
 begin
   Result := TColumnMIK.Create(ATable);
@@ -136,7 +136,7 @@ begin
   ATable.Fields.Add(AName, Result);
 end;
 
-procedure TTestDDLSequencer.AddFK(AChild: TTableMIK; const AParentName: String);
+procedure TTestDDLSequencer._AddFK(AChild: TTableMIK; const AParentName: String);
 var
   LFK: TForeignKeyMIK;
 begin
@@ -146,23 +146,23 @@ begin
   AChild.ForeignKeys.Add(LFK.Name, LFK);
 end;
 
-function TTestDDLSequencer.Add(ACommand: TDDLCommand): TDDLCommand;
+function TTestDDLSequencer._Add(ACommand: TDDLCommand): TDDLCommand;
 begin
   FCommands.Add(ACommand);
   Result := ACommand;
 end;
 
-function TTestDDLSequencer.NewCreateTable(ATable: TTableMIK): TDDLCommand;
+function TTestDDLSequencer._NewCreateTable(ATable: TTableMIK): TDDLCommand;
 begin
-  Result := Add(TDDLCommandCreateTable.Create(ATable));
+  Result := _Add(TDDLCommandCreateTable.Create(ATable));
 end;
 
-function TTestDDLSequencer.NewDropTable(ATable: TTableMIK): TDDLCommand;
+function TTestDDLSequencer._NewDropTable(ATable: TTableMIK): TDDLCommand;
 begin
-  Result := Add(TDDLCommandDropTable.Create(ATable));
+  Result := _Add(TDDLCommandDropTable.Create(ATable));
 end;
 
-function TTestDDLSequencer.PhaseNames(const AReport: TDDLSequenceReport;
+function TTestDDLSequencer._PhaseNames(const AReport: TDDLSequenceReport;
   APhase: TDDLPhase): TArray<String>;
 var
   LItem: TDDLPhaseItem;
@@ -173,22 +173,22 @@ begin
       Result := Result + [LItem.ObjectName];
 end;
 
-function TTestDDLSequencer.Firebird: IDDLGeneratorCommand;
+function TTestDDLSequencer._Firebird: IDDLGeneratorCommand;
 begin
   Result := TSQLDriverRegister.GetInstance.GetDriver(dnFirebird);
 end;
 
-function TTestDDLSequencer.BuiltCreateTable(const AName: String): TDDLCommand;
+function TTestDDLSequencer._BuiltCreateTable(const AName: String): TDDLCommand;
 var
   LTable: TTableMIK;
 begin
-  LTable := AddTable(AName);
-  AddColumn(LTable, 'ID');
-  Result := Add(TDDLCommandCreateTable.Create(LTable));
-  Result.BuildCommand(Firebird);   // F1 guarantees the SQL is built
+  LTable := _AddTable(AName);
+  _AddColumn(LTable, 'ID');
+  Result := _Add(TDDLCommandCreateTable.Create(LTable));
+  Result.BuildCommand(_Firebird);   // F1 guarantees the SQL is built
 end;
 
-function TTestDDLSequencer.BuiltCreateSequence(const AName: String): TDDLCommand;
+function TTestDDLSequencer._BuiltCreateSequence(const AName: String): TDDLCommand;
 var
   LSeq: TSequenceMIK;
 begin
@@ -197,8 +197,8 @@ begin
   LSeq.InitialValue := 1;
   LSeq.Increment := 1;
   FCatalog.Sequences.Add(AName, LSeq);
-  Result := Add(TDDLCommandCreateSequence.Create(LSeq));
-  Result.BuildCommand(Firebird);
+  Result := _Add(TDDLCommandCreateSequence.Create(LSeq));
+  Result.BuildCommand(_Firebird);
 end;
 
 procedure TTestDDLSequencer.TopologicalOrder_A_B_C;
@@ -209,16 +209,16 @@ var
   LOrder: TArray<String>;
 begin
   // C references B, B references A  ->  create A, then B, then C.
-  LA := AddTable('A');
-  LB := AddTable('B');
-  LC := AddTable('C');
-  AddFK(LB, 'A');
-  AddFK(LC, 'B');
+  LA := _AddTable('A');
+  LB := _AddTable('B');
+  LC := _AddTable('C');
+  _AddFK(LB, 'A');
+  _AddFK(LC, 'B');
 
   // Feed the commands scrambled on purpose.
-  NewCreateTable(LC);
-  NewCreateTable(LA);
-  NewCreateTable(LB);
+  _NewCreateTable(LC);
+  _NewCreateTable(LA);
+  _NewCreateTable(LB);
 
   LSeq := TDDLSequencer.Create(FCatalog);
   try
@@ -227,7 +227,7 @@ begin
     LSeq.Free;
   end;
 
-  LOrder := PhaseNames(LReport, dphCreateTables);
+  LOrder := _PhaseNames(LReport, dphCreateTables);
   Assert.AreEqual(3, Length(LOrder));
   Assert.AreEqual('A', LOrder[0]);
   Assert.AreEqual('B', LOrder[1]);
@@ -242,15 +242,15 @@ var
   LOrder1, LOrder2: TArray<String>;
 begin
   // Two independent tables: ties broken deterministically by CompareStr (X < Y).
-  LY := AddTable('Y');
-  LX := AddTable('X');
-  NewCreateTable(LY);
-  NewCreateTable(LX);
+  LY := _AddTable('Y');
+  LX := _AddTable('X');
+  _NewCreateTable(LY);
+  _NewCreateTable(LX);
 
   LSeq := TDDLSequencer.Create(FCatalog);
   try
-    LOrder1 := PhaseNames(LSeq.Sequence(FCommands.ToArray), dphCreateTables);
-    LOrder2 := PhaseNames(LSeq.Sequence(FCommands.ToArray), dphCreateTables);
+    LOrder1 := _PhaseNames(LSeq.Sequence(FCommands.ToArray), dphCreateTables);
+    LOrder2 := _PhaseNames(LSeq.Sequence(FCommands.ToArray), dphCreateTables);
   finally
     LSeq.Free;
   end;
@@ -270,12 +270,12 @@ var
   LOrder: TArray<String>;
 begin
   // A <-> B mutual references form a cycle.
-  LA := AddTable('A');
-  LB := AddTable('B');
-  AddFK(LA, 'B');
-  AddFK(LB, 'A');
-  NewCreateTable(LA);
-  NewCreateTable(LB);
+  LA := _AddTable('A');
+  LB := _AddTable('B');
+  _AddFK(LA, 'B');
+  _AddFK(LB, 'A');
+  _NewCreateTable(LA);
+  _NewCreateTable(LB);
 
   LSeq := TDDLSequencer.Create(FCatalog);
   try
@@ -291,7 +291,7 @@ begin
   Assert.AreEqual('B', LReport.Cycles[0].Tables[1]);
   Assert.IsFalse(LReport.Cycles[0].IsDrop);
   // Both tables are still emitted (original order preserved for cyclic ones).
-  LOrder := PhaseNames(LReport, dphCreateTables);
+  LOrder := _PhaseNames(LReport, dphCreateTables);
   Assert.AreEqual(2, Length(LOrder));
 end;
 
@@ -303,15 +303,15 @@ var
   LOrder: TArray<String>;
 begin
   // Same dependency chain C->B->A. Drop order must be reversed: C, B, A.
-  LA := AddTable('A');
-  LB := AddTable('B');
-  LC := AddTable('C');
-  AddFK(LB, 'A');
-  AddFK(LC, 'B');
+  LA := _AddTable('A');
+  LB := _AddTable('B');
+  LC := _AddTable('C');
+  _AddFK(LB, 'A');
+  _AddFK(LC, 'B');
 
-  NewDropTable(LA);
-  NewDropTable(LB);
-  NewDropTable(LC);
+  _NewDropTable(LA);
+  _NewDropTable(LB);
+  _NewDropTable(LC);
 
   LSeq := TDDLSequencer.Create(FCatalog);
   try
@@ -320,7 +320,7 @@ begin
     LSeq.Free;
   end;
 
-  LOrder := PhaseNames(LReport, dphDropTables);
+  LOrder := _PhaseNames(LReport, dphDropTables);
   Assert.AreEqual(3, Length(LOrder));
   Assert.AreEqual('C', LOrder[0]);
   Assert.AreEqual('B', LOrder[1]);
@@ -336,8 +336,8 @@ var
   LReport: TDDLSequenceReport;
   LFor: Integer;
 begin
-  LTable := AddTable('T');
-  AddColumn(LTable, 'ID');
+  LTable := _AddTable('T');
+  _AddColumn(LTable, 'ID');
   // MIK objects registered in their table dictionaries so the catalog frees them.
   LTrigger := TTriggerMIK.Create(LTable);
   LTrigger.Name := 'TRG';
@@ -347,12 +347,12 @@ begin
   LTable.ForeignKeys.Add('FK1', LFK);
 
   // Feed commands intentionally out of phase order.
-  Add(TDDLCommandEnableForeignKeys.Create(True));    // POST
-  Add(TDDLCommandCreateTrigger.Create(LTrigger));
-  Add(TDDLCommandCreateForeignKey.Create(LFK));
-  Add(TDDLCommandCreateTable.Create(LTable));
-  Add(TDDLCommandEnableForeignKeys.Create(False));   // PRE
-  Add(TDDLCommandCreateColumn.Create(LTable.Fields['ID']));
+  _Add(TDDLCommandEnableForeignKeys.Create(True));    // POST
+  _Add(TDDLCommandCreateTrigger.Create(LTrigger));
+  _Add(TDDLCommandCreateForeignKey.Create(LFK));
+  _Add(TDDLCommandCreateTable.Create(LTable));
+  _Add(TDDLCommandEnableForeignKeys.Create(False));   // PRE
+  _Add(TDDLCommandCreateColumn.Create(LTable.Fields['ID']));
 
   LSeq := TDDLSequencer.Create(FCatalog);
   try
@@ -379,12 +379,12 @@ var
   LReport: TDDLSequenceReport;
   LFor, LLastTable, LFirstFK: Integer;
 begin
-  LTable := AddTable('T');
+  LTable := _AddTable('T');
   LFK := TForeignKeyMIK.Create(LTable);
   LFK.Name := 'FK1';
   LTable.ForeignKeys.Add('FK1', LFK);
-  Add(TDDLCommandCreateForeignKey.Create(LFK));
-  Add(TDDLCommandCreateTable.Create(LTable));
+  _Add(TDDLCommandCreateForeignKey.Create(LFK));
+  _Add(TDDLCommandCreateTable.Create(LTable));
 
   LSeq := TDDLSequencer.Create(FCatalog);
   try
@@ -415,12 +415,12 @@ var
   LExec: TMigrationExecutor;
   LMig: TMigrationReport;
 begin
-  LTable := AddTable('CLIENTE');
-  AddColumn(LTable, 'ID');
+  LTable := _AddTable('CLIENTE');
+  _AddColumn(LTable, 'ID');
 
   // F1 guarantees BuildCommand at generation; emulate it here.
   LGen := TSQLDriverRegister.GetInstance.GetDriver(dnFirebird);
-  LCmd := Add(TDDLCommandCreateTable.Create(LTable));
+  LCmd := _Add(TDDLCommandCreateTable.Create(LTable));
   LCmd.BuildCommand(LGen);
 
   LSeq := TDDLSequencer.Create(FCatalog);
@@ -486,8 +486,8 @@ var
   LSeq: TDDLSequencer;
   LMig: TMigrationReport;
 begin
-  BuiltCreateSequence('S1');   // phase: Create Sequences
-  BuiltCreateTable('T1');      // phase: Create Tables
+  _BuiltCreateSequence('S1');   // phase: Create Sequences
+  _BuiltCreateTable('T1');      // phase: Create Tables
 
   LFake := TFakeDBConnection.Create(dnFirebird);
   LConn := LFake;
@@ -517,9 +517,9 @@ var
   LSeq: TDDLSequencer;
   LMig: TMigrationReport;
 begin
-  BuiltCreateTable('T1');
-  BuiltCreateTable('T2');
-  BuiltCreateTable('T3');      // all in the same phase (Create Tables), order T1,T2,T3
+  _BuiltCreateTable('T1');
+  _BuiltCreateTable('T2');
+  _BuiltCreateTable('T3');      // all in the same phase (Create Tables), order T1,T2,T3
 
   LFake := TFakeDBConnection.Create(dnFirebird, 2);  // fail on the 2nd script
   LConn := LFake;
@@ -551,9 +551,9 @@ var
   LSeq: TDDLSequencer;
   LMig: TMigrationReport;
 begin
-  BuiltCreateSequence('S1');   // phase Create Sequences (S1, S2)
-  BuiltCreateSequence('S2');
-  BuiltCreateTable('T1');      // phase Create Tables
+  _BuiltCreateSequence('S1');   // phase Create Sequences (S1, S2)
+  _BuiltCreateSequence('S2');
+  _BuiltCreateTable('T1');      // phase Create Tables
 
   LFake := TFakeDBConnection.Create(dnFirebird, 1);   // S1 (first script) fails
   LConn := LFake;
@@ -589,8 +589,8 @@ var
   LSeq: TDDLSequencer;
   LMig: TMigrationReport;
 begin
-  BuiltCreateTable('T1');
-  BuiltCreateTable('T2');
+  _BuiltCreateTable('T1');
+  _BuiltCreateTable('T2');
 
   LFake := TFakeDBConnection.Create(dnMySQL);
   LConn := LFake;
@@ -619,9 +619,9 @@ var
   LSeq: TDDLSequencer;
   LMig: TMigrationReport;
 begin
-  BuiltCreateTable('T1');      // has SQL
-  LTable := AddTable('T2');    // command WITHOUT BuildCommand -> empty SQL
-  Add(TDDLCommandCreateTable.Create(LTable));
+  _BuiltCreateTable('T1');      // has SQL
+  LTable := _AddTable('T2');    // command WITHOUT BuildCommand -> empty SQL
+  _Add(TDDLCommandCreateTable.Create(LTable));
 
   LFake := TFakeDBConnection.Create(dnFirebird);
   LConn := LFake;
@@ -648,7 +648,7 @@ var
   LSeq: TDDLSequencer;
   LRep: TDDLSequenceReport;
 begin
-  BuiltCreateTable('T1');
+  _BuiltCreateTable('T1');
   LFake := TFakeDBConnection.Create(dnFirebird);
   LConn := LFake;
   LConn.StartTransaction;     // caller left a transaction open
@@ -675,15 +675,15 @@ var
   LReport: TDDLSequenceReport;
 begin
   // Mixed batch (PRE + two cyclic CREATE TABLEs + POST) with a A<->B cycle.
-  LA := AddTable('A');
-  LB := AddTable('B');
-  AddFK(LA, 'B');
-  AddFK(LB, 'A');
+  LA := _AddTable('A');
+  LB := _AddTable('B');
+  _AddFK(LA, 'B');
+  _AddFK(LB, 'A');
 
-  Add(TDDLCommandEnableForeignKeys.Create(False));   // PRE
-  NewCreateTable(LA);
-  NewCreateTable(LB);
-  Add(TDDLCommandEnableForeignKeys.Create(True));    // POST
+  _Add(TDDLCommandEnableForeignKeys.Create(False));   // PRE
+  _NewCreateTable(LA);
+  _NewCreateTable(LB);
+  _Add(TDDLCommandEnableForeignKeys.Create(True));    // POST
 
   LSeq := TDDLSequencer.Create(FCatalog);
   try
@@ -696,7 +696,7 @@ begin
   // Every command is preserved exactly once - none dropped by cycle handling.
   Assert.AreEqual(FCommands.Count, Length(LReport.Items));
   Assert.AreEqual(4, Length(LReport.Items));
-  Assert.AreEqual(2, Length(PhaseNames(LReport, dphCreateTables)));
+  Assert.AreEqual(2, Length(_PhaseNames(LReport, dphCreateTables)));
 end;
 
 procedure TTestDDLSequencer.FkEdge_CaseInsensitive;
@@ -706,15 +706,15 @@ var
 begin
   // Parent 'Z' sorts AFTER child 'A'; only the FK edge can force Z before A.
   // The child's FromTable is lower-case 'z' - normalization must still match it.
-  AddTable('Z');
-  AddTable('A');
-  AddFK(FCatalog.Tables['A'], 'z');     // divergent casing on purpose
-  NewCreateTable(FCatalog.Tables['Z']);
-  NewCreateTable(FCatalog.Tables['A']);
+  _AddTable('Z');
+  _AddTable('A');
+  _AddFK(FCatalog.Tables['A'], 'z');     // divergent casing on purpose
+  _NewCreateTable(FCatalog.Tables['Z']);
+  _NewCreateTable(FCatalog.Tables['A']);
 
   LSeq := TDDLSequencer.Create(FCatalog);
   try
-    LOrder := PhaseNames(LSeq.Sequence(FCommands.ToArray), dphCreateTables);
+    LOrder := _PhaseNames(LSeq.Sequence(FCommands.ToArray), dphCreateTables);
   finally
     LSeq.Free;
   end;

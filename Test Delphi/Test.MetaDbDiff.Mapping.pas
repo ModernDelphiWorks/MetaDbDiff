@@ -27,7 +27,7 @@ type
   [TestFixture]
   TTestMapping = class
   private
-    function FindColumn(AList: TColumnMappingList;
+    function _FindColumn(AList: TColumnMappingList;
       const AName: String): TColumnMapping;
   public
     // ------------------------------------------------------------------ Table
@@ -80,7 +80,7 @@ implementation
 
 { TTestMapping }
 
-function TTestMapping.FindColumn(AList: TColumnMappingList;
+function TTestMapping._FindColumn(AList: TColumnMappingList;
   const AName: String): TColumnMapping;
 var
   LColumn: TColumnMapping;
@@ -132,7 +132,7 @@ procedure TTestMapping.Column_OverloadNameType;
 var
   LColumn: TColumnMapping;
 begin
-  LColumn := FindColumn(TMappingExplorer.GetMappingColumn(TClienteTest), 'ID');
+  LColumn := _FindColumn(TMappingExplorer.GetMappingColumn(TClienteTest), 'ID');
   Assert.IsNotNull(LColumn);
   Assert.IsTrue(LColumn.FieldType = ftInteger, 'FieldType de ID deveria ser ftInteger');
   Assert.AreEqual(0, LColumn.Size);
@@ -144,7 +144,7 @@ procedure TTestMapping.Column_OverloadWithSize;
 var
   LColumn: TColumnMapping;
 begin
-  LColumn := FindColumn(TMappingExplorer.GetMappingColumn(TClienteTest), 'NOME');
+  LColumn := _FindColumn(TMappingExplorer.GetMappingColumn(TClienteTest), 'NOME');
   Assert.IsNotNull(LColumn);
   Assert.IsTrue(LColumn.FieldType = ftString, 'FieldType de NOME deveria ser ftString');
   Assert.AreEqual(60, LColumn.Size);
@@ -154,7 +154,7 @@ procedure TTestMapping.Column_OverloadWithPrecisionScale;
 var
   LColumn: TColumnMapping;
 begin
-  LColumn := FindColumn(TMappingExplorer.GetMappingColumn(TClienteTest), 'SALDO');
+  LColumn := _FindColumn(TMappingExplorer.GetMappingColumn(TClienteTest), 'SALDO');
   Assert.IsNotNull(LColumn);
   Assert.IsTrue(LColumn.FieldType = ftBCD, 'FieldType de SALDO deveria ser ftBCD');
   Assert.AreEqual(18, LColumn.Precision);
@@ -173,16 +173,16 @@ var
   LColumns: TColumnMappingList;
 begin
   LColumns := TMappingExplorer.GetMappingColumn(TClienteTest);
-  Assert.IsTrue(FindColumn(LColumns, 'ID').IsNotNull, 'ID deveria ser NotNull');
-  Assert.IsTrue(FindColumn(LColumns, 'NOME').IsNotNull, 'NOME deveria ser NotNull');
-  Assert.IsFalse(FindColumn(LColumns, 'IDADE').IsNotNull, 'IDADE nao tem [Restrictions]');
+  Assert.IsTrue(_FindColumn(LColumns, 'ID').IsNotNull, 'ID deveria ser NotNull');
+  Assert.IsTrue(_FindColumn(LColumns, 'NOME').IsNotNull, 'NOME deveria ser NotNull');
+  Assert.IsFalse(_FindColumn(LColumns, 'IDADE').IsNotNull, 'IDADE nao tem [Restrictions]');
 end;
 
 procedure TTestMapping.Column_Dictionary_DefaultExpression;
 var
   LColumn: TColumnMapping;
 begin
-  LColumn := FindColumn(TMappingExplorer.GetMappingColumn(TClienteTest), 'NOME');
+  LColumn := _FindColumn(TMappingExplorer.GetMappingColumn(TClienteTest), 'NOME');
   Assert.IsNotNull(LColumn.ColumnDictionary);
   Assert.AreEqual('Nome', LColumn.ColumnDictionary.DisplayLabel);
   Assert.AreEqual('Nome invalido', LColumn.ColumnDictionary.ConstraintErrorMessage);
@@ -190,7 +190,7 @@ begin
   // O popular copia o DefaultExpression do Dictionary para DefaultValue
   Assert.AreEqual('SEM NOME', LColumn.DefaultValue);
   // Coluna sem [Dictionary] com default -> DefaultValue vazio
-  Assert.AreEqual('', FindColumn(TMappingExplorer.GetMappingColumn(TClienteTest),
+  Assert.AreEqual('', _FindColumn(TMappingExplorer.GetMappingColumn(TClienteTest),
     'IDADE').DefaultValue);
 end;
 
@@ -199,13 +199,13 @@ var
   LColumns: TColumnMappingList;
 begin
   LColumns := TMappingExplorer.GetMappingColumn(TClienteTest);
-  Assert.IsTrue(FindColumn(LColumns, 'ID').IsPrimaryKey);
-  Assert.IsFalse(FindColumn(LColumns, 'NOME').IsPrimaryKey);
+  Assert.IsTrue(_FindColumn(LColumns, 'ID').IsPrimaryKey);
+  Assert.IsFalse(_FindColumn(LColumns, 'NOME').IsPrimaryKey);
 
   LColumns := TMappingExplorer.GetMappingColumn(TPedidoTest);
-  Assert.IsTrue(FindColumn(LColumns, 'ID_EMPRESA').IsPrimaryKey);
-  Assert.IsTrue(FindColumn(LColumns, 'ID_PEDIDO').IsPrimaryKey);
-  Assert.IsFalse(FindColumn(LColumns, 'ID_CLIENTE').IsPrimaryKey);
+  Assert.IsTrue(_FindColumn(LColumns, 'ID_EMPRESA').IsPrimaryKey);
+  Assert.IsTrue(_FindColumn(LColumns, 'ID_PEDIDO').IsPrimaryKey);
+  Assert.IsFalse(_FindColumn(LColumns, 'ID_CLIENTE').IsPrimaryKey);
 end;
 
 procedure TTestMapping.PrimaryKey_Simple_AutoIncSequence;

@@ -58,10 +58,10 @@ type
   private
     FScenario: TIntegrationScenario;
     FFakeConn: IDBConnection;
-    function NewTable(ACatalog: TCatalogMetadataMIK; const AName: String): TTableMIK;
-    function NewColumn(ATable: TTableMIK; const AName, AType: String;
+    function _NewTable(ACatalog: TCatalogMetadataMIK; const AName: String): TTableMIK;
+    function _NewColumn(ATable: TTableMIK; const AName, AType: String;
       ASize: Integer = 0): TColumnMIK;
-    procedure NewFK(AChild: TTableMIK; const AParentName: String);
+    procedure _NewFK(AChild: TTableMIK; const AParentName: String);
   protected
     procedure ExtractDatabase; override;
     procedure ExecuteDDLCommands; override;
@@ -76,10 +76,10 @@ type
   private
     FFactory: TIntegrationFactory;
     FFake: TFakeDBConnection;
-    function IndexOfWarning(const AWarning: String): Integer;
-    function DistinctPhaseCount(const AReport: TMigrationReport): Integer;
-    function HasCommandClass(AClass: TClass): Boolean;
-    function SuppressedContains(const AText: String): Boolean;
+    function _IndexOfWarning(const AWarning: String): Integer;
+    function _DistinctPhaseCount(const AReport: TMigrationReport): Integer;
+    function _HasCommandClass(AClass: TClass): Boolean;
+    function _SuppressedContains(const AText: String): Boolean;
   public
     [TearDown]
     procedure TearDown;
@@ -122,7 +122,7 @@ begin
   FScenario := isFkChain;
 end;
 
-function TIntegrationFactory.NewTable(ACatalog: TCatalogMetadataMIK;
+function TIntegrationFactory._NewTable(ACatalog: TCatalogMetadataMIK;
   const AName: String): TTableMIK;
 begin
   Result := TTableMIK.Create(ACatalog);
@@ -130,7 +130,7 @@ begin
   ACatalog.Tables.Add(AName, Result);
 end;
 
-function TIntegrationFactory.NewColumn(ATable: TTableMIK; const AName,
+function TIntegrationFactory._NewColumn(ATable: TTableMIK; const AName,
   AType: String; ASize: Integer): TColumnMIK;
 begin
   Result := TColumnMIK.Create(ATable);
@@ -141,7 +141,7 @@ begin
   ATable.Fields.Add(AName, Result);
 end;
 
-procedure TIntegrationFactory.NewFK(AChild: TTableMIK; const AParentName: String);
+procedure TIntegrationFactory._NewFK(AChild: TTableMIK; const AParentName: String);
 var
   LFK: TForeignKeyMIK;
 begin
@@ -160,35 +160,35 @@ begin
     isFkChain:
       begin
         // TAB_A references TAB_B (parent) -> topological CREATE order: B before A.
-        LTableB := NewTable(FCatalogMaster, 'TAB_B');
-        NewColumn(LTableB, 'ID', 'INTEGER');
-        LTableA := NewTable(FCatalogMaster, 'TAB_A');
-        NewColumn(LTableA, 'ID', 'INTEGER');
-        NewColumn(LTableA, 'B_ID', 'INTEGER');
-        NewFK(LTableA, 'TAB_B');
+        LTableB := _NewTable(FCatalogMaster, 'TAB_B');
+        _NewColumn(LTableB, 'ID', 'INTEGER');
+        LTableA := _NewTable(FCatalogMaster, 'TAB_A');
+        _NewColumn(LTableA, 'ID', 'INTEGER');
+        _NewColumn(LTableA, 'B_ID', 'INTEGER');
+        _NewFK(LTableA, 'TAB_B');
         // target: empty -> every table is a CREATE.
       end;
     isObsoleteTable:
       begin
-        LTableA := NewTable(FCatalogMaster, 'TAB_A');
-        NewColumn(LTableA, 'ID', 'INTEGER');
+        LTableA := _NewTable(FCatalogMaster, 'TAB_A');
+        _NewColumn(LTableA, 'ID', 'INTEGER');
         // target has TAB_A plus an obsolete table absent from the model -> DROP.
-        LTableA := NewTable(FCatalogTarget, 'TAB_A');
-        NewColumn(LTableA, 'ID', 'INTEGER');
-        LTableA := NewTable(FCatalogTarget, 'OBSOLETO');
-        NewColumn(LTableA, 'ID', 'INTEGER');
+        LTableA := _NewTable(FCatalogTarget, 'TAB_A');
+        _NewColumn(LTableA, 'ID', 'INTEGER');
+        LTableA := _NewTable(FCatalogTarget, 'OBSOLETO');
+        _NewColumn(LTableA, 'ID', 'INTEGER');
       end;
     isColumnDropAlter:
       begin
         // master CLIENTE(ID, NOME VARCHAR(60))
-        LCliente := NewTable(FCatalogMaster, 'CLIENTE');
-        NewColumn(LCliente, 'ID', 'INTEGER');
-        NewColumn(LCliente, 'NOME', 'VARCHAR(%l)', 60);
+        LCliente := _NewTable(FCatalogMaster, 'CLIENTE');
+        _NewColumn(LCliente, 'ID', 'INTEGER');
+        _NewColumn(LCliente, 'NOME', 'VARCHAR(%l)', 60);
         // target CLIENTE(ID, NOME VARCHAR(30) -> ALTER, OBSOLETO -> DROP)
-        LCliente := NewTable(FCatalogTarget, 'CLIENTE');
-        NewColumn(LCliente, 'ID', 'INTEGER');
-        NewColumn(LCliente, 'NOME', 'VARCHAR(%l)', 30);
-        NewColumn(LCliente, 'OBSOLETO', 'VARCHAR(%l)', 10);
+        LCliente := _NewTable(FCatalogTarget, 'CLIENTE');
+        _NewColumn(LCliente, 'ID', 'INTEGER');
+        _NewColumn(LCliente, 'NOME', 'VARCHAR(%l)', 30);
+        _NewColumn(LCliente, 'OBSOLETO', 'VARCHAR(%l)', 10);
       end;
   end;
 end;
@@ -212,7 +212,7 @@ begin
   FFake := nil;
 end;
 
-function TTestSequencerExecutorIntegration.IndexOfWarning(
+function TTestSequencerExecutorIntegration._IndexOfWarning(
   const AWarning: String): Integer;
 var
   LList: TArray<TDDLCommand>;
@@ -225,7 +225,7 @@ begin
       Exit(LFor);
 end;
 
-function TTestSequencerExecutorIntegration.DistinctPhaseCount(
+function TTestSequencerExecutorIntegration._DistinctPhaseCount(
   const AReport: TMigrationReport): Integer;
 var
   LSeen: array[TDDLPhase] of Boolean;
@@ -242,7 +242,7 @@ begin
       Inc(Result);
 end;
 
-function TTestSequencerExecutorIntegration.HasCommandClass(AClass: TClass): Boolean;
+function TTestSequencerExecutorIntegration._HasCommandClass(AClass: TClass): Boolean;
 var
   LCommand: TDDLCommand;
 begin
@@ -252,7 +252,7 @@ begin
       Exit(True);
 end;
 
-function TTestSequencerExecutorIntegration.SuppressedContains(
+function TTestSequencerExecutorIntegration._SuppressedContains(
   const AText: String): Boolean;
 var
   LItem: String;
@@ -272,8 +272,8 @@ begin
   FFactory.Scenario := isFkChain;
   FFactory.BuildDatabase;
 
-  LIdxB := IndexOfWarning('Create Table: TAB_B');
-  LIdxA := IndexOfWarning('Create Table: TAB_A');
+  LIdxB := _IndexOfWarning('Create Table: TAB_B');
+  LIdxA := _IndexOfWarning('Create Table: TAB_A');
   Assert.IsTrue(LIdxB >= 0, 'CREATE TABLE TAB_B deve existir na lista');
   Assert.IsTrue(LIdxA >= 0, 'CREATE TABLE TAB_A deve existir na lista');
   // TAB_A references TAB_B, so B (parent) must be created before A (child).
@@ -290,8 +290,8 @@ begin
   FFactory.Scenario := isFkChain;
   FFactory.BuildDatabase;
 
-  LIdxB := IndexOfWarning('Create Table: TAB_B');
-  LIdxA := IndexOfWarning('Create Table: TAB_A');
+  LIdxB := _IndexOfWarning('Create Table: TAB_B');
+  LIdxA := _IndexOfWarning('Create Table: TAB_A');
   Assert.IsTrue((LIdxA >= 0) and (LIdxB >= 0), 'ambos os CREATE devem existir');
   // Historical generation order walks the master tables sorted by name
   // (TablesSort): TAB_A before TAB_B - i.e. NOT topological.
@@ -333,7 +333,7 @@ begin
   Assert.IsTrue(LReport.Total > 0, 'o relatorio deve ter itens');
   Assert.IsTrue(LReport.Succeeded > 0, 'comandos devem ter executado com sucesso');
   Assert.AreEqual(0, LReport.Failed, 'nenhuma falha esperada');
-  Assert.IsTrue(DistinctPhaseCount(LReport) >= 2,
+  Assert.IsTrue(_DistinctPhaseCount(LReport) >= 2,
     'o relatorio deve abranger multiplas fases (PRE/CreateTables/.../POST)');
   Assert.IsTrue(FFake.Executed.Count > 0,
     'os comandos com SQL devem ter sido enviados a conexao');
@@ -444,9 +444,9 @@ begin
   // UseSequencer stays True: the policy gate must still hold on the new path.
   FFactory.BuildDatabase;
 
-  Assert.IsFalse(HasCommandClass(TDDLCommandDropTable),
+  Assert.IsFalse(_HasCommandClass(TDDLCommandDropTable),
     'DROP TABLE nunca deve ser emitido no perfil Janus, mesmo com sequenciador');
-  Assert.IsTrue(SuppressedContains('DROP TABLE'),
+  Assert.IsTrue(_SuppressedContains('DROP TABLE'),
     'a auditoria deve registrar o DROP TABLE suprimido');
 end;
 
@@ -458,7 +458,7 @@ begin
   FFactory.FakeConn := FFake;
   // Generate with FullProfile: the list DOES contain a DROP COLUMN.
   FFactory.BuildDatabase;
-  Assert.IsTrue(HasCommandClass(TDDLCommandDropColumn),
+  Assert.IsTrue(_HasCommandClass(TDDLCommandDropColumn),
     'pre-condicao: a lista deveria conter um DROP COLUMN');
 
   // Tighten the policy, then try to execute: the defense-in-depth re-check in
