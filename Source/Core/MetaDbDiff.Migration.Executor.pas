@@ -117,10 +117,10 @@ type
     FDriver: TDriverName;
     FErrorPolicy: TMigrationErrorPolicy;
     FUsePhaseTransactions: Boolean;
-    function DriverText: String;
-    function BuildConsolidatedScript(const AItems: TArray<TDDLPhaseItem>): String;
-    function PlanFromCommands(const ACommands: TArray<TDDLCommand>): TArray<TDDLPhaseItem>;
-    procedure InitReport(var AReport: TMigrationReport; AMode: TMigrationMode;
+    function _DriverText: String;
+    function _BuildConsolidatedScript(const AItems: TArray<TDDLPhaseItem>): String;
+    function _PlanFromCommands(const ACommands: TArray<TDDLCommand>): TArray<TDDLPhaseItem>;
+    procedure _InitReport(var AReport: TMigrationReport; AMode: TMigrationMode;
       const ACycles: TArray<TDDLCycleInfo>);
   public
     constructor Create(ADriver: TDriverName);
@@ -222,7 +222,7 @@ begin
   end;
 end;
 
-function TMigrationExecutor.DriverText: String;
+function TMigrationExecutor._DriverText: String;
 begin
   if (Ord(FDriver) >= Ord(Low(TStrDriverName))) and
      (Ord(FDriver) <= Ord(High(TStrDriverName))) then
@@ -231,7 +231,7 @@ begin
     Result := 'Driver#' + IntToStr(Ord(FDriver));
 end;
 
-function TMigrationExecutor.PlanFromCommands(
+function TMigrationExecutor._PlanFromCommands(
   const ACommands: TArray<TDDLCommand>): TArray<TDDLPhaseItem>;
 var
   LFor: Integer;
@@ -246,7 +246,7 @@ begin
   end;
 end;
 
-function TMigrationExecutor.BuildConsolidatedScript(
+function TMigrationExecutor._BuildConsolidatedScript(
   const AItems: TArray<TDDLPhaseItem>): String;
 var
   LBuilder: TStringBuilder;
@@ -259,7 +259,7 @@ begin
   try
     LBuilder.AppendLine('-- ============================================================');
     LBuilder.AppendLine('-- MetaDbDiff migration script');
-    LBuilder.Append('-- Dialect: ').AppendLine(DriverText);
+    LBuilder.Append('-- Dialect: ').AppendLine(_DriverText);
     LBuilder.Append('-- Transactional DDL: ')
             .AppendLine(BoolToStr(DialectHasTransactionalDDL(FDriver), True));
     LBuilder.AppendLine('-- ============================================================');
@@ -294,13 +294,13 @@ begin
   end;
 end;
 
-procedure TMigrationExecutor.InitReport(var AReport: TMigrationReport;
+procedure TMigrationExecutor._InitReport(var AReport: TMigrationReport;
   AMode: TMigrationMode; const ACycles: TArray<TDDLCycleInfo>);
 begin
   AReport := Default(TMigrationReport);
   AReport.Mode := AMode;
   AReport.Driver := FDriver;
-  AReport.DriverName := DriverText;
+  AReport.DriverName := _DriverText;
   AReport.TransactionalDDL := DialectHasTransactionalDDL(FDriver);
   AReport.Cycles := ACycles;
 end;
@@ -314,8 +314,8 @@ var
   LSQL: String;
   LOut: TMigrationItemReport;
 begin
-  InitReport(Result, mmDryRun, ASequence.Cycles);
-  Result.Script := BuildConsolidatedScript(ASequence.Items);
+  _InitReport(Result, mmDryRun, ASequence.Cycles);
+  Result.Script := _BuildConsolidatedScript(ASequence.Items);
   for LItem in ASequence.Items do
   begin
     LSQL := '';
@@ -386,7 +386,7 @@ var
   end;
 
 begin
-  InitReport(Result, mmExecute, ASequence.Cycles);
+  _InitReport(Result, mmExecute, ASequence.Cycles);
   if not Assigned(AConnection) then
     raise EArgumentNilException.Create(
       'TMigrationExecutor.Execute: a connected IDBConnection is required in mmExecute.');
@@ -411,7 +411,7 @@ begin
   //   so no dependency is wired yet.
   // --------------------------------------------------------------------------
 
-  Result.Script := BuildConsolidatedScript(ASequence.Items);
+  Result.Script := _BuildConsolidatedScript(ASequence.Items);
   LItems := ASequence.Items;
   LTransactional := FUsePhaseTransactions and Result.TransactionalDDL;
   LPhaseOpen := False;
@@ -526,7 +526,7 @@ var
   LSeq: TDDLSequenceReport;
 begin
   LSeq := Default(TDDLSequenceReport);
-  LSeq.Items := PlanFromCommands(ACommands);
+  LSeq.Items := _PlanFromCommands(ACommands);
   Result := DryRun(LSeq);
 end;
 
@@ -536,7 +536,7 @@ var
   LSeq: TDDLSequenceReport;
 begin
   LSeq := Default(TDDLSequenceReport);
-  LSeq.Items := PlanFromCommands(ACommands);
+  LSeq.Items := _PlanFromCommands(ACommands);
   Result := ScriptOut(LSeq, AFileName);
 end;
 
@@ -546,7 +546,7 @@ var
   LSeq: TDDLSequenceReport;
 begin
   LSeq := Default(TDDLSequenceReport);
-  LSeq.Items := PlanFromCommands(ACommands);
+  LSeq.Items := _PlanFromCommands(ACommands);
   Result := Execute(LSeq, AConnection);
 end;
 

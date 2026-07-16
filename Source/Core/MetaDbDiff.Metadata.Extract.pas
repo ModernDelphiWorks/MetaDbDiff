@@ -38,11 +38,11 @@ uses
 type
   TMetadataAbstract = class(TInterfacedObject)
   private
-    function GetModelForDatabase: Boolean;
-    procedure SetModelForDatabase(const Value: Boolean);
+    function _GetModelForDatabase: Boolean;
+    procedure _SetModelForDatabase(const Value: Boolean);
     function GetCatalogMetadata: TCatalogMetadataMIK;
     procedure SetCatalogMetadata(const Value: TCatalogMetadataMIK);
-    procedure SetGuidOrOctetos(const AColumn: TColumnMIK;
+    procedure _SetGuidOrOctetos(const AColumn: TColumnMIK;
       const ADriverName: TDriverName);
   protected
     FConnection: IDBConnection;
@@ -55,7 +55,7 @@ type
     constructor Create; overload; virtual; abstract;
     constructor Create(ACatalogMetadata: TCatalogMetadataMIK); overload; virtual; abstract;
     property CatalogMetadata: TCatalogMetadataMIK read GetCatalogMetadata write SetCatalogMetadata;
-    property ModelForDatabase: Boolean read GetModelForDatabase write SetModelForDatabase;
+    property ModelForDatabase: Boolean read _GetModelForDatabase write _SetModelForDatabase;
   end;
 
   TCatalogMetadataAbstract = class(TMetadataAbstract, IDatabaseMetadata)
@@ -189,7 +189,7 @@ begin
   FCatalogMetadata := Value;
 end;
 
-procedure TMetadataAbstract.SetModelForDatabase(const Value: Boolean);
+procedure TMetadataAbstract._SetModelForDatabase(const Value: Boolean);
 begin
   FModelForDatabase := Value;
 end;
@@ -321,7 +321,7 @@ begin
       // por h�fens (por exemplo, "550e8400-e29b-41d4-a716-446655440000").
       if FConnection.Options.StoreGUIDAsOctet then
       begin
-        SetGuidOrOctetos(AColumn, LDriverName);
+        _SetGuidOrOctetos(AColumn, LDriverName);
       end
       else if LDriverName = dnPostgreSQL then AColumn.TypeName := 'CHAR(%1)'
       else if LDriverName = dnFirebird   then AColumn.TypeName := 'CHAR(%1)'
@@ -369,7 +369,7 @@ begin
   end;
 end;
 
-function TMetadataAbstract.GetModelForDatabase: Boolean;
+function TMetadataAbstract._GetModelForDatabase: Boolean;
 begin
   Result := FModelForDatabase;
 end;
@@ -392,7 +392,7 @@ begin
   else Result := TRuleAction.None;
 end;
 
-procedure TMetadataAbstract.SetGuidOrOctetos(const AColumn: TColumnMIK;
+procedure TMetadataAbstract._SetGuidOrOctetos(const AColumn: TColumnMIK;
   const ADriverName: TDriverName);
 begin
   if ADriverName = dnFirebird  then
