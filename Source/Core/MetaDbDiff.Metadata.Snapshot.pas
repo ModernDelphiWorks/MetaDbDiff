@@ -818,6 +818,16 @@ begin
       'esta versao do MetaDbDiff (maximo suportado: %d). Atualize o MetaDbDiff ' +
       'para conseguir carregar este snapshot.', [AFormatVersion, MetadataSnapshotFormatVersion]);
 
+  // Guards against a tampered/hand-edited file (this is external, untrusted
+  // input - see the unit header): FormatVersion 0 or negative is not "an old
+  // version we happen to support", it is not a version this library ever
+  // wrote. Silently treating it as v1 would let a corrupted or malicious
+  // envelope slide through undetected.
+  if AFormatVersion < 1 then
+    raise EMetadataSnapshotError.CreateFmt(
+      'MetaDbDiff snapshot: invalid snapshot FormatVersion %d (must be >= 1).',
+      [AFormatVersion]);
+
   try
     ADriverName := StrToDriverNameChecked(AJson.GetValue<String>('DriverName'));
     ADescription := AJson.GetValue<String>('SourceDescription', '');

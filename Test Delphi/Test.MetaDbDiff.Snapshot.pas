@@ -640,6 +640,34 @@ begin
     end,
     EMetadataSnapshotError,
     'FormatVersion maior que o suportado deveria ser rejeitado com erro claro');
+
+  // FormatVersion 0 (or negative) is not "an old but supported version" -
+  // it is not a version this library ever wrote, so it must be rejected just
+  // as clearly as a future one (tampered/hand-edited file - see
+  // TMetadataSnapshot.LoadInto, MetaDbDiff.Metadata.Snapshot.pas).
+  LCatalog := TCatalogMetadataMIK.Create;
+  try
+    LCatalog.Name := 'X';
+    LJson := TMetadataSnapshot.ToJson(LCatalog, dnFirebird, '');
+    try
+      LJson.RemovePair('FormatVersion').Free;
+      LJson.AddPair('FormatVersion', 0);
+      LText := LJson.ToJSON;
+    finally
+      LJson.Free;
+    end;
+  finally
+    LCatalog.Free;
+  end;
+  TFile.WriteAllText(FSnapshotFile, LText, TEncoding.UTF8);
+
+  Assert.WillRaise(
+    procedure
+    begin
+      TMetadataSnapshot.LoadFromFile(FSnapshotFile).Free;
+    end,
+    EMetadataSnapshotError,
+    'FormatVersion 0 deveria ser rejeitado com erro claro');
 end;
 
 procedure TTestMetadataSnapshot.Snapshot_CorruptedJson_RaisesClearError;
