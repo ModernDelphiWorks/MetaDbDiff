@@ -99,9 +99,6 @@ type
 
 implementation
 
-uses
-  MetaDbDiff.DDL.Commands;
-
 { TModelDatabaseCompare }
 
 constructor TModelDatabaseCompare.Create(AConnection: IDBConnection);
@@ -127,33 +124,18 @@ begin
   inherited;
 end;
 
+// INTEGRA��O (frente-9): execu��o delegada ao TMigrationExecutor (via
+// TDatabaseAbstract.ExecuteViaExecutor), que gere as pr�prias transa��es POR
+// FASE. A transa��o local (StartTransaction/Commit/Rollback) foi REMOVIDA - o
+// executor rejeita uma conex�o j� em transa��o e passa a controlar a
+// transacionalidade; o resultado detalhado fica em LastMigrationReport. O
+// contrato desta classe � preservado: NUNCA desconecta - a conex�o pertence ao
+// chamador (ver cabe�alho da unit).
 procedure TModelDatabaseCompare.ExecuteDDLCommands;
-var
-  LCommand: TDDLCommand;
-  LCommandText: String;
 begin
   inherited;
   if FCommandsAutoExecute then
-    FConnection.StartTransaction;
-  try
-    for LCommand in FDDLCommands do
-    begin
-      LCommandText := LCommand.BuildCommand(FGeneratorCommand);
-      if Length(LCommandText) > 0 then
-        if FCommandsAutoExecute then
-          FConnection.ExecuteScript(LCommandText);
-    end;
-    if FConnection.InTransaction then
-      FConnection.Commit;
-  except
-    on E: Exception do
-    begin
-      if FConnection.InTransaction then
-        FConnection.Rollback;
-      raise Exception.Create('MetaDbDiff Command : [' + LCommand.Warning + '] - ' + E.Message + sLineBreak +
-                             'Script : "' + LCommandText + '"');
-    end;
-  end;
+    ExecuteViaExecutor(FConnection);
   // Deliberately no Disconnect here - the connection belongs to the caller.
   // See the unit header comment for the full rationale.
 end;

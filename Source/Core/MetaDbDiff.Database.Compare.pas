@@ -45,9 +45,6 @@ type
 
 implementation
 
-uses
-  MetaDbDiff.DDL.Commands;
-
 { TDatabaseCompare }
 
 constructor TDatabaseCompare.Create(AConnMaster, AConnTarget: IDBConnection);
@@ -81,37 +78,21 @@ end;
 // Execution is single-shot: the finally block below disconnects both
 // connections, so ExecuteCommands cannot be called again without a new
 // BuildDatabase.
+//
+// INTEGRA��O (frente-9): a execu��o passa a ser delegada ao TMigrationExecutor
+// (via TDatabaseAbstract.ExecuteViaExecutor), que gere as pr�prias transa��es
+// POR FASE. Por isso a transa��o local (StartTransaction/Commit/Rollback) foi
+// REMOVIDA - o executor rejeita uma conex�o que j� esteja em transa��o, e �
+// exatamente ele quem passa a controlar a transacionalidade. O resultado
+// detalhado (fases, por-comando, rollback) fica em LastMigrationReport. O
+// contrato hist�rico desta classe � preservado: o finally desconecta AMBAS as
+// conex�es (comportamento documentado/single-shot).
 procedure TDatabaseCompare.ExecuteDDLCommands;
-var
-  LDDLCommand: TDDLCommand;
-  LCommand: String;
 begin
   inherited;
-  if FCommandsAutoExecute then
-    FConnTarget.StartTransaction;
   try
-    try
-      for LDDLCommand in FDDLCommands do
-      begin
-        LCommand := LDDLCommand.BuildCommand(FGeneratorCommand);
-        if Length(LCommand) > 0 then
-          if FCommandsAutoExecute then
-            FConnTarget.AddScript(LCommand);
-      end;
-      if FConnTarget.InTransaction then
-      begin
-        FConnTarget.ExecuteScripts;
-        FConnTarget.Commit;
-      end;
-    except
-      on E: Exception do
-      begin
-        if FConnTarget.InTransaction then
-          FConnTarget.Rollback;
-        raise Exception.Create('DBCBr Command : [' + LDDLCommand.Warning + '] - ' + E.Message + sLineBreak +
-                               'Script : "' + LCommand + '"');
-      end;
-    end;
+    if FCommandsAutoExecute then
+      ExecuteViaExecutor(FConnTarget);
   finally
     FConnMaster.Disconnect;
     FConnTarget.Disconnect;
