@@ -29,6 +29,7 @@ uses
   Variants,
   Generics.Collections,
   DataEngine.FactoryInterfaces,
+  MetaDbDiff.DDL.Interfaces,
   MetaDbDiff.DDL.Register,
   MetaDbDiff.DDL.Generator,
   MetaDbDiff.Database.Mapping;
@@ -43,6 +44,7 @@ type
     function GenerateAlterColumn(AColumn: TColumnMIK): String; override;
     function GenerateDropPrimaryKey(APrimaryKey: TPrimaryKeyMIK): String; override;
     function GenerateDropIndexe(AIndexe: TIndexeKeyMIK): String; override;
+    function GetSupportedFeatures: TSupportedFeatures; override;
   end;
 
 implementation
@@ -141,6 +143,15 @@ begin
   // Retorna vazio; comandos vazios sao descartados pelo pipeline
   // (MetaDbDiff.Database.Compare -> Length(LCommand) > 0).
   Result := '';
+end;
+
+function TDDLSQLGeneratorMySQL.GetSupportedFeatures: TSupportedFeatures;
+begin
+  // MySQL nao possui objetos SEQUENCE (usa AUTO_INCREMENT por coluna). O
+  // extractor agora retorna zero sequences; sem este gate, um modelo com
+  // [Sequence] geraria CREATE SEQUENCE invalido (Database.Factory.CompareSequences
+  // so roda com TSupportedFeature.Sequences no set). Remove Sequences do herdado.
+  Result := inherited GetSupportedFeatures - [TSupportedFeature.Sequences];
 end;
 
 initialization

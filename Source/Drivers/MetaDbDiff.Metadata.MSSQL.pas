@@ -295,35 +295,51 @@ var
   oForeignKey: TForeignKeyMIK;
   oFromField: TColumnMIK;
   oToField: TColumnMIK;
+  LFKName: String;
+  LLastFKName: String;
 begin
   inherited;
+  oForeignKey := nil;
+  LLastFKName := '';
   FSQLText := GetSelectForeignKey(ATable.Name);
   oDBResultSet := Execute;
   while oDBResultSet.NotEof do
   begin
-    oForeignKey := TForeignKeyMIK.Create(ATable);
-    oForeignKey.Name := VarToStr(oDBResultSet.GetFieldValue('fk_name'));
-    oForeignKey.FromTable := VarToStr(oDBResultSet.GetFieldValue('table_reference'));
-    oForeignKey.OnUpdate := GetRuleAction(VarAsType(oDBResultSet.GetFieldValue('fk_updateaction'), varInteger));
-    oForeignKey.OnDelete := GetRuleAction(VarAsType(oDBResultSet.GetFieldValue('fk_deleteaction'), varInteger));
-    oForeignKey.Description :=  VarToStr(oDBResultSet.GetFieldValue('fk_description'));
-    ATable.ForeignKeys.AddOrSetValue(oForeignKey.Name, oForeignKey);
-    /// <summary>
-    /// Coluna tabela master
-    /// </summary>
-    oFromField := TColumnMIK.Create(ATable);
-    oFromField.Name := VarToStr(oDBResultSet.GetFieldValue('column_name'));
-    oForeignKey.FromFields.Add(oFromField.Name, oFromField);
-    /// <summary>
-    /// Coluna tabela referencia
-    /// </summary>
-    oToField := TColumnMIK.Create(ATable);
-    oToField.Name := VarToStr(oDBResultSet.GetFieldValue('column_reference'));
-    oForeignKey.ToFields.Add(oToField.Name, oToField);
-    /// <summary>
-    /// Gera a lista de campos do foreignkey
-    /// </summary>
-//    GetForeignKeyColumns(oForeignKey);
+    // sys.foreign_key_columns retorna uma linha por coluna da FK. Agrupa por
+    // nome: o AddOrSetValue anterior substituia a FK a cada linha, mantendo
+    // apenas a ULTIMA coluna de chaves compostas.
+    LFKName := VarToStr(oDBResultSet.GetFieldValue('fk_name'));
+    if LFKName <> LLastFKName then
+    begin
+      oForeignKey := TForeignKeyMIK.Create(ATable);
+      oForeignKey.Name := LFKName;
+      oForeignKey.FromTable := VarToStr(oDBResultSet.GetFieldValue('table_reference'));
+      // sys.foreign_keys.update/delete_referential_action: 0=NO ACTION,
+      // 1=CASCADE, 2=SET NULL, 3=SET DEFAULT (sobrecarga Variant).
+      oForeignKey.OnUpdate := GetRuleAction(VarAsType(oDBResultSet.GetFieldValue('fk_updateaction'), varInteger));
+      oForeignKey.OnDelete := GetRuleAction(VarAsType(oDBResultSet.GetFieldValue('fk_deleteaction'), varInteger));
+      oForeignKey.Description := VarToStr(oDBResultSet.GetFieldValue('fk_description'));
+      ATable.ForeignKeys.Add(oForeignKey.Name, oForeignKey);
+      LLastFKName := LFKName;
+    end;
+    // Assigned blinda um eventual fk_name vazio e silencia o W1036.
+    if Assigned(oForeignKey) then
+    begin
+      /// <summary>
+      /// Coluna tabela master (constraint_column_id ordena a chave composta)
+      /// </summary>
+      oFromField := TColumnMIK.Create(ATable);
+      oFromField.Name := VarToStr(oDBResultSet.GetFieldValue('column_name'));
+      oFromField.Position := VarAsType(oDBResultSet.GetFieldValue('column_position'), varInteger) - 1;
+      oForeignKey.FromFields.Add(FormatFloat('000000', oFromField.Position), oFromField);
+      /// <summary>
+      /// Coluna tabela referencia
+      /// </summary>
+      oToField := TColumnMIK.Create(ATable);
+      oToField.Name := VarToStr(oDBResultSet.GetFieldValue('column_reference'));
+      oToField.Position := VarAsType(oDBResultSet.GetFieldValue('column_position'), varInteger) - 1;
+      oForeignKey.ToFields.Add(FormatFloat('000000', oToField.Position), oToField);
+    end;
  end;
 end;
 
@@ -465,7 +481,12 @@ function TCatalogMetadataMSSQL.GetSelectTableColumns(ATableName: String): String
 begin
   Result := ' select ac.name           as column_name, ' +
             '        ac.column_id      as column_position, ' +
-            '        ac.max_length     as column_size, ' +
+            // sys.all_columns.max_length e em BYTES; para nchar/nvarchar equivale
+            // a 2x o numero de caracteres, o que dobrava o size no diff. -1 = MAX
+            // (preservado). Converte para tamanho em caracteres nos tipos unicode.
+            '        case when ac.max_length = -1 then -1 ' +
+            '             when tp.name in (''nchar'', ''nvarchar'') then ac.max_length / 2 ' +
+            '             else ac.max_length end as column_size, ' +
             '        ac.precision      as column_precision, ' +
             '        ac.scale          as column_scale, ' +
             '        ac.collation_name as column_collation, ' +
@@ -521,7 +542,9 @@ begin
             ' left outer join sys.extended_properties ep on ep.major_id = fk.object_id ' +
             '                                           and ep.name =     ''MS_Description'' ' +
             ' where coalesce(fk.is_ms_shipped, 0) <> 1 and ft.name in(' + QuotedStr(ATableName) + ') ' +
-            ' order by ft.name, fkc.constraint_column_id';
+            // Ordena por NOME da FK (nao pela tabela) para que as colunas de cada
+            // chave composta cheguem contiguas e o agrupamento por nome funcione.
+            ' order by fk.name, fkc.constraint_column_id';
 end;
 
 function TCatalogMetadataMSSQL.GetSelectForeignKeyColumns(AForeignKeyName: String): String;
