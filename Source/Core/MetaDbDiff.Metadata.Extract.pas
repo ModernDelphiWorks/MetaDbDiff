@@ -244,10 +244,12 @@ begin
       if LDriverName = dnOracle then AColumn.TypeName := 'DATE'
       else                           AColumn.TypeName := 'TIME';
     ftDateTime:
-      if      LDriverName = dnInterbase  then AColumn.TypeName := 'DATE'
-      else if LDriverName = dnFirebird   then AColumn.TypeName := 'DATE'
-      else if LDriverName = dnOracle     then AColumn.TypeName := 'DATE'
-      else if LDriverName = dnPostgreSQL then AColumn.TypeName := 'DATE'
+      // ftDateTime carries both date and time-of-day, so it must map to a
+      // type that preserves the time part.
+      if      LDriverName = dnInterbase  then AColumn.TypeName := 'TIMESTAMP' // IB6+: DATE is date-only; TIMESTAMP is date+time.
+      else if LDriverName = dnFirebird   then AColumn.TypeName := 'TIMESTAMP' // FB dialect 3+: DATE is date-only; TIMESTAMP is date+time.
+      else if LDriverName = dnOracle     then AColumn.TypeName := 'DATE'      // Not a bug: Oracle DATE stores date+time down to the second.
+      else if LDriverName = dnPostgreSQL then AColumn.TypeName := 'TIMESTAMP' // PostgreSQL DATE is date-only; TIMESTAMP is date+time.
       else                                   AColumn.TypeName := 'DATETIME';
     ftTimeStamp, ftOraTimeStamp, ftTimeStampOffset:
       if LDriverName = dnOracle    then AColumn.TypeName := 'DATE'

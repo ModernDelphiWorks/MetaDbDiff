@@ -62,6 +62,8 @@ type
     [Test]
     procedure Model_Columns_TypesResolvedForFirebird;
     [Test]
+    procedure Model_Columns_DateTime_OracleKeepsDATE;
+    [Test]
     procedure Model_Columns_NotNullAndDefault;
     [Test]
     procedure Model_PrimaryKey_SimpleAndComposite;
@@ -150,11 +152,47 @@ begin
   Assert.AreEqual('DECIMAL(%p,%s)', Cliente.Fields['000003'].TypeName);
   Assert.AreEqual(18, Cliente.Fields['000003'].Precision);
   Assert.AreEqual(2, Cliente.Fields['000003'].Scale);
-  // -- documenta comportamento atual, bug conhecido:
-  // ftDateTime em Firebird resolve para 'DATE' (Metadata.Extract.pas,
-  // GetFieldTypeDefinition), perdendo a parte de hora (seria TIMESTAMP).
+  // ftDateTime carries date+time, so on Firebird (dialect 3+) it must resolve
+  // to TIMESTAMP, not DATE (DATE is date-only since dialect 3). Fixed in
+  // Metadata.Extract.pas, GetFieldTypeDefinition.
   Assert.AreEqual('CRIADO_EM', Cliente.Fields['000004'].Name);
-  Assert.AreEqual('DATE', Cliente.Fields['000004'].TypeName);
+  Assert.AreEqual('TIMESTAMP', Cliente.Fields['000004'].TypeName);
+end;
+
+procedure TTestMetadataModel.Model_Columns_DateTime_OracleKeepsDATE;
+var
+  LFDConnection: TFDConnection;
+  LConnection: IDBConnection;
+  LCatalog: TCatalogMetadataMIK;
+  LModel: TModelMetadata;
+begin
+  // Not a bug: Oracle's DATE type stores date+time down to the second, so
+  // ftDateTime must keep mapping to DATE on Oracle (unlike Firebird/
+  // Interbase/PostgreSQL, whose DATE is date-only).
+  LFDConnection := TFDConnection.Create(nil);
+  try
+    LConnection := TFactoryFireDAC.Create(LFDConnection, dnOracle);
+    LCatalog := TCatalogMetadataMIK.Create;
+    try
+      LModel := TModelMetadata.Create;
+      try
+        LModel.Connection := LConnection;
+        LModel.CatalogMetadata := LCatalog;
+        LModel.ModelForDatabase := False;
+        LModel.GetModelMetadata;
+        Assert.AreEqual('CRIADO_EM', LCatalog.Tables['CLIENTE'].Fields['000004'].Name);
+        Assert.AreEqual('DATE', LCatalog.Tables['CLIENTE'].Fields['000004'].TypeName,
+          'Oracle DATE deveria ser mantido para ftDateTime');
+      finally
+        LModel.Free;
+      end;
+    finally
+      LCatalog.Free;
+    end;
+  finally
+    LConnection := nil;
+    LFDConnection.Free;
+  end;
 end;
 
 procedure TTestMetadataModel.Model_Columns_NotNullAndDefault;
