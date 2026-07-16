@@ -40,6 +40,7 @@ type
   public
     function GenerateCreateTable(ATable: TTableMIK): String; override;
     function GenerateCreateSequence(ASequence: TSequenceMIK): String; override;
+    function GenerateAlterSequence(ASequence: TSequenceMIK): String; override;
     function GenerateCreateForeignKey(AForeignKey: TForeignKeyMIK): String; override;
     function GenerateDropTable(ATable: TTableMIK): String; override;
     function GenerateDropSequence(ASequence: TSequenceMIK): String; override;
@@ -147,6 +148,17 @@ begin
   finally
     oSQL.Free;
   end;
+end;
+
+function TDDLSQLGeneratorSQLite.GenerateAlterSequence(ASequence: TSequenceMIK): String;
+begin
+  // SQLite nao possui objeto SEQUENCE: o "contador" vive na linha
+  // sqlite_sequence(name, seq), gerenciada pelo proprio AUTOINCREMENT. Nao ha
+  // conceito de INCREMENT alteravel e reescrever seq a mao e arriscado (colidiria
+  // com rowids ja usados). Por isso NAO emitimos ALTER SEQUENCE para SQLite - o
+  // gate em Database.Factory.CompareSequences ja evita criar o comando; este
+  // override existe apenas como defesa (retorna vazio, descartado pelo pipeline).
+  Result := '';
 end;
 
 function TDDLSQLGeneratorSQLite.GenerateDropSequence(ASequence: TSequenceMIK): String;

@@ -40,6 +40,8 @@ type
     procedure SetCommandsAutoExecute(const Value: Boolean);
     function GetComparerFieldPosition:Boolean;
     procedure SetComparerFieldPosition(const Value: Boolean = False);
+    function GetCompareSequenceInitialValue: Boolean;
+    procedure SetCompareSequenceInitialValue(const Value: Boolean);
     function GetPolicy: TComparePolicy;
     procedure SetPolicy(const Value: TComparePolicy);
     function GetSuppressedCommands: TArray<String>;
@@ -68,6 +70,15 @@ type
     procedure SaveScriptToFile(const AFileName: String);
     property CommandsAutoExecute: Boolean read GetCommandsAutoExecute write SetCommandsAutoExecute;
     property ComparerFieldPosition: Boolean read GetComparerFieldPosition write SetComparerFieldPosition;
+    /// <summary>
+    ///   Opt-in (default False): compara tambem o InitialValue das sequences que
+    ///   existem nos dois lados. Desligado por padrao PORQUE o valor corrente de
+    ///   uma sequence e um ALVO MOVEL em producao (avanca a cada uso): compara-lo
+    ///   geraria um ALTER SEQUENCE ... RESTART eterno (falso-positivo) toda vez que
+    ///   o diff roda contra um banco vivo. Por default so o Increment (o "passo",
+    ///   que e estavel) e comparado.
+    /// </summary>
+    property CompareSequenceInitialValue: Boolean read GetCompareSequenceInitialValue write SetCompareSequenceInitialValue;
     /// <summary>
     ///   Policy que limita quais opera��es DDL o diff pode gerar/executar.
     ///   Default: TComparePolicy.FullProfile (comportamento hist�rico).

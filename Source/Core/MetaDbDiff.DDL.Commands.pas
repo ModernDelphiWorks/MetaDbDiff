@@ -56,6 +56,14 @@ type
     function BuildCommand(ASQLGeneratorCommand: IDDLGeneratorCommand): String; override;
   end;
 
+  TDDLCommandAlterSequence = class(TDDLCommand)
+  strict private
+    FSequence: TSequenceMIK;
+  public
+    constructor Create(ASequence: TSequenceMIK);
+    function BuildCommand(ASQLGeneratorCommand: IDDLGeneratorCommand): String; override;
+  end;
+
   TDDLCommandCreateColumn = class(TDDLCommand)
   strict private
     FColumn: TColumnMIK;
@@ -338,6 +346,20 @@ constructor TDDLCommandCreateSequence.Create(ASequence: TSequenceMIK);
 begin
   FSequence := ASequence;
   FWarning := Format('Create Sequence: %s', [ASequence.Name]);
+end;
+
+{ TDDLCommandAlterSequence }
+
+function TDDLCommandAlterSequence.BuildCommand(ASQLGeneratorCommand: IDDLGeneratorCommand): String;
+begin
+  FCommand := ASQLGeneratorCommand.GenerateAlterSequence(FSequence);
+  Result := FCommand;
+end;
+
+constructor TDDLCommandAlterSequence.Create(ASequence: TSequenceMIK);
+begin
+  FSequence := ASequence;
+  FWarning := Format('Alter Sequence: %s', [ASequence.Name]);
 end;
 
 { TDDLCommandDropTable }
