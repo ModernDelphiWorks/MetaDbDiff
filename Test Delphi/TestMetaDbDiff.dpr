@@ -15,6 +15,8 @@ uses
   Test.MetaDbDiff.Mapping in 'Test.MetaDbDiff.Mapping.pas',
   Test.MetaDbDiff.DDL.Generator in 'Test.MetaDbDiff.DDL.Generator.pas',
   Test.MetaDbDiff.Metadata.Model in 'Test.MetaDbDiff.Metadata.Model.pas',
+  Test.MetaDbDiff.Policy in 'Test.MetaDbDiff.Policy.pas',
+  MetaDbDiff.Compare.Options in '..\Source\Core\MetaDbDiff.Compare.Options.pas',
   MetaDbDiff.Mapping.Attributes in '..\Source\Core\MetaDbDiff.Mapping.Attributes.pas',
   MetaDbDiff.Mapping.Classes in '..\Source\Core\MetaDbDiff.Mapping.Classes.pas',
   MetaDbDiff.Mapping.Exceptions in '..\Source\Core\MetaDbDiff.Mapping.Exceptions.pas',

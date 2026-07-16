@@ -28,7 +28,8 @@ uses
   Generics.Collections,
   DataEngine.FactoryInterfaces,
   MetaDbDiff.DDL.Interfaces,
-  MetaDbDiff.DDL.Commands;
+  MetaDbDiff.DDL.Commands,
+  MetaDbDiff.Compare.Options;
 
 type
   IDatabaseCompare = interface
@@ -38,6 +39,9 @@ type
     procedure SetCommandsAutoExecute(const Value: Boolean);
     function GetComparerFieldPosition:Boolean;
     procedure SetComparerFieldPosition(const Value: Boolean = False);
+    function GetPolicy: TComparePolicy;
+    procedure SetPolicy(const Value: TComparePolicy);
+    function GetSuppressedCommands: TArray<String>;
   {$ENDREGION}
     procedure BuildDatabase;
     procedure ExecuteCommands;
@@ -45,6 +49,16 @@ type
     function GeneratorCommand: IDDLGeneratorCommand;
     property CommandsAutoExecute: Boolean read GetCommandsAutoExecute write SetCommandsAutoExecute;
     property ComparerFieldPosition: Boolean read GetComparerFieldPosition write SetComparerFieldPosition;
+    /// <summary>
+    ///   Policy que limita quais opera��es DDL o diff pode gerar/executar.
+    ///   Default: TComparePolicy.FullProfile (comportamento hist�rico).
+    /// </summary>
+    property Policy: TComparePolicy read GetPolicy write SetPolicy;
+    /// <summary>
+    ///   Relat�rio de auditoria: descri��o de cada opera��o que o diff QUERIA
+    ///   emitir mas foi bloqueada pela policy vigente.
+    /// </summary>
+    property SuppressedCommands: TArray<String> read GetSuppressedCommands;
   end;
 
 implementation
