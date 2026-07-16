@@ -75,6 +75,12 @@ begin
   inherited;
 end;
 
+// NOTE: When CommandsAutoExecute is False, BuildDatabase never reaches this
+// method, so both connections remain connected afterwards - this is what
+// allows a later ExecuteCommands call to run the generated commands.
+// Execution is single-shot: the finally block below disconnects both
+// connections, so ExecuteCommands cannot be called again without a new
+// BuildDatabase.
 procedure TDatabaseCompare.ExecuteDDLCommands;
 var
   LDDLCommand: TDDLCommand;

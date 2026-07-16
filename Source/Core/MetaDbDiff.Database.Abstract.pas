@@ -60,6 +60,7 @@ type
   public
     destructor Destroy; override;
     procedure BuildDatabase; virtual; abstract;
+    procedure ExecuteCommands; virtual;
     function GetCommandList: TArray<TDDLCommand>; virtual;
     function GeneratorCommand: IDDLGeneratorCommand; virtual;
     property ModelForDatabase: Boolean read FModelForDatabase;
@@ -74,7 +75,7 @@ implementation
 constructor TDatabaseAbstract.Create(ADriverName: TDriverName);
 begin
   FDriverName := ADriverName;
-  FCommandsAutoExecute := True;
+  FCommandsAutoExecute := False;
   FGeneratorCommand := TSQLDriverRegister.GetInstance.GetDriver(ADriverName);
   FDDLCommands := TObjectList<TDDLCommand>.Create;
   FComparerFieldPosition := False;
@@ -85,8 +86,29 @@ end;
 
 destructor TDatabaseAbstract.Destroy;
 begin
+  // The commands are freed before the catalogs because they reference the
+  // metadata objects owned by the catalogs (see TDatabaseFactory.BuildDatabase).
   FDDLCommands.Free;
+  FCatalogMaster.Free;
+  FCatalogTarget.Free;
   inherited;
+end;
+
+procedure TDatabaseAbstract.ExecuteCommands;
+var
+  LCommandsAutoExecute: Boolean;
+begin
+  // Executes the previously generated commands without re-extracting the
+  // metadata. The auto-execute flag is temporarily forced on so descendant
+  // overrides of ExecuteDDLCommands actually run the commands, and it is
+  // restored afterwards.
+  LCommandsAutoExecute := FCommandsAutoExecute;
+  FCommandsAutoExecute := True;
+  try
+    ExecuteDDLCommands;
+  finally
+    FCommandsAutoExecute := LCommandsAutoExecute;
+  end;
 end;
 
 function TDatabaseAbstract.GeneratorCommand: IDDLGeneratorCommand;

@@ -26,6 +26,7 @@ uses
   Classes,
   SysUtils,
   Generics.Collections,
+  Generics.Defaults,
   DataEngine.FactoryInterfaces,
   MetaDbDiff.DDL.Interfaces,
   MetaDbDiff.Database.Abstract,
@@ -53,6 +54,7 @@ type
     procedure ActionCreateSequence(ASequence: TSequenceMIK);
     procedure ActionCreateForeignKey(AForeignKey: TForeignKeyMIK);
     procedure ActionCreateView(AView: TViewMIK);
+    procedure ActionCreateTrigger(ATrigger: TTriggerMIK);
     procedure ActionDropTable(ATable: TTableMIK);
     procedure ActionDropColumn(AColumn: TColumnMIK);
     procedure ActionDropPrimaryKey(APrimaryKey: TPrimaryKeyMIK);
@@ -61,6 +63,7 @@ type
     procedure ActionDropForeignKey(AForeignKey: TForeignKeyMIK);
     procedure ActionDropCheck(ACheck: TCheckMIK);
     procedure ActionDropView(AView: TViewMIK);
+    procedure ActionDropTrigger(ATrigger: TTriggerMIK);
     procedure ActionAlterColumn(AColumn: TColumnMIK);
     procedure ActionAlterColumnPosition(AColumn: TColumnMIK);
     procedure ActionDropDefaultValue(AColumn: TColumnMIK);
@@ -79,6 +82,7 @@ type
     function DeepEqualsForeignKeyToColumns(AMasterForeignKey, ATargetForeignKey: TForeignKeyMIK): Boolean;
     function DeepEqualsIndexe(AMasterIndexe, ATargetIndexe: TIndexeKeyMIK): Boolean;
     function DeepEqualsIndexeColumns(AMasterIndexe, ATargetIndexe: TIndexeKeyMIK): Boolean;
+    function SortedPairs<T>(ADictionary: TObjectDictionary<String, T>): TArray<TPair<String, T>>;
   protected
     function GetFieldTypeValid(AFieldType: TFieldType): TFieldType; override;
     procedure GenerateDDLCommands(AMasterDB, ATargetDB: TCatalogMetadataMIK); override;
@@ -93,17 +97,21 @@ implementation
 procedure TDatabaseFactory.BuildDatabase;
 begin
   inherited;
+  // The catalogs are kept alive after BuildDatabase (released on the next
+  // call or on destroy) because the generated DDL commands hold references
+  // to their metadata objects, which descendant ExecuteDDLCommands overrides
+  // still dereference when ExecuteCommands rebuilds the command text later.
+  FreeAndNil(FCatalogMaster);
+  FreeAndNil(FCatalogTarget);
   FCatalogMaster := TCatalogMetadataMIK.Create;
   FCatalogTarget := TCatalogMetadataMIK.Create;
-  try
-    // Extrai o metadata com base nos modelos existentes e no banco de dados
-    ExtractDatabase;
-    // Gera os comandos DDL para atualiza��o do banco da dados.
-    GenerateDDLCommands(FCatalogMaster, FCatalogTarget);
-  finally
-    FCatalogMaster.Free;
-    FCatalogTarget.Free;
-  end;
+  // Extrai o metadata com base nos modelos existentes e no banco de dados
+  ExtractDatabase;
+  // Generates the DDL commands to update the target database.
+  GenerateDDLCommands(FCatalogMaster, FCatalogTarget);
+  // Execute the generated commands only when auto execution is enabled.
+  if FCommandsAutoExecute then
+    ExecuteDDLCommands;
 end;
 
 function TDatabaseFactory.DeepEqualsColumn(AMasterColumn, ATargetColumn: TColumnMIK): Boolean;
@@ -114,6 +122,8 @@ begin
   if AMasterColumn.Size <> ATargetColumn.Size then
     Exit(False);
   if AMasterColumn.Precision <> ATargetColumn.Precision then
+    Exit(False);
+  if AMasterColumn.Scale <> ATargetColumn.Scale then
     Exit(False);
   if AMasterColumn.NotNull <> ATargetColumn.NotNull then
     Exit(False);
@@ -161,6 +171,8 @@ begin
 end;
 
 procedure TDatabaseFactory.GenerateDDLCommands(AMasterDB, ATargetDB: TCatalogMetadataMIK);
+var
+  LDDLCommand: TDDLCommand;
 begin
   inherited;
   FDDLCommands.Clear;
@@ -180,8 +192,12 @@ begin
   ActionEnableForeignKeys(True);
   // Gera script que habilita todas as Triggers
   ActionEnableTriggers(True);
-  // Execute Commands
-  ExecuteDDLCommands;
+  // Build the command text right after generation so GetCommandList exposes
+  // the SQL even when the commands are not executed (preview mode).
+  // BuildCommand is deterministic, so rebuilding it again inside descendant
+  // ExecuteDDLCommands overrides just reassigns the same text.
+  for LDDLCommand in FDDLCommands do
+    LDDLCommand.BuildCommand(FGeneratorCommand);
 end;
 
 function TDatabaseFactory.GetFieldTypeValid(AFieldType: TFieldType): TFieldType;
@@ -209,19 +225,33 @@ begin
     Exit(False);
 end;
 
+function TDatabaseFactory.SortedPairs<T>(ADictionary: TObjectDictionary<String, T>): TArray<TPair<String, T>>;
+begin
+  // Returns the dictionary pairs sorted by key so the generated script
+  // keeps a stable, deterministic order between executions.
+  Result := ADictionary.ToArray;
+  TArray.Sort<TPair<String, T>>(Result,
+    TComparer<TPair<String, T>>.Construct(
+      function (const Left, Right: TPair<String, T>): Integer
+      begin
+        Result := CompareStr(Left.Key, Right.Key);
+      end)
+    );
+end;
+
 procedure TDatabaseFactory.CompareTables(AMasterDB, ATargetDB: TCatalogMetadataMIK);
 var
   LTableMaster: TPair<String, TTableMIK>;
   LTableTarget: TPair<String, TTableMIK>;
 begin
   // Gera script de exclus�o de tabela, caso n�o exista um modelo para ela no banco.
-  for LTableTarget in ATargetDB.Tables do
+  for LTableTarget in ATargetDB.TablesSort do
   begin
     if not AMasterDB.Tables.ContainsKey(LTableTarget.Key) then
       ActionDropTable(LTableTarget.Value);
   end;
   // Gera script de cria��o de tabela, caso a tabela do modelo n�o exista no banco.
-  for LTableMaster in AMasterDB.Tables do
+  for LTableMaster in AMasterDB.TablesSort do
   begin
     if ATargetDB.Tables.ContainsKey(LTableMaster.Key) then
     begin
@@ -257,22 +287,31 @@ procedure TDatabaseFactory.CompareTriggers(AMasterTable, ATargetTable: TTableMIK
 var
   LTriggerMaster: TPair<String, TTriggerMIK>;
   LTriggerTarget: TPair<String, TTriggerMIK>;
+  LTrigger: TTriggerMIK;
 begin
   if TSupportedFeature.Triggers in FGeneratorCommand.SupportedFeatures then
   begin
     // Remove trigger que n�o existe no modelo.
-    for LTriggerTarget in ATargetTable.Triggers do
+    for LTriggerTarget in SortedPairs<TTriggerMIK>(ATargetTable.Triggers) do
     begin
       if not AMasterTable.Triggers.ContainsKey(LTriggerTarget.Key) then
-  //      ActionDropTrigger(LTriggerTarget.Value);
+        ActionDropTrigger(LTriggerTarget.Value);
     end;
     // Gera script de cria��o de trigger, caso a trigger do modelo n�o exista no banco.
-    for LTriggerMaster in AMasterTable.Triggers do
+    for LTriggerMaster in SortedPairs<TTriggerMIK>(AMasterTable.Triggers) do
     begin
       if ATargetTable.Triggers.ContainsKey(LTriggerMaster.Key) then
-//        CompareTriggerScript(LTriggerMaster.Value, ATargetTable.Triggers.Items[LTriggerMaster.Key])
+      begin
+        LTrigger := ATargetTable.Triggers.Items[LTriggerMaster.Key];
+        // Recreate the trigger when the script differs from the model.
+        if CompareText(LTriggerMaster.Value.Script, LTrigger.Script) <> 0 then
+        begin
+          ActionDropTrigger(LTrigger);
+          ActionCreateTrigger(LTriggerMaster.Value);
+        end;
+      end
       else
-//        ActionCreateTrigger(LTriggerMaster.Value);
+        ActionCreateTrigger(LTriggerMaster.Value);
     end;
   end;
 end;
@@ -281,24 +320,28 @@ procedure TDatabaseFactory.CompareViews(AMasterDB, ATargetDB: TCatalogMetadataMI
 var
   LViewMaster: TPair<String, TViewMIK>;
   LViewTarget: TPair<String, TViewMIK>;
+  LView: TViewMIK;
 begin
-  if TSupportedFeature.Triggers in FGeneratorCommand.SupportedFeatures then
+  if TSupportedFeature.Views in FGeneratorCommand.SupportedFeatures then
   begin
     // Gera script de exclus�o da view, caso n�o exista um modelo para ela no banco.
-    for LViewTarget in ATargetDB.Views do
+    for LViewTarget in SortedPairs<TViewMIK>(ATargetDB.Views) do
     begin
       if not AMasterDB.Views.ContainsKey(LViewTarget.Key) then
         ActionDropView(LViewTarget.Value);
     end;
     // Gera script de cria��o da view, caso a view do modelo n�o exista no banco.
-    for LViewMaster in AMasterDB.Views do
+    for LViewMaster in SortedPairs<TViewMIK>(AMasterDB.Views) do
     begin
       if ATargetDB.Views.ContainsKey(LViewMaster.Key) then
       begin
-        LViewTarget.Value := LViewMaster.Value;
-
-        if CompareText(LViewMaster.Value.Script, LViewTarget.Value.Script) <> 0 then
-          ActionDropView(LViewTarget.Value);
+        LView := ATargetDB.Views.Items[LViewMaster.Key];
+        // Recreate the view when the script differs from the model.
+        if CompareText(LViewMaster.Value.Script, LView.Script) <> 0 then
+        begin
+          ActionDropView(LView);
+          ActionCreateView(LViewMaster.Value);
+        end;
       end
       else
         ActionCreateView(LViewMaster.Value);
@@ -310,22 +353,28 @@ procedure TDatabaseFactory.CompareChecks(AMasterTable, ATargetTable: TTableMIK);
 var
   LCheckMaster: TPair<String, TCheckMIK>;
   LCheckTarget: TPair<String, TCheckMIK>;
+  LCheck: TCheckMIK;
 begin
   if TSupportedFeature.Checks in FGeneratorCommand.SupportedFeatures then
   begin
-     for LCheckTarget in ATargetTable.Checks do
-     begin
-       if not AMasterTable.Checks.ContainsKey(LCheckTarget.Key) then
-         ActionDropCheck(LCheckTarget.Value);
-     end;
-
-     for LCheckMaster in AMasterTable.Checks do
-     begin
-       if ATargetTable.Checks.ContainsKey(LCheckMaster.Key) then
-         ActionDropCheck(LCheckTarget.Value);
-
-       ActionAlterCheck(LCheckMaster.Value);
-     end;
+    // Drop checks that exist in the database but not in the model.
+    for LCheckTarget in SortedPairs<TCheckMIK>(ATargetTable.Checks) do
+    begin
+      if not AMasterTable.Checks.ContainsKey(LCheckTarget.Key) then
+        ActionDropCheck(LCheckTarget.Value);
+    end;
+    // Create checks missing in the database; alter when the condition differs.
+    for LCheckMaster in SortedPairs<TCheckMIK>(AMasterTable.Checks) do
+    begin
+      if ATargetTable.Checks.ContainsKey(LCheckMaster.Key) then
+      begin
+        LCheck := ATargetTable.Checks.Items[LCheckMaster.Key];
+        if CompareText(LCheckMaster.Value.Condition, LCheck.Condition) <> 0 then
+          ActionAlterCheck(LCheckMaster.Value);
+      end
+      else
+        ActionCreateCheck(LCheckMaster.Value);
+    end;
   end;
 end;
 
@@ -403,7 +452,7 @@ var
   LForeignKeyMaster: TPair<String, TForeignKeyMIK>;
 begin
   // Gera script de cria��o das ForeingnKeys, caso n�o exista no banco.
-  for LTableMaster in AMasterDB.Tables do
+  for LTableMaster in AMasterDB.TablesSort do
   begin
     if ATargetDB.Tables.ContainsKey(LTableMaster.Key) then
     begin
@@ -416,7 +465,7 @@ begin
     begin
       // Gera script de cria��o dos ForeignKey da nova tabela.
       if FDriverName <> dnSQLite then
-        for LForeignKeyMaster in LTableMaster.Value.ForeignKeys do
+        for LForeignKeyMaster in SortedPairs<TForeignKeyMIK>(LTableMaster.Value.ForeignKeys) do
           ActionCreateForeignKey(LForeignKeyMaster.Value);
     end;
   end;
@@ -479,13 +528,13 @@ begin
   if TSupportedFeature.ForeignKeys in FGeneratorCommand.SupportedFeatures then
   begin
     // Remove indexe que n�o existe no modelo.
-    for LForeignKeyTarget in ATargetTable.ForeignKeys do
+    for LForeignKeyTarget in SortedPairs<TForeignKeyMIK>(ATargetTable.ForeignKeys) do
     begin
       if not AMasterTable.ForeignKeys.ContainsKey(LForeignKeyTarget.Key) then
         ActionDropForeignKey(LForeignKeyTarget.Value);
     end;
     // Gera script de cria��o de indexe, caso a indexe do modelo n�o exista no banco.
-    for LForeignKeyMaster in AMasterTable.ForeignKeys do
+    for LForeignKeyMaster in SortedPairs<TForeignKeyMIK>(AMasterTable.ForeignKeys) do
     begin
       if ATargetTable.ForeignKeys.ContainsKey(LForeignKeyMaster.Key) then
       begin
@@ -610,13 +659,13 @@ var
   LIndexeTarget: TPair<String, TIndexeKeyMIK>;
 begin
   // Remove indexe que n�o existe no modelo.
-  for LIndexeTarget in ATargetTable.IndexeKeys do
+  for LIndexeTarget in SortedPairs<TIndexeKeyMIK>(ATargetTable.IndexeKeys) do
   begin
     if not AMasterTable.IndexeKeys.ContainsKey(LIndexeTarget.Key) then
       ActionDropIndexe(LIndexeTarget.Value);
   end;
   // Gera script de cria��o de indexe, caso a indexe do modelo n�o exista no banco.
-  for LIndexeMaster in AMasterTable.IndexeKeys do
+  for LIndexeMaster in SortedPairs<TIndexeKeyMIK>(AMasterTable.IndexeKeys) do
   begin
     if ATargetTable.IndexeKeys.ContainsKey(LIndexeMaster.Key) then
     begin
@@ -669,6 +718,12 @@ begin
       Break;
     end;
   end;
+  // A primary key recreated by column divergence must drop the existing one first.
+  if LRecreatePK and (Trim(ATargetTable.PrimaryKey.Name) <> EmptyStr) then
+    LDropPK := True;
+  // Every primary key dropped by divergence must be recreated from the model.
+  if LDropPK and (AMasterTable.PrimaryKey.Fields.Count > 0) then
+    LRecreatePK := True;
   if LDropPK then
     ActionDropPrimaryKey(ATargetTable.PrimaryKey);
   if LRecreatePK then
@@ -684,13 +739,13 @@ begin
   begin
     // Checa se existe alguma sequence no banco, da qual n�o exista nos modelos
     // para exclus�o da mesma.
-    for LSequenceTarget in ATargetDB.Sequences do
+    for LSequenceTarget in SortedPairs<TSequenceMIK>(ATargetDB.Sequences) do
     begin
       if not AMasterDB.Sequences.ContainsKey(LSequenceTarget.Key) then
         ActionDropSequence(LSequenceTarget.Value);
     end;
     // Checa se existe a sequence no banco, se n�o existir cria se existir.
-    for LSequenceMaster in AMasterDB.Sequences do
+    for LSequenceMaster in SortedPairs<TSequenceMIK>(AMasterDB.Sequences) do
     begin
       if not ATargetDB.Sequences.ContainsKey(LSequenceMaster.Key) then
         ActionCreateSequence(LSequenceMaster.Value);
@@ -758,6 +813,11 @@ begin
   FDDLCommands.Add(TDDLCommandCreateView.Create(AView));
 end;
 
+procedure TDatabaseFactory.ActionCreateTrigger(ATrigger: TTriggerMIK);
+begin
+  FDDLCommands.Add(TDDLCommandCreateTrigger.Create(ATrigger));
+end;
+
 procedure TDatabaseFactory.ActionDropCheck(ACheck: TCheckMIK);
 begin
   FDDLCommands.Add(TDDLCommandDropCheck.Create(ACheck));
@@ -801,6 +861,11 @@ end;
 procedure TDatabaseFactory.ActionDropView(AView: TViewMIK);
 begin
   FDDLCommands.Add(TDDLCommandDropView.Create(AView));
+end;
+
+procedure TDatabaseFactory.ActionDropTrigger(ATrigger: TTriggerMIK);
+begin
+  FDDLCommands.Add(TDDLCommandDropTrigger.Create(ATrigger));
 end;
 
 procedure TDatabaseFactory.ActionEnableForeignKeys(AEnable: Boolean);
