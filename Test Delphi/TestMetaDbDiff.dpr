@@ -26,6 +26,8 @@ uses
   MetaDbDiff.Database.Abstract in '..\Source\Core\MetaDbDiff.Database.Abstract.pas',
   MetaDbDiff.Database.Compare in '..\Source\Core\MetaDbDiff.Database.Compare.pas',
   MetaDbDiff.Database.Factory in '..\Source\Core\MetaDbDiff.Database.Factory.pas',
+  MetaDbDiff.Database.ModelCompare in '..\Source\Core\MetaDbDiff.Database.ModelCompare.pas',
+  MetaDbDiff.Metadata.Model.Factory in '..\Source\Core\MetaDbDiff.Metadata.Model.Factory.pas',
   MetaDbDiff.Database.Interfaces in '..\Source\Core\MetaDbDiff.Database.Interfaces.pas',
   MetaDbDiff.Database.Mapping in '..\Source\Core\MetaDbDiff.Database.Mapping.pas',
   MetaDbDiff.Database.MetaInfo in '..\Source\Core\MetaDbDiff.Database.MetaInfo.pas',
