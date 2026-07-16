@@ -30,7 +30,7 @@ uses
   Generics.Collections,
   MetaDbDiff.Metadata.Register,
   MetaDbDiff.Metadata.Extract,
-  MetaDbDiff.Metadata.Firebird,
+  MetaDbDiff.Metadata.Normalize,
   MetaDbDiff.Database.Mapping,
   DataEngine.FactoryInterfaces;
 
@@ -151,6 +151,10 @@ begin
   FCatalogMetadata.Schema := 'public';
   GetSequences;
   GetTables;
+  // Views ligadas (F10): GetSelectViews/GetViews do PostgreSQL sao reais
+  // (information_schema.views.view_definition) e leem view_name/view_script/
+  // view_description. Triggers permanecem DESLIGADAS (GetSelectTriggers vazio).
+  GetViews;
 end;
 
 procedure TCatalogMetadataPostgreSQL.GetTables;

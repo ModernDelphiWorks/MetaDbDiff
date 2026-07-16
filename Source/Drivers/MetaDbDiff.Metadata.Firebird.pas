@@ -31,6 +31,7 @@ uses
   MetaDbDiff.Metadata.Register,
   MetaDbDiff.Metadata.Extract,
   MetaDbDiff.Database.Mapping,
+  MetaDbDiff.Metadata.Normalize,
   MetaDbDiff.Types.Mapping;
 
 type
@@ -69,65 +70,11 @@ type
     procedure GetDatabaseMetadata; override;
   end;
 
-// Canoniza a condicao de um CHECK vinda do catalogo para o formato esperado pelo
-// gerador (que reconstroi "CHECK (...)"). Compartilhada entre os extractors
-// Firebird (RDB$TRIGGER_SOURCE) e PostgreSQL (pg_get_constraintdef), que
-// entregam a definicao completa "CHECK (<cond>)".
-//   1) remove o prefixo CHECK;
-//   2) remove pares de parenteses EXTERNOS BALANCEADOS de forma iterativa,
-//      preservando expressoes como "(A) OR (B)".
-// Exemplos: 'CHECK ((AGE > 18))' -> 'AGE > 18'; 'CHECK ((A) OR (B))' -> '(A) OR (B)'.
-// NOTA: a normalizacao equivalente do lado MASTER (MetaDbDiff.Database.Factory,
-// compare ~396) fica a cargo da frente F10.
-function CanonicalizeCheckCondition(const ASource: String): String;
+// CanonicalizeCheckCondition foi movida para MetaDbDiff.Metadata.Normalize
+// (Source\Core) para ser consumida pelo Core e pelos demais dialetos sem inverter
+// a dependencia (antes PostgreSQL usava esta unit Firebird). Ver aquela unit.
 
 implementation
-
-function CanonicalizeCheckCondition(const ASource: String): String;
-
-  // Remove o par de parenteses mais externo apenas se '(' inicial e ')' final
-  // formarem um par CASADO que envolve a expressao inteira. Conta a profundidade:
-  // se ela zerar antes do ultimo caractere, o '(' inicial NAO envolve tudo (ex.:
-  // "(A) OR (B)" zera no ')' de (A)) e nada e removido.
-  function StripOuterBalancedParens(const S: String): String;
-  var
-    LDepth, I: Integer;
-    LWrapped: Boolean;
-  begin
-    Result := S;
-    if (Length(Result) < 2) or (Result[1] <> '(') or (Result[Length(Result)] <> ')') then
-      Exit;
-    LDepth := 0;
-    LWrapped := True;
-    for I := 1 to Length(Result) do
-    begin
-      if Result[I] = '(' then
-        Inc(LDepth)
-      else if Result[I] = ')' then
-        Dec(LDepth);
-      if (LDepth = 0) and (I < Length(Result)) then
-      begin
-        LWrapped := False;
-        Break;
-      end;
-    end;
-    if LWrapped and (LDepth = 0) then
-      Result := Copy(Result, 2, Length(Result) - 2);
-  end;
-
-var
-  LPrevious: String;
-begin
-  Result := Trim(ASource);
-  // 1) Remove a palavra-chave CHECK (o gerador reconstroi "CHECK (...)").
-  if UpperCase(Copy(Result, 1, 5)) = 'CHECK' then
-    Result := Trim(Copy(Result, 6, Length(Result)));
-  // 2) Descasca pares externos balanceados ate estabilizar.
-  repeat
-    LPrevious := Result;
-    Result := Trim(StripOuterBalancedParens(Result));
-  until Result = LPrevious;
-end;
 
 { TSchemaExtractFirebird }
 
