@@ -157,11 +157,13 @@ begin
   Assert.IsTrue(LColumn.FieldType = ftBCD, 'FieldType de SALDO deveria ser ftBCD');
   Assert.AreEqual(18, LColumn.Precision);
   Assert.AreEqual(2, LColumn.Scale);
-  // -- documenta comportamento atual, bug conhecido:
-  // Column.Create(name, type, precision, scale) faz "FSize := AScale"
-  // (MetaDbDiff.Mapping.Attributes.pas, construtor de 4 argumentos), logo
-  // Size retorna o SCALE (2) e nao 0/precision como seria esperado.
-  Assert.AreEqual(2, LColumn.Size);
+  // Column.Create(name, type, precision, scale) must leave Size at 0: numeric
+  // columns are sized via Precision/Scale (DECIMAL(%p,%s) et al.), not Size
+  // (%l, used by string/CHAR types). Fixed in MetaDbDiff.Mapping.Attributes.pas
+  // - previously this constructor did "FSize := AScale", which also caused a
+  // spurious Size mismatch against database-extracted metadata (where Size is
+  // reset to 0 for the same %p/%s type names) in DeepEqualsColumn.
+  Assert.AreEqual(0, LColumn.Size);
 end;
 
 procedure TTestMapping.Column_Restrictions_NotNull;
