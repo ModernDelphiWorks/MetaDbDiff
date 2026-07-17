@@ -57,6 +57,9 @@ type
     /// </summary>
     function DefaultSchema: String; override;
     function Execute: IDBResultSet;
+    // FRENTE 15: extrai pg_proc por prokind ('p'=procedure, 'f'=function) e guarda
+    // como TProcedureMIK (IsFunction conforme). pg_get_functiondef = CREATE completo.
+    procedure _ExtractRoutines(AProkind: Char; AIsFunction: Boolean);
   public
     procedure CreateFieldTypeList; override;
     procedure GetCatalogs; override;
@@ -72,6 +75,7 @@ type
     procedure GetProcedures; override;
     procedure GetFunctions; override;
     procedure GetViews; override;
+    procedure GetDomains; override;
     procedure GetDatabaseMetadata; override;
   end;
 
@@ -174,11 +178,16 @@ begin
   // default) para o filtro.
   FCatalogMetadata.Schema := CatalogSchema;
   GetSequences;
+  // FRENTE 15: dominios antes das tabelas (colunas podem usar dominios).
+  GetDomains;
   GetTables;
   // Views ligadas (F10): GetSelectViews/GetViews do PostgreSQL sao reais
   // (information_schema.views.view_definition) e leem view_name/view_script/
   // view_description. Triggers permanecem DESLIGADAS (GetSelectTriggers vazio).
   GetViews;
+  // FRENTE 15: procedures (prokind='p') e functions (prokind='f') via pg_proc.
+  GetProcedures;
+  GetFunctions;
 end;
 
 procedure TCatalogMetadataPostgreSQL.GetTables;
@@ -380,16 +389,102 @@ begin
   end;
 end;
 
+function _PgSchemaFilter(const AAlias, AEffectiveSchema: String): String;
+begin
+  // Sem schema configurado: comportamento historico (exclui catalogos do sistema).
+  // Com schema: restringe ao schema (ja validado como identificador em SetSchema).
+  if AEffectiveSchema = '' then
+    Result := AAlias + '.nspname not in (''pg_catalog'',''information_schema'')'
+  else
+    Result := AAlias + '.nspname = ' + QuotedStr(AEffectiveSchema);
+end;
+
+procedure TCatalogMetadataPostgreSQL._ExtractRoutines(AProkind: Char; AIsFunction: Boolean);
+var
+  LDBResultSet: IDBResultSet;
+  LProcedure: TProcedureMIK;
+begin
+  FSQLText := ' select p.proname as name, ' +
+              '        pg_catalog.pg_get_function_identity_arguments(p.oid) as signature, ' +
+              '        pg_catalog.pg_get_functiondef(p.oid) as source ' +
+              ' from pg_catalog.pg_proc p ' +
+              ' join pg_catalog.pg_namespace n on n.oid = p.pronamespace ' +
+              ' where p.prokind = ' + QuotedStr(AProkind) +
+              '   and ' + _PgSchemaFilter('n', EffectiveSchema) +
+              ' order by p.proname ';
+  LDBResultSet := Execute;
+  while LDBResultSet.NotEof do
+  begin
+    LProcedure := TProcedureMIK.Create(FCatalogMetadata);
+    LProcedure.Name := Trim(VarToStr(LDBResultSet.GetFieldValue('name')));
+    LProcedure.IsFunction := AIsFunction;
+    // Assinatura de identidade (ex.: "integer, text"): entra na chave e no DROP
+    // para NAO colapsar/ambiguar OVERLOADS. pg_get_functiondef = CREATE completo.
+    LProcedure.Signature := Trim(VarToStr(LDBResultSet.GetFieldValue('signature')));
+    LProcedure.Script := VarToStr(LDBResultSet.GetFieldValue('source'));
+    // CatalogKey = nome + '(' + assinatura + ')': preserva sobrecargas distintas.
+    FCatalogMetadata.Procedures.AddOrSetValue(LProcedure.CatalogKey, LProcedure);
+  end;
+end;
+
 procedure TCatalogMetadataPostgreSQL.GetFunctions;
 begin
   inherited;
-
+  _ExtractRoutines('f', True);
 end;
 
 procedure TCatalogMetadataPostgreSQL.GetProcedures;
 begin
   inherited;
+  _ExtractRoutines('p', False);
+end;
 
+procedure TCatalogMetadataPostgreSQL.GetDomains;
+var
+  LDBResultSet: IDBResultSet;
+  LDomain: TDomainMIK;
+
+  function ResolveBoolNull(AValue: Variant): Boolean;
+  begin
+    Result := False;
+    if AValue <> Null then
+      Result := VarAsType(AValue, varBoolean);
+  end;
+
+begin
+  inherited;
+  // Um dominio pode ter VARIOS CHECKs (pg_constraint c/ contypid): agrega os
+  // constraintdefs CRUS ("CHECK (<cond>)" cada) com um delimitador IMPROVAVEL
+  // ('||CHK||') em vez de ' AND ' - assim cada fragmento e canonizado
+  // SEPARADAMENTE no Delphi (CanonicalizeMultiCheck), removendo o CHECK de CADA um
+  // (juntar antes deixaria "(a>0) AND CHECK ((b<100))" com keyword residual). O
+  // GROUP BY colapsa as multiplas linhas do LEFT JOIN num registro por dominio.
+  FSQLText := ' select t.typname as name, ' +
+              '        pg_catalog.format_type(t.typbasetype, t.typtypmod) as type_name, ' +
+              '        t.typnotnull as not_null, ' +
+              '        t.typdefault as field_default, ' +
+              '        string_agg(pg_catalog.pg_get_constraintdef(c.oid, true), ''||CHK||'') as field_check ' +
+              ' from pg_catalog.pg_type t ' +
+              ' join pg_catalog.pg_namespace n on n.oid = t.typnamespace ' +
+              ' left join pg_catalog.pg_constraint c on c.contypid = t.oid ' +
+              ' where t.typtype = ''d'' ' +
+              '   and ' + _PgSchemaFilter('n', EffectiveSchema) +
+              ' group by t.typname, t.typbasetype, t.typtypmod, t.typnotnull, t.typdefault ' +
+              ' order by t.typname ';
+  LDBResultSet := Execute;
+  while LDBResultSet.NotEof do
+  begin
+    LDomain := TDomainMIK.Create(FCatalogMetadata);
+    LDomain.Name := Trim(VarToStr(LDBResultSet.GetFieldValue('name')));
+    LDomain.TypeName := Trim(VarToStr(LDBResultSet.GetFieldValue('type_name')));
+    LDomain.NotNull := ResolveBoolNull(LDBResultSet.GetFieldValue('not_null'));
+    LDomain.DefaultValue := Trim(VarToStr(LDBResultSet.GetFieldValue('field_default')));
+    // field_check e o agregado "CHECK (..)||CHK||CHECK (..)": canoniza CADA
+    // fragmento (remove o CHECK/parens de cada um) e junta '(c1) AND (c2)'.
+    LDomain.CheckCondition := TMetadataNormalizer.CanonicalizeMultiCheck(
+      VarToStr(LDBResultSet.GetFieldValue('field_check')), '||CHK||');
+    FCatalogMetadata.Domains.AddOrSetValue(UpperCase(LDomain.Name), LDomain);
+  end;
 end;
 
 procedure TCatalogMetadataPostgreSQL.GetSequences;

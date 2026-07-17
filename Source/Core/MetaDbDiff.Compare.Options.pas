@@ -78,7 +78,13 @@ type
     ///   drop original / rename). Um �nico gate governa a sequ�ncia inteira, para
     ///   que a lista nunca fique meio-transformada. FORA do JanusOrmProfile.
     /// </summary>
-    RebuildColumn);
+    RebuildColumn,
+    // FRENTE 15: novas muta��es (todas FORA do JanusOrmProfile).
+    CreateDomain,
+    DropDomain,
+    CreateProcedure,
+    DropProcedure,
+    SetComment);
 
   TDDLOperations = set of TDDLOperation;
 
@@ -209,6 +215,17 @@ begin
     AOperation := TDDLOperation.DropSequence
   else if ACommand is TDDLCommandAlterSequence then
     AOperation := TDDLOperation.AlterSequence
+  // FRENTE 15.
+  else if ACommand is TDDLCommandCreateDomain then
+    AOperation := TDDLOperation.CreateDomain
+  else if ACommand is TDDLCommandDropDomain then
+    AOperation := TDDLOperation.DropDomain
+  else if ACommand is TDDLCommandCreateProcedure then
+    AOperation := TDDLOperation.CreateProcedure
+  else if ACommand is TDDLCommandDropProcedure then
+    AOperation := TDDLOperation.DropProcedure
+  else if ACommand is TDDLCommandSetComment then
+    AOperation := TDDLOperation.SetComment
   else
     // 3) Classe n�o mapeada: NEGA por fail-closed (jamais tratada como guarda).
     Exit(ckUnknown);

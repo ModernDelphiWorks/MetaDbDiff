@@ -259,6 +259,54 @@ type
     function BuildCommand(ASQLGeneratorCommand: IDDLGeneratorCommand): String; override;
   end;
 
+  { --- FRENTE 15: Domains / Procedures / Comments --- }
+
+  TDDLCommandCreateDomain = class(TDDLCommand)
+  strict private
+    FDomain: TDomainMIK;
+  public
+    constructor Create(ADomain: TDomainMIK);
+    function BuildCommand(ASQLGeneratorCommand: IDDLGeneratorCommand): String; override;
+  end;
+
+  TDDLCommandDropDomain = class(TDDLCommand)
+  strict private
+    FDomain: TDomainMIK;
+  public
+    constructor Create(ADomain: TDomainMIK);
+    function BuildCommand(ASQLGeneratorCommand: IDDLGeneratorCommand): String; override;
+  end;
+
+  TDDLCommandCreateProcedure = class(TDDLCommand)
+  strict private
+    FProcedure: TProcedureMIK;
+  public
+    constructor Create(AProcedure: TProcedureMIK);
+    function BuildCommand(ASQLGeneratorCommand: IDDLGeneratorCommand): String; override;
+  end;
+
+  TDDLCommandDropProcedure = class(TDDLCommand)
+  strict private
+    FProcedure: TProcedureMIK;
+  public
+    constructor Create(AProcedure: TProcedureMIK);
+    function BuildCommand(ASQLGeneratorCommand: IDDLGeneratorCommand): String; override;
+  end;
+
+  /// <summary>
+  ///   COMMENT ON TABLE/COLUMN. Carrega o objeto-alvo: exatamente UM de
+  ///   FTable/FColumn e nao-nil (o construtor exige). Um FColumn nao-nil produz
+  ///   COMMENT ON COLUMN; caso contrario COMMENT ON TABLE.
+  /// </summary>
+  TDDLCommandSetComment = class(TDDLCommand)
+  strict private
+    FTable: TTableMIK;
+    FColumn: TColumnMIK;
+  public
+    constructor Create(ATable: TTableMIK; AColumn: TColumnMIK);
+    function BuildCommand(ASQLGeneratorCommand: IDDLGeneratorCommand): String; override;
+  end;
+
   { --- Safe ALTER COLUMN rebuild commands (FRENTE 11) --- }
 
   /// <summary>
@@ -673,6 +721,80 @@ constructor TDDLCommandAlterColumnPosition.Create(AColumn: TColumnMIK);
 begin
   FColumn := AColumn;
   FWarning := Format('Alter Column Position: %s', [AColumn.Name]);
+end;
+
+{ TDDLCommandCreateDomain }
+
+constructor TDDLCommandCreateDomain.Create(ADomain: TDomainMIK);
+begin
+  FDomain := ADomain;
+  FWarning := Format('Create Domain: %s', [ADomain.Name]);
+end;
+
+function TDDLCommandCreateDomain.BuildCommand(ASQLGeneratorCommand: IDDLGeneratorCommand): String;
+begin
+  FCommand := ASQLGeneratorCommand.GenerateCreateDomain(FDomain);
+  Result := FCommand;
+end;
+
+{ TDDLCommandDropDomain }
+
+constructor TDDLCommandDropDomain.Create(ADomain: TDomainMIK);
+begin
+  FDomain := ADomain;
+  FWarning := Format('Drop Domain: %s', [ADomain.Name]);
+end;
+
+function TDDLCommandDropDomain.BuildCommand(ASQLGeneratorCommand: IDDLGeneratorCommand): String;
+begin
+  FCommand := ASQLGeneratorCommand.GenerateDropDomain(FDomain);
+  Result := FCommand;
+end;
+
+{ TDDLCommandCreateProcedure }
+
+constructor TDDLCommandCreateProcedure.Create(AProcedure: TProcedureMIK);
+begin
+  FProcedure := AProcedure;
+  FWarning := Format('Create Procedure: %s', [AProcedure.Name]);
+end;
+
+function TDDLCommandCreateProcedure.BuildCommand(ASQLGeneratorCommand: IDDLGeneratorCommand): String;
+begin
+  FCommand := ASQLGeneratorCommand.GenerateCreateProcedure(FProcedure);
+  Result := FCommand;
+end;
+
+{ TDDLCommandDropProcedure }
+
+constructor TDDLCommandDropProcedure.Create(AProcedure: TProcedureMIK);
+begin
+  FProcedure := AProcedure;
+  FWarning := Format('Drop Procedure: %s', [AProcedure.Name]);
+end;
+
+function TDDLCommandDropProcedure.BuildCommand(ASQLGeneratorCommand: IDDLGeneratorCommand): String;
+begin
+  FCommand := ASQLGeneratorCommand.GenerateDropProcedure(FProcedure);
+  Result := FCommand;
+end;
+
+{ TDDLCommandSetComment }
+
+constructor TDDLCommandSetComment.Create(ATable: TTableMIK; AColumn: TColumnMIK);
+begin
+  FTable := ATable;
+  FColumn := AColumn;
+  if AColumn <> nil then
+    FWarning := Format('Set Comment: %s.%s', [AColumn.Table.Name, AColumn.Name])
+  else
+    FWarning := Format('Set Comment: %s', [ATable.Name]);
+end;
+
+function TDDLCommandSetComment.BuildCommand(ASQLGeneratorCommand: IDDLGeneratorCommand): String;
+begin
+  FCommand := ASQLGeneratorCommand.GenerateSetComment(FTable, FColumn);
+  Result := FCommand;
 end;
 
 { TDDLCommand }

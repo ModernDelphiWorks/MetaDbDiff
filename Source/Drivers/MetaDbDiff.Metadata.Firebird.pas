@@ -52,6 +52,10 @@ type
     function GetSelectChecks(ATableName: String): String; override;
     function GetSelectViews: String; override;
     function GetSelectSequences: String; override;
+    // FRENTE 15.
+    function GetSelectDomains: String; virtual;
+    function GetSelectProcedures: String; virtual;
+    function _ResolveDomainType(AFieldType, ASubType, ALength, APrecision, AScale: Integer): String;
     function Execute: IDBResultSet;
   public
     procedure GetCatalogs; override;
@@ -67,6 +71,7 @@ type
     procedure GetProcedures; override;
     procedure GetFunctions; override;
     procedure GetViews; override;
+    procedure GetDomains; override;
     procedure GetDatabaseMetadata; override;
   end;
 
@@ -130,8 +135,14 @@ begin
   inherited;
   FCatalogMetadata.Schema := '';
   GetSequences;
+  // FRENTE 15: dominios ANTES das tabelas (colunas do banco podem referencia-los).
+  GetDomains;
   GetTables;
   GetViews;
+  // FRENTE 15: procedures/functions (DB-vs-DB). Sao no-op em model-mode porque
+  // o extractor de banco nem sequer roda no caminho do modelo.
+  GetProcedures;
+  GetFunctions;
 end;
 
 procedure TCatalogMetadataFirebird.GetTables;
@@ -168,20 +179,9 @@ var
   LColumn: TColumnMIK;
 
   function ExtractDefaultValue(ADefaultValue: String): String;
-  var
-    iDefaultPos: Integer;
   begin
-    Result := UpperCase(Trim(ADefaultValue));
-    if Length(ADefaultValue) > 0 then
-    begin
-      iDefaultPos := Pos('DEFAULT', Result);
-      if iDefaultPos = 1 then
-        Delete(Result,1,7);
-      iDefaultPos := Pos('=', Result);
-      if iDefaultPos = 1 then
-        Delete(Result,1,1);
-    end;
-    Result := Trim(Result);
+    // Delega ao helper compartilhado (mesma logica); reutilizado por GetDomains.
+    Result := TMetadataNormalizer.StripDefaultKeyword(ADefaultValue);
   end;
 
   function ResolveIntegerNullValue(AValue: Variant): Integer;
@@ -311,9 +311,99 @@ begin
 end;
 
 procedure TCatalogMetadataFirebird.GetProcedures;
+var
+  LDBResultSet: IDBResultSet;
+  LProcedure: TProcedureMIK;
 begin
   inherited;
+  FSQLText := GetSelectProcedures;
+  if Trim(FSQLText) = '' then
+    Exit;
+  LDBResultSet := Execute;
+  while LDBResultSet.NotEof do
+  begin
+    LProcedure := TProcedureMIK.Create(FCatalogMetadata);
+    LProcedure.Name := Trim(VarToStr(LDBResultSet.GetFieldValue('name')));
+    LProcedure.IsFunction := False;
+    // RDB$PROCEDURE_SOURCE traz apenas o CORPO (o cabecalho com parametros nao e
+    // reconstruivel trivialmente aqui); guardamos um CREATE PROCEDURE best-effort.
+    // Suficiente para detectar divergencia/drop no compare DB-vs-DB; a fidelidade
+    // total do CREATE fica documentada como limitacao da FRENTE 15 no Firebird.
+    LProcedure.Script := 'CREATE PROCEDURE ' + Trim(LProcedure.Name) + ' AS ' +
+                         VarToStr(LDBResultSet.GetFieldValue('source'));
+    FCatalogMetadata.Procedures.Add(UpperCase(LProcedure.Name), LProcedure);
+  end;
+end;
 
+procedure TCatalogMetadataFirebird.GetDomains;
+var
+  LDBResultSet: IDBResultSet;
+  LDomain: TDomainMIK;
+
+  function ResolveIntNull(AValue: Variant): Integer;
+  begin
+    Result := 0;
+    if AValue <> Null then
+      Result := VarAsType(AValue, varInteger);
+  end;
+
+begin
+  inherited;
+  FSQLText := GetSelectDomains;
+  if Trim(FSQLText) = '' then
+    Exit;
+  LDBResultSet := Execute;
+  while LDBResultSet.NotEof do
+  begin
+    LDomain := TDomainMIK.Create(FCatalogMetadata);
+    LDomain.Name := Trim(VarToStr(LDBResultSet.GetFieldValue('name')));
+    LDomain.TypeName := _ResolveDomainType(
+      ResolveIntNull(LDBResultSet.GetFieldValue('field_type')),
+      ResolveIntNull(LDBResultSet.GetFieldValue('field_sub_type')),
+      ResolveIntNull(LDBResultSet.GetFieldValue('field_length')),
+      ResolveIntNull(LDBResultSet.GetFieldValue('field_precision')),
+      ResolveIntNull(LDBResultSet.GetFieldValue('field_scale')));
+    LDomain.NotNull := ResolveIntNull(LDBResultSet.GetFieldValue('field_null')) = 1;
+    // rdb$default_source vem como "DEFAULT <x>" e rdb$validation_source como
+    // "CHECK (<cond>)": NORMALIZA os dois (remove as keywords) para que o gerador
+    // base as re-adicione UMA vez - senao sairia "DEFAULT DEFAULT 0" /
+    // "CHECK (CHECK (VALUE >= 0))" (invalido). Mesma costura do PostgreSQL.
+    LDomain.DefaultValue := TMetadataNormalizer.StripDefaultKeyword(
+      VarToStr(LDBResultSet.GetFieldValue('field_default')));
+    LDomain.CheckCondition := TMetadataNormalizer.CanonicalizeCheckCondition(
+      VarToStr(LDBResultSet.GetFieldValue('field_check')));
+    LDomain.Description := VarToStr(LDBResultSet.GetFieldValue('description'));
+    FCatalogMetadata.Domains.Add(UpperCase(LDomain.Name), LDomain);
+  end;
+end;
+
+function TCatalogMetadataFirebird._ResolveDomainType(AFieldType, ASubType,
+  ALength, APrecision, AScale: Integer): String;
+begin
+  // Mapeia RDB$FIELD_TYPE -> tipo SQL para CREATE DOMAIN. Cobre os tipos comuns;
+  // o scale do Firebird e negativo (guardamos -AScale). Best-effort documentado.
+  case AFieldType of
+     7: if ASubType = 1 then Result := Format('NUMERIC(%d,%d)', [APrecision, -AScale])
+        else if ASubType = 2 then Result := Format('DECIMAL(%d,%d)', [APrecision, -AScale])
+        else Result := 'SMALLINT';
+     8: if ASubType = 1 then Result := Format('NUMERIC(%d,%d)', [APrecision, -AScale])
+        else if ASubType = 2 then Result := Format('DECIMAL(%d,%d)', [APrecision, -AScale])
+        else Result := 'INTEGER';
+    10: Result := 'FLOAT';
+    12: Result := 'DATE';
+    13: Result := 'TIME';
+    14: Result := Format('CHAR(%d)', [ALength]);
+    16: if ASubType = 1 then Result := Format('NUMERIC(%d,%d)', [APrecision, -AScale])
+        else if ASubType = 2 then Result := Format('DECIMAL(%d,%d)', [APrecision, -AScale])
+        else Result := 'BIGINT';
+    27: Result := 'DOUBLE PRECISION';
+    35: Result := 'TIMESTAMP';
+    37: Result := Format('VARCHAR(%d)', [ALength]);
+   261: if ASubType = 1 then Result := 'BLOB SUB_TYPE 1' else Result := 'BLOB';
+  else
+    Result := 'VARCHAR(%d)';  // fallback improvavel
+    Result := Format(Result, [ALength]);
+  end;
 end;
 
 procedure TCatalogMetadataFirebird.GetSequences;
@@ -511,6 +601,37 @@ begin
             ' where (rdb$system_flag <> 1 or rdb$system_flag is null) ' +
 //            ' and rdb$generator_name not like ''IBE$%'' ' +
             ' order by rdb$generator_name ';
+end;
+
+function TCatalogMetadataFirebird.GetSelectDomains: String;
+begin
+  // Dominios definidos pelo usuario: RDB$FIELDS cujo nome NAO e um SQL$/RDB$
+  // gerado (esses sao os "field sources" implicitos das colunas). RDB$SYSTEM_FLAG
+  // = 0 e o nome nao comecar por 'RDB$'/'SQL$' isola os dominios nomeados.
+  Result := ' select f.rdb$field_name       as name, ' +
+            '        f.rdb$field_type       as field_type, ' +
+            '        f.rdb$field_sub_type   as field_sub_type, ' +
+            '        f.rdb$character_length as field_length, ' +
+            '        f.rdb$field_precision  as field_precision, ' +
+            '        f.rdb$field_scale      as field_scale, ' +
+            '        coalesce(f.rdb$null_flag, 0) as field_null, ' +
+            '        f.rdb$default_source   as field_default, ' +
+            '        f.rdb$validation_source as field_check, ' +
+            '        f.rdb$description      as description ' +
+            ' from rdb$fields f ' +
+            ' where (f.rdb$system_flag = 0 or f.rdb$system_flag is null) ' +
+            '   and f.rdb$field_name not starting with ''RDB$'' ' +
+            '   and f.rdb$field_name not starting with ''SQL$'' ' +
+            ' order by f.rdb$field_name ';
+end;
+
+function TCatalogMetadataFirebird.GetSelectProcedures: String;
+begin
+  Result := ' select p.rdb$procedure_name   as name, ' +
+            '        p.rdb$procedure_source as source ' +
+            ' from rdb$procedures p ' +
+            ' where (p.rdb$system_flag = 0 or p.rdb$system_flag is null) ' +
+            ' order by p.rdb$procedure_name ';
 end;
 
 function TCatalogMetadataFirebird.GetSelectTableColumns(ATableName: String): String;

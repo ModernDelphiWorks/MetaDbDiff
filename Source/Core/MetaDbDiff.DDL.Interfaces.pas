@@ -27,7 +27,15 @@ uses
   MetaDbDiff.Database.Mapping;
 
 type
-  TSupportedFeature = (Sequences, ForeignKeys, Checks, Views, Triggers);
+  // FRENTE 15: Domains e Procedures ADICIONADOS AO FINAL do enum - manter o
+  // final preserva o ordinal dos valores historicos (Sequences..Triggers), o que
+  // importa porque GetSupportedFeatures monta sets por complemento (AbsoluteDB:
+  // inherited - [...]; MySQL: inherited - [Sequences]). O generator base NAO
+  // anuncia Domains/Procedures; cada dialeto que os implementa os ADICIONA no seu
+  // override (Firebird/Firebird3/Interbase/PostgreSQL: Domains; Firebird/Firebird3/
+  // PostgreSQL/MSSQL/MySQL: Procedures).
+  TSupportedFeature = (Sequences, ForeignKeys, Checks, Views, Triggers,
+    Domains, Procedures);
   TSupportedFeatures = set of TSupportedFeature;
   /// <summary>
   /// Class unit : MetaDbDiff.DDL.Generator.pas
@@ -75,6 +83,16 @@ type
     function GenerateDropDefaultValue(AColumn: TColumnMIK): String;
     function GenerateEnableForeignKeys(AEnable: Boolean): String;
     function GenerateEnableTriggers(AEnable: Boolean): String;
+    // FRENTE 15 - novos objetos de catalogo.
+    function GenerateCreateDomain(ADomain: TDomainMIK): String;
+    function GenerateDropDomain(ADomain: TDomainMIK): String;
+    function GenerateCreateProcedure(AProcedure: TProcedureMIK): String;
+    function GenerateDropProcedure(AProcedure: TProcedureMIK): String;
+    /// <summary>
+    ///   COMMENT ON TABLE/COLUMN. Exatamente UM de ATable/AColumn e nao-nil:
+    ///   AColumn<>nil emite COMMENT ON COLUMN; senao COMMENT ON TABLE.
+    /// </summary>
+    function GenerateSetComment(ATable: TTableMIK; AColumn: TColumnMIK): String;
     /// <summary>
     /// Propriedade para identificar os recursos de diferentes banco de dados
     /// usando o mesmo modelo.

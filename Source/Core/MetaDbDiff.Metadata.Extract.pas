@@ -131,6 +131,12 @@ type
     procedure GetProcedures; virtual; abstract;
     procedure GetFunctions; virtual; abstract;
     procedure GetViews; virtual; abstract;
+    /// <summary>
+    ///   FRENTE 15: extracao de DOMINIOS (nao-abstrata: base vazia). Apenas os
+    ///   dialetos com dominios reais sobrescrevem (Firebird/Firebird3/PostgreSQL);
+    ///   os demais herdam o no-op.
+    /// </summary>
+    procedure GetDomains; virtual;
     procedure GetDatabaseMetadata; virtual; abstract;
     /// <summary>
     ///   Valida um nome de schema como identificador SQL seguro. '' e sempre
@@ -189,6 +195,11 @@ end;
 procedure TCatalogMetadataAbstract.CreateFieldTypeList;
 begin
 
+end;
+
+procedure TCatalogMetadataAbstract.GetDomains;
+begin
+  // Base: no-op. Dialetos com dominios reais (Firebird/PostgreSQL) sobrescrevem.
 end;
 
 destructor TCatalogMetadataAbstract.Destroy;

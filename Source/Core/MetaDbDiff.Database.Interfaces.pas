@@ -43,6 +43,8 @@ type
     procedure SetComparerFieldPosition(const Value: Boolean = False);
     function GetCompareSequenceInitialValue: Boolean;
     procedure SetCompareSequenceInitialValue(const Value: Boolean);
+    function GetCompareDescriptions: Boolean;
+    procedure SetCompareDescriptions(const Value: Boolean);
     function GetPolicy: TComparePolicy;
     procedure SetPolicy(const Value: TComparePolicy);
     function GetSuppressedCommands: TArray<String>;
@@ -85,13 +87,31 @@ type
     /// </summary>
     property CompareSequenceInitialValue: Boolean read GetCompareSequenceInitialValue write SetCompareSequenceInitialValue;
     /// <summary>
+    ///   Opt-in (default False - FRENTE 15): compara tambem a Description (comentario)
+    ///   de TABELAS e COLUNAS e emite COMMENT ON TABLE/COLUMN quando divergem.
+    ///   Desligado por padrao para custo ZERO no caminho existente (divergencia de
+    ///   descricao com a flag OFF = silencio total). Extracao de Description hoje:
+    ///   PostgreSQL (obj_description/col_description) e Firebird (RDB$DESCRIPTION);
+    ///   MSSQL (extended properties) fica FORA do escopo desta frente. Emissao:
+    ///   PostgreSQL/Firebird/Oracle (COMMENT ON e padrao nesses dialetos).
+    /// </summary>
+    property CompareDescriptions: Boolean read GetCompareDescriptions write SetCompareDescriptions;
+    /// <summary>
     ///   Policy que limita quais opera��es DDL o diff pode gerar/executar.
     ///   Default: TComparePolicy.FullProfile (comportamento hist�rico).
     /// </summary>
     property Policy: TComparePolicy read GetPolicy write SetPolicy;
     /// <summary>
-    ///   Relat�rio de auditoria: descri��o de cada opera��o que o diff QUERIA
-    ///   emitir mas foi bloqueada pela policy vigente.
+    ///   Relat�rio de auditoria. Carrega DOIS tipos de registro, distinguiveis
+    ///   pelo prefixo do texto:
+    ///     - SUPRESSAO POR POLICY: operacoes que o diff QUERIA emitir mas a policy
+    ///       vigente bloqueou (sufixo "... suppressed by policy" / "... denied by
+    ///       policy at execution").
+    ///     - DIAGNOSTICO (prefixo "DIAGNOSTIC:"): divergencias detectadas em que o
+    ///       diff, por escolha CONSERVADORA, deliberadamente NAO agiu (ex.: dominio
+    ///       divergente - nao dropa dominio em uso). Nao e um bloqueio de policy.
+    ///   Um canal separado para diagnosticos fica como evolucao; por ora ambos
+    ///   convivem nesta lista, diferenciados pelo prefixo.
     /// </summary>
     property SuppressedCommands: TArray<String> read GetSuppressedCommands;
     /// <summary>

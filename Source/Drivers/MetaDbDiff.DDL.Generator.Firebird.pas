@@ -28,6 +28,7 @@ uses
   StrUtils,
   Generics.Collections,
   DataEngine.FactoryInterfaces,
+  MetaDbDiff.DDL.Interfaces,
   MetaDbDiff.DDL.Register,
   MetaDbDiff.DDL.Generator,
   MetaDbDiff.Database.Mapping;
@@ -37,6 +38,10 @@ type
   protected
     function BuilderAlterFieldDefinition(AColumn: TColumnMIK): String; override;
   public
+    // FRENTE 15: Firebird suporta DOMAINS e PROCEDURES/FUNCTIONS (RDB$). A
+    // sintaxe CREATE/DROP DOMAIN e o repasse de script da base ja atendem.
+    // Firebird3 e Interbase herdam este set (Interbase remove Procedures).
+    function GetSupportedFeatures: TSupportedFeatures; override;
     function GenerateCreateTable(ATable: TTableMIK): String; override;
     function GenerateCreateSequence(ASequence: TSequenceMIK): String; override;
     function GenerateAlterSequence(ASequence: TSequenceMIK): String; override;
@@ -216,6 +221,12 @@ begin
   // (nao suportam a sintaxe RENAME COLUMN do padrao usada na base).
   Result := 'ALTER TABLE %s ALTER COLUMN %s TO %s;';
   Result := Format(Result, [AColumn.Table.Name, AColumn.Name, ANewName]);
+end;
+
+function TDDLSQLGeneratorFirebird.GetSupportedFeatures: TSupportedFeatures;
+begin
+  Result := inherited GetSupportedFeatures +
+            [TSupportedFeature.Domains, TSupportedFeature.Procedures];
 end;
 
 function TDDLSQLGeneratorFirebird.GenerateEnableForeignKeys(AEnable: Boolean): String;

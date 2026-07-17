@@ -28,6 +28,7 @@ uses
   StrUtils,
   Generics.Collections,
   DataEngine.FactoryInterfaces,
+  MetaDbDiff.DDL.Interfaces,
   MetaDbDiff.DDL.Register,
   MetaDbDiff.DDL.Generator,
   MetaDbDiff.Database.Mapping;
@@ -41,6 +42,9 @@ type
     /// </summary>
     class function _QualifyName(const ASchema, AName: String): String; override;
   public
+    // FRENTE 15: PostgreSQL suporta DOMAINS (pg_type typtype='d') e PROCEDURES/
+    // FUNCTIONS (pg_proc). Sintaxe CREATE/DROP DOMAIN e COMMENT ON da base atendem.
+    function GetSupportedFeatures: TSupportedFeatures; override;
     function GenerateCreateTable(ATable: TTableMIK): String; override;
     function GenerateCreateSequence(ASequence: TSequenceMIK): String; override;
     function GenerateEnableForeignKeys(AEnable: Boolean): String; override;
@@ -60,6 +64,12 @@ begin
     Result := '"' + ASchema + '"."' + AName + '"'
   else
     Result := AName;
+end;
+
+function TDDLSQLGeneratorPostgreSQL.GetSupportedFeatures: TSupportedFeatures;
+begin
+  Result := inherited GetSupportedFeatures +
+            [TSupportedFeature.Domains, TSupportedFeature.Procedures];
 end;
 
 function TDDLSQLGeneratorPostgreSQL.GenerateAlterColumn(AColumn: TColumnMIK): String;

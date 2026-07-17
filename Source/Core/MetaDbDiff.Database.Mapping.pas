@@ -212,6 +212,61 @@ type
     property Script: String read FScript write FScript;
   end;
 
+  // FRENTE 15 - DOMAINS: um dominio nomeado (Firebird RDB$FIELDS user-defined /
+  // PostgreSQL pg_type typtype='d'). Guarda o tipo base + os atributos que a DDL
+  // de CREATE DOMAIN emite (DEFAULT/NOT NULL/CHECK). Sem tabela dona: um dominio
+  // e um objeto de catalogo, como sequence/view.
+  TDomainMIK = class(TMetaInfoKind)
+  strict private
+    FCatalog: TCatalogMetadataMIK;
+    FName: String;
+    FTypeName: String;
+    FNotNull: Boolean;
+    FDefaultValue: String;
+    FCheckCondition: String;
+  public
+    constructor Create(ADatabase: TCatalogMetadataMIK);
+    property Database: TCatalogMetadataMIK read FCatalog;
+    property Name: String read FName write FName;
+    property TypeName: String read FTypeName write FTypeName;
+    property NotNull: Boolean read FNotNull write FNotNull;
+    property DefaultValue: String read FDefaultValue write FDefaultValue;
+    property CheckCondition: String read FCheckCondition write FCheckCondition;
+  end;
+
+  // FRENTE 15 - STORED PROCEDURES/FUNCTIONS: v1 e DB-vs-DB/snapshot APENAS. O
+  // Script guarda o CREATE COMPLETO extraido do banco (pg_get_functiondef,
+  // sys.sql_modules, RDB$PROCEDURES...). IsFunction distingue FUNCTION de
+  // PROCEDURE para o DROP correto por dialeto.
+  TProcedureMIK = class(TMetaInfoKind)
+  strict private
+    FCatalog: TCatalogMetadataMIK;
+    FName: String;
+    FScript: String;
+    FIsFunction: Boolean;
+    FSignature: String;
+  public
+    constructor Create(ADatabase: TCatalogMetadataMIK);
+    /// <summary>
+    ///   Chave de catalogo estavel: Name + assinatura entre parenteses quando ha
+    ///   Signature (PostgreSQL suporta OVERLOAD por assinatura), senao so o Name.
+    ///   Usada como key do TObjectDictionary Procedures para NAO colapsar overloads.
+    /// </summary>
+    function CatalogKey: String;
+    property Database: TCatalogMetadataMIK read FCatalog;
+    property Name: String read FName write FName;
+    property Script: String read FScript write FScript;
+    property IsFunction: Boolean read FIsFunction write FIsFunction;
+    /// <summary>
+    ///   Assinatura de identidade dos argumentos (PostgreSQL:
+    ///   pg_get_function_identity_arguments -> "integer, text"). Vazia nos demais
+    ///   dialetos. Entra na chave de catalogo (evita colapso de overloads) e no
+    ///   DROP FUNCTION/PROCEDURE do PostgreSQL (que exige a assinatura para
+    ///   desambiguar - "function is not unique" sem ela).
+    /// </summary>
+    property Signature: String read FSignature write FSignature;
+  end;
+
   TCatalogMetadataMIK = class(TMetaInfoKind)
   strict private
     FName: String;
@@ -219,6 +274,8 @@ type
     FTables: TObjectDictionary<String, TTableMIK>;
     FSequences: TObjectDictionary<String, TSequenceMIK>;
     FViews: TObjectDictionary<String, TViewMIK>;
+    FDomains: TObjectDictionary<String, TDomainMIK>;
+    FProcedures: TObjectDictionary<String, TProcedureMIK>;
   public
     constructor Create;
     destructor Destroy; override;
@@ -229,6 +286,8 @@ type
     property Tables: TObjectDictionary<String, TTableMIK> read FTables;
     property Sequences: TObjectDictionary<String, TSequenceMIK> read FSequences;
     property Views: TObjectDictionary<String, TViewMIK> read FViews;
+    property Domains: TObjectDictionary<String, TDomainMIK> read FDomains;
+    property Procedures: TObjectDictionary<String, TProcedureMIK> read FProcedures;
   end;
 
 implementation
@@ -404,6 +463,10 @@ begin
   // Views tambem sao owned por este catalogo (doOwnsValues); nao limpa-las aqui
   // vazava as TViewMIK a cada reuso do catalogo.
   Views.Clear;
+  // FRENTE 15: mesma armadilha das Views - Domains/Procedures sao owned
+  // (doOwnsValues); esquecer o Clear vazaria as instancias a cada reuso.
+  Domains.Clear;
+  Procedures.Clear;
 end;
 
 constructor TCatalogMetadataMIK.Create;
@@ -411,6 +474,8 @@ begin
   FTables := TObjectDictionary<String, TTableMIK>.Create([doOwnsValues]);
   FSequences := TObjectDictionary<String, TSequenceMIK>.Create([doOwnsValues]);
   FViews := TObjectDictionary<String, TViewMIK>.Create([doOwnsValues]);
+  FDomains := TObjectDictionary<String, TDomainMIK>.Create([doOwnsValues]);
+  FProcedures := TObjectDictionary<String, TProcedureMIK>.Create([doOwnsValues]);
 end;
 
 destructor TCatalogMetadataMIK.Destroy;
@@ -418,6 +483,8 @@ begin
   FTables.Free;
   FSequences.Free;
   FViews.Free;
+  FDomains.Free;
+  FProcedures.Free;
   inherited;
 end;
 
@@ -531,6 +598,30 @@ destructor TViewMIK.Destroy;
 begin
    FFields.Free;
   inherited;
+end;
+
+{ TDomainMIK }
+
+constructor TDomainMIK.Create(ADatabase: TCatalogMetadataMIK);
+begin
+  FCatalog := ADatabase;
+  FNotNull := False;
+end;
+
+{ TProcedureMIK }
+
+constructor TProcedureMIK.Create(ADatabase: TCatalogMetadataMIK);
+begin
+  FCatalog := ADatabase;
+  FIsFunction := False;
+end;
+
+function TProcedureMIK.CatalogKey: String;
+begin
+  if Trim(FSignature) <> '' then
+    Result := UpperCase(FName + '(' + FSignature + ')')
+  else
+    Result := UpperCase(FName);
 end;
 
 end.

@@ -160,6 +160,9 @@ begin
   // sys.sql_modules.definition) e leem as mesmas colunas view_name/view_script/
   // view_description. Sem isto o diff de views nunca entrava no catalogo MSSQL.
   GetViews;
+  // FRENTE 15: procedures (type='P') e functions (FN/IF/TF) via sys.objects +
+  // sys.sql_modules.definition (CREATE completo).
+  GetProcedures;
 end;
 
 procedure TCatalogMetadataMSSQL.GetTables;
@@ -364,9 +367,34 @@ begin
 end;
 
 procedure TCatalogMetadataMSSQL.GetProcedures;
+var
+  LDBResultSet: IDBResultSet;
+  LProcedure: TProcedureMIK;
+  LType: String;
 begin
   inherited;
-
+  FSQLText := ' select o.name as name, ' +
+              '        o.type as otype, ' +
+              '        m.definition as source ' +
+              ' from sys.objects o ' +
+              ' inner join sys.sql_modules m on m.object_id = o.object_id ' +
+              ' inner join sys.schemas ss on ss.schema_id = o.schema_id ' +
+              ' where o.type in (''P'', ''FN'', ''IF'', ''TF'') ';
+  if EffectiveSchema <> '' then
+    FSQLText := FSQLText + ' and ss.name = ' + QuotedStr(EffectiveSchema) + ' ';
+  FSQLText := FSQLText + ' order by o.name ';
+  LDBResultSet := Execute;
+  while LDBResultSet.NotEof do
+  begin
+    LProcedure := TProcedureMIK.Create(FCatalogMetadata);
+    LProcedure.Name := Trim(VarToStr(LDBResultSet.GetFieldValue('name')));
+    LType := Trim(VarToStr(LDBResultSet.GetFieldValue('otype')));
+    // type='P' e procedure; FN/IF/TF sao functions.
+    LProcedure.IsFunction := not SameText(LType, 'P');
+    // sys.sql_modules.definition guarda o CREATE completo - repassado verbatim.
+    LProcedure.Script := VarToStr(LDBResultSet.GetFieldValue('source'));
+    FCatalogMetadata.Procedures.AddOrSetValue(UpperCase(LProcedure.Name), LProcedure);
+  end;
 end;
 
 procedure TCatalogMetadataMSSQL.GetSequences;

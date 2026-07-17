@@ -53,6 +53,7 @@ type
   /// </summary>
   TDDLPhase = (
     dphPre,             // disable FKs / triggers (Enable*: Off)
+    dphDropProcedures,  // FRENTE 15 - drop procs first (they reference tables)
     dphDropTriggers,
     dphDropViews,
     dphDropForeignKeys,
@@ -62,7 +63,9 @@ type
     dphDropColumns,     // drop column + drop default value
     dphDropTables,      // inverse topological order (referencer before referenced)
     dphDropSequences,
+    dphDropDomains,     // FRENTE 15 - domains dropped LAST (columns/tables using them are gone)
     dphCreateSequences, // sequences exist before the tables that use them
+    dphCreateDomains,   // FRENTE 15 - domains BEFORE tables (columns may use domains)
     dphCreateTables,    // topological order (referenced before referencer)
     dphColumns,         // create column / alter column / alter position / alter default
     dphPrimaryKeys,
@@ -71,7 +74,9 @@ type
     dphForeignKeys,     // added last, when every table already exists
     dphViews,
     dphTriggers,
+    dphProcedures,      // FRENTE 15 - after views/triggers
     dphUnknown,         // unrecognized command classes - preserved, run near the end
+    dphComments,        // FRENTE 15 - COMMENT ON last, right before POST
     dphPost);           // re-enable FKs / triggers (Enable*: On)
 
   /// <summary>One command placed into a phase, with diagnostics.</summary>
@@ -141,6 +146,7 @@ implementation
 const
   CPhaseNames: array[TDDLPhase] of String = (
     'Pre (disable FKs/triggers)',
+    'Drop Procedures',
     'Drop Triggers',
     'Drop Views',
     'Drop ForeignKeys',
@@ -150,7 +156,9 @@ const
     'Drop Columns',
     'Drop Tables',
     'Drop Sequences',
+    'Drop Domains',
     'Create Sequences',
+    'Create Domains',
     'Create Tables',
     'Columns',
     'PrimaryKeys',
@@ -159,7 +167,9 @@ const
     'ForeignKeys',
     'Views',
     'Triggers',
+    'Procedures',
     'Unknown',
+    'Comments',
     'Post (re-enable FKs/triggers)');
 
 { ---------------------------------------------------------------------------- }
@@ -298,7 +308,12 @@ begin
   if ACommand is TDDLCommandCopyColumnData then Exit(dphColumns);
   if ACommand is TDDLCommandRenameColumn then Exit(dphColumns);
 
+  // FRENTE 15: Comments por ultimo (antes do POST).
+  if ACommand is TDDLCommandSetComment then Exit(dphComments);
+
   // Drops (inverse dependency order for tables handled later).
+  if ACommand is TDDLCommandDropProcedure then Exit(dphDropProcedures);
+  if ACommand is TDDLCommandDropDomain then Exit(dphDropDomains);
   if ACommand is TDDLCommandDropTrigger then Exit(dphDropTriggers);
   if ACommand is TDDLCommandDropView then Exit(dphDropViews);
   if ACommand is TDDLCommandDropForeignKey then Exit(dphDropForeignKeys);
@@ -311,6 +326,8 @@ begin
   if ACommand is TDDLCommandDropSequence then Exit(dphDropSequences);
 
   // Creates / alters.
+  if ACommand is TDDLCommandCreateProcedure then Exit(dphProcedures);
+  if ACommand is TDDLCommandCreateDomain then Exit(dphCreateDomains);
   if ACommand is TDDLCommandCreateSequence then Exit(dphCreateSequences);
   // ALTER SEQUENCE roda na mesma fase de SEQUENCES: a sequence ja existe (create
   // nao ocorre) e o alter apenas ajusta InitialValue/Increment antes das tabelas.

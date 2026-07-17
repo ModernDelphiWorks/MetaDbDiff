@@ -67,6 +67,11 @@ type
     function GenerateDropTrigger(ATrigger: TTriggerMIK): String; virtual; abstract;
     function GenerateEnableForeignKeys(AEnable: Boolean): String; virtual; abstract;
     function GenerateEnableTriggers(AEnable: Boolean): String; virtual; abstract;
+    function GenerateCreateDomain(ADomain: TDomainMIK): String; virtual; abstract;
+    function GenerateDropDomain(ADomain: TDomainMIK): String; virtual; abstract;
+    function GenerateCreateProcedure(AProcedure: TProcedureMIK): String; virtual; abstract;
+    function GenerateDropProcedure(AProcedure: TProcedureMIK): String; virtual; abstract;
+    function GenerateSetComment(ATable: TTableMIK; AColumn: TColumnMIK): String; virtual; abstract;
     /// <summary>
     /// Propriedade para identificar os recursos de diferentes banco de dados
     /// usando o mesmo modelo.
@@ -116,6 +121,11 @@ type
     function BuilderIndexeDefinition(ATable: TTableMIK): String; virtual;
     function BuilderForeignKeyDefinition(ATable: TTableMIK): String; virtual;
     function BuilderCheckDefinition(ATable: TTableMIK): String; virtual;
+    /// <summary>
+    ///   Literal para COMMENT ON: QuotedStr da descricao, ou NULL quando vazia
+    ///   (remocao semantica do comentario, em vez de gravar uma string vazia).
+    /// </summary>
+    function _CommentLiteral(const ADescription: String): String;
   public
     function GenerateCreateTable(ATable: TTableMIK): String; override;
     function GenerateCreateColumn(AColumn: TColumnMIK): String; override;
@@ -142,6 +152,15 @@ type
     function GenerateDropView(AView: TViewMIK): String; override;
     function GenerateDropTrigger(ATrigger: TTriggerMIK): String; override;
     function GenerateDropSequence(ASequence: TSequenceMIK): String; override;
+    // FRENTE 15. Sintaxe ANSI/comum (CREATE DOMAIN ... AS ...; DROP DOMAIN ...;
+    // COMMENT ON ...) - dialetos que divergem sobrescrevem. Procedimentos apenas
+    // repassam o Script COMPLETO ja extraido do banco; o DROP escolhe PROCEDURE ou
+    // FUNCTION conforme AProcedure.IsFunction.
+    function GenerateCreateDomain(ADomain: TDomainMIK): String; override;
+    function GenerateDropDomain(ADomain: TDomainMIK): String; override;
+    function GenerateCreateProcedure(AProcedure: TProcedureMIK): String; override;
+    function GenerateDropProcedure(AProcedure: TProcedureMIK): String; override;
+    function GenerateSetComment(ATable: TTableMIK; AColumn: TColumnMIK): String; override;
     /// <summary>
     /// Propriedade para identificar os recursos de diferentes banco de dados
     /// usando o mesmo modelo.
@@ -503,11 +522,80 @@ end;
 
 function TDDLSQLGenerator.GetSupportedFeatures: TSupportedFeatures;
 begin
+  // Base historica: os 5 recursos originais. Domains/Procedures (FRENTE 15) NAO
+  // entram aqui - cada dialeto que os implementa os adiciona no seu override.
   Result := [TSupportedFeature.Sequences,
              TSupportedFeature.ForeignKeys,
              TSupportedFeature.Checks,
              TSupportedFeature.Views,
              TSupportedFeature.Triggers];
+end;
+
+function TDDLSQLGenerator.GenerateCreateDomain(ADomain: TDomainMIK): String;
+begin
+  // Sintaxe comum a Firebird e PostgreSQL: CREATE DOMAIN <n> AS <tipo>
+  // [DEFAULT <x>] [NOT NULL] [CHECK (<cond>)]. O TypeName ja vem resolvido pelo
+  // extractor (ex.: 'VARCHAR(20)'); nao aplicamos placeholders %l/%p/%s aqui.
+  Result := 'CREATE DOMAIN ' + ADomain.Name + ' AS ' + ADomain.TypeName;
+  if Trim(ADomain.DefaultValue) <> '' then
+    Result := Result + ' DEFAULT ' + ADomain.DefaultValue;
+  if ADomain.NotNull then
+    Result := Result + ' NOT NULL';
+  if Trim(ADomain.CheckCondition) <> '' then
+    Result := Result + ' CHECK (' + ADomain.CheckCondition + ')';
+  Result := Result + ';';
+end;
+
+function TDDLSQLGenerator.GenerateDropDomain(ADomain: TDomainMIK): String;
+begin
+  Result := Format('DROP DOMAIN %s;', [ADomain.Name]);
+end;
+
+function TDDLSQLGenerator.GenerateCreateProcedure(AProcedure: TProcedureMIK): String;
+begin
+  // O script extraido do banco (pg_get_functiondef / sys.sql_modules.definition /
+  // RDB$PROCEDURES source) ja E o CREATE completo: apenas o repassamos. O
+  // executor roda 1 comando por chamada, entao NAO ha necessidade de SET TERM
+  // (terminador) na API - documentado no cabecalho da FRENTE 15.
+  Result := AProcedure.Script;
+end;
+
+function TDDLSQLGenerator.GenerateDropProcedure(AProcedure: TProcedureMIK): String;
+var
+  LName: String;
+begin
+  // PostgreSQL exige a assinatura no DROP quando ha OVERLOAD ("function is not
+  // unique" sem ela). Signature so e populada no PostgreSQL; vazia nos demais,
+  // o DROP sai sem parenteses (comportamento historico de FB/MSSQL/MySQL).
+  LName := AProcedure.Name;
+  if Trim(AProcedure.Signature) <> '' then
+    LName := LName + '(' + AProcedure.Signature + ')';
+  if AProcedure.IsFunction then
+    Result := Format('DROP FUNCTION %s;', [LName])
+  else
+    Result := Format('DROP PROCEDURE %s;', [LName]);
+end;
+
+function TDDLSQLGenerator._CommentLiteral(const ADescription: String): String;
+begin
+  // Description vazia = REMOCAO semantica do comentario -> IS NULL (nao IS '').
+  if Trim(ADescription) = '' then
+    Result := 'NULL'
+  else
+    Result := QuotedStr(ADescription);
+end;
+
+function TDDLSQLGenerator.GenerateSetComment(ATable: TTableMIK;
+  AColumn: TColumnMIK): String;
+begin
+  // COMMENT ON e padrao em PostgreSQL, Firebird e Oracle. Exatamente um dos
+  // argumentos e nao-nil (garantido pelo comando/factory).
+  if AColumn <> nil then
+    Result := Format('COMMENT ON COLUMN %s.%s IS %s;',
+      [_QualifyTable(AColumn.Table), AColumn.Name, _CommentLiteral(AColumn.Description)])
+  else
+    Result := Format('COMMENT ON TABLE %s IS %s;',
+      [_QualifyTable(ATable), _CommentLiteral(ATable.Description)]);
 end;
 
 function TDDLSQLGenerator.GetUniqueColumnDefinition(AUnique: Boolean): String;

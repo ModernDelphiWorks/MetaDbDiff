@@ -58,6 +58,30 @@ type
     /// </summary>
     class function CanonicalizeCheckCondition(const ASource: String): String; static;
     /// <summary>
+    ///   Canoniza um conjunto de CHECKs de dominio agregados num unico texto pelo
+    ///   extractor. Necessario porque um dominio pode ter 2+ constraints, cada uma
+    ///   um "CHECK (<cond>)" COMPLETO: aplicar CanonicalizeCheckCondition ao texto
+    ///   inteiro removeria apenas o PRIMEIRO "CHECK", deixando keywords residuais
+    ///   ("(a>0) AND CHECK ((b<100))") e gerando um CREATE DOMAIN invalido. Este
+    ///   helper faz split por ADelimiter (um separador improvavel escolhido pelo
+    ///   extractor, ex.: '||CHK||'), canoniza CADA fragmento isoladamente e junta:
+    ///     - 0 fragmentos uteis -> '';
+    ///     - 1 -> a condicao nua (sem parenteses extras, igual ao caso single);
+    ///     - 2+ -> '(<c1>) AND (<c2>) ...' (cada condicao entre parenteses).
+    ///   O gerador embrulha o todo em "CHECK ( ... )" uma unica vez.
+    /// </summary>
+    class function CanonicalizeMultiCheck(const ASource, ADelimiter: String): String; static;
+    /// <summary>
+    ///   Remove a palavra-chave DEFAULT (e um '=' opcional) do inicio de um
+    ///   default_source vindo do catalogo, deixando SO A EXPRESSAO. Compartilhada
+    ///   entre o extractor de COLUNAS (rdb$default_source ja embrulhava "DEFAULT x")
+    ///   e o de DOMINIOS (FRENTE 15): sem isto o gerador re-adicionaria a keyword,
+    ///   produzindo "DEFAULT DEFAULT 0". Mesma normalizacao (UpperCase + Trim) do
+    ///   caminho de colunas do Firebird, para consistencia de comparacao.
+    ///   Ex.: 'DEFAULT 0' -> '0'; 'DEFAULT = 0' -> '0'; '' -> ''.
+    /// </summary>
+    class function StripDefaultKeyword(const ASource: String): String; static;
+    /// <summary>
     ///   Normaliza um script (VIEW/TRIGGER) SO PARA FINS DE COMPARACAO: colapsa
     ///   qualquer sequencia de whitespace (espaco, TAB, CR, LF, form feed) num
     ///   unico espaco e faz Trim. NAO altera caixa (a comparacao usa CompareText,
@@ -135,6 +159,70 @@ begin
     LPrevious := Result;
     Result := Trim(StripOuterBalancedParens(Result));
   until Result = LPrevious;
+end;
+
+class function TMetadataNormalizer.CanonicalizeMultiCheck(const ASource,
+  ADelimiter: String): String;
+var
+  LFragments: TArray<String>;
+  LFor: Integer;
+  LCanon: String;
+  LParts: TArray<String>;
+  LCount: Integer;
+begin
+  Result := '';
+  if Trim(ASource) = '' then
+    Exit;
+  // Split pelo delimitador improvavel usado no string_agg do extractor; cada
+  // pedaco e um "CHECK (<cond>)" COMPLETO e independente.
+  LFragments := ASource.Split([ADelimiter]);
+  SetLength(LParts, Length(LFragments));
+  LCount := 0;
+  for LFor := 0 to High(LFragments) do
+  begin
+    // Canoniza CADA fragmento isoladamente (remove o SEU proprio CHECK + parens).
+    LCanon := CanonicalizeCheckCondition(LFragments[LFor]);
+    if LCanon <> '' then
+    begin
+      LParts[LCount] := LCanon;
+      Inc(LCount);
+    end;
+  end;
+  if LCount = 0 then
+    Exit;
+  if LCount = 1 then
+  begin
+    // Caso single: condicao nua, identica ao caminho de 1 CHECK (sem parens extras).
+    Result := LParts[0];
+    Exit;
+  end;
+  // 2+ CHECKs: cada condicao entre parenteses, juntadas por AND. O gerador
+  // embrulha o todo em "CHECK ( ... )" uma unica vez.
+  for LFor := 0 to LCount - 1 do
+  begin
+    if Result <> '' then
+      Result := Result + ' AND ';
+    Result := Result + '(' + LParts[LFor] + ')';
+  end;
+end;
+
+class function TMetadataNormalizer.StripDefaultKeyword(const ASource: String): String;
+var
+  LPos: Integer;
+begin
+  // Mesma logica do ExtractDefaultValue do extractor de colunas Firebird (que
+  // agora delega aqui): UpperCase + Trim, remove "DEFAULT" e "=" iniciais.
+  Result := UpperCase(Trim(ASource));
+  if Length(Result) > 0 then
+  begin
+    LPos := Pos('DEFAULT', Result);
+    if LPos = 1 then
+      Delete(Result, 1, 7);
+    LPos := Pos('=', Result);
+    if LPos = 1 then
+      Delete(Result, 1, 1);
+  end;
+  Result := Trim(Result);
 end;
 
 class function TMetadataNormalizer.NormalizeScript(const AScript: String): String;
