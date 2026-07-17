@@ -453,15 +453,17 @@ var
 
 begin
   inherited;
-  // Um dominio pode ter VARIOS CHECKs (pg_constraint c/ contypid): agrega-os com
-  // string_agg num unico texto (join por AND) em vez de deixar um LEFT JOIN
-  // multiplicar linhas e o AddOrSetValue manter so o ultimo. GROUP BY nos campos
-  // escalares do pg_type.
+  // Um dominio pode ter VARIOS CHECKs (pg_constraint c/ contypid): agrega os
+  // constraintdefs CRUS ("CHECK (<cond>)" cada) com um delimitador IMPROVAVEL
+  // ('||CHK||') em vez de ' AND ' - assim cada fragmento e canonizado
+  // SEPARADAMENTE no Delphi (CanonicalizeMultiCheck), removendo o CHECK de CADA um
+  // (juntar antes deixaria "(a>0) AND CHECK ((b<100))" com keyword residual). O
+  // GROUP BY colapsa as multiplas linhas do LEFT JOIN num registro por dominio.
   FSQLText := ' select t.typname as name, ' +
               '        pg_catalog.format_type(t.typbasetype, t.typtypmod) as type_name, ' +
               '        t.typnotnull as not_null, ' +
               '        t.typdefault as field_default, ' +
-              '        string_agg(pg_catalog.pg_get_constraintdef(c.oid, true), '' AND '') as field_check ' +
+              '        string_agg(pg_catalog.pg_get_constraintdef(c.oid, true), ''||CHK||'') as field_check ' +
               ' from pg_catalog.pg_type t ' +
               ' join pg_catalog.pg_namespace n on n.oid = t.typnamespace ' +
               ' left join pg_catalog.pg_constraint c on c.contypid = t.oid ' +
@@ -477,9 +479,10 @@ begin
     LDomain.TypeName := Trim(VarToStr(LDBResultSet.GetFieldValue('type_name')));
     LDomain.NotNull := ResolveBoolNull(LDBResultSet.GetFieldValue('not_null'));
     LDomain.DefaultValue := Trim(VarToStr(LDBResultSet.GetFieldValue('field_default')));
-    // pg_get_constraintdef traz "CHECK ((cond))"; canoniza (strip CHECK + parens).
-    LDomain.CheckCondition := TMetadataNormalizer.CanonicalizeCheckCondition(
-      VarToStr(LDBResultSet.GetFieldValue('field_check')));
+    // field_check e o agregado "CHECK (..)||CHK||CHECK (..)": canoniza CADA
+    // fragmento (remove o CHECK/parens de cada um) e junta '(c1) AND (c2)'.
+    LDomain.CheckCondition := TMetadataNormalizer.CanonicalizeMultiCheck(
+      VarToStr(LDBResultSet.GetFieldValue('field_check')), '||CHK||');
     FCatalogMetadata.Domains.AddOrSetValue(UpperCase(LDomain.Name), LDomain);
   end;
 end;

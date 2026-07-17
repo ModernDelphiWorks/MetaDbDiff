@@ -88,6 +88,10 @@ type
     // normalizacao (mesma que GetDomains usa) e produzem CREATE DOMAIN valido.
     [Test]
     procedure Firebird_DomainSeam_NormalizedSources_NoKeywordDuplication;
+    // COSTURA PG: 2+ CHECKs agregados (crus) -> normalizacao por fragmento ->
+    // CREATE DOMAIN valido, sem CHECK residual interno.
+    [Test]
+    procedure PostgreSQL_DomainSeam_MultiCheck_NoResidualKeyword;
     [Test]
     procedure CreateProcedure_PassesScriptThrough;
     [Test]
@@ -334,6 +338,32 @@ begin
     Assert.AreEqual(
       'CREATE DOMAIN D_QTD AS INTEGER DEFAULT 0 NOT NULL CHECK (VALUE >= 0);',
       _Norm(_Firebird.GenerateCreateDomain(LDomain)));
+  finally
+    LCatalog.Free;
+  end;
+end;
+
+procedure TTestObjectTypes.PostgreSQL_DomainSeam_MultiCheck_NoResidualKeyword;
+var
+  LCatalog: TCatalogMetadataMIK;
+  LDomain: TDomainMIK;
+  LRawAgg: String;
+begin
+  // Simula o agregado CRU do string_agg do extractor PG: DOIS constraintdefs
+  // completos separados pelo delimitador improvavel '||CHK||'.
+  LRawAgg := 'CHECK ((VALUE > 0))||CHK||CHECK ((VALUE < 100))';
+  LCatalog := TCatalogMetadataMIK.Create;
+  try
+    LDomain := TDomainMIK.Create(LCatalog);
+    LDomain.Name := 'D_FAIXA';
+    LDomain.TypeName := 'integer';
+    // MESMA normalizacao que TCatalogMetadataPostgreSQL.GetDomains aplica.
+    LDomain.CheckCondition := TMetadataNormalizer.CanonicalizeMultiCheck(LRawAgg, '||CHK||');
+    LCatalog.Domains.Add('D_FAIXA', LDomain);
+    // Sem nenhum "CHECK" residual DENTRO do CHECK externo.
+    Assert.AreEqual(
+      'CREATE DOMAIN D_FAIXA AS integer CHECK ((VALUE > 0) AND (VALUE < 100));',
+      _Norm(_PostgreSQL.GenerateCreateDomain(LDomain)));
   finally
     LCatalog.Free;
   end;
