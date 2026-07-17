@@ -18,6 +18,7 @@ uses
   Test.MetaDbDiff.Policy in 'Test.MetaDbDiff.Policy.pas',
   Test.MetaDbDiff.Snapshot in 'Test.MetaDbDiff.Snapshot.pas',
   Test.MetaDbDiff.ObjectTypes in 'Test.MetaDbDiff.ObjectTypes.pas',
+  Test.MetaDbDiff.Concurrency in 'Test.MetaDbDiff.Concurrency.pas',
   Test.MetaDbDiff.Schema in 'Test.MetaDbDiff.Schema.pas',
   MetaDbDiff.Metadata.Snapshot in '..\Source\Core\MetaDbDiff.Metadata.Snapshot.pas',
   MetaDbDiff.Metadata.Snapshot.Factory in '..\Source\Core\MetaDbDiff.Metadata.Snapshot.Factory.pas',
