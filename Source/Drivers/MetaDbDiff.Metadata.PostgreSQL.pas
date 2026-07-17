@@ -405,6 +405,7 @@ var
   LProcedure: TProcedureMIK;
 begin
   FSQLText := ' select p.proname as name, ' +
+              '        pg_catalog.pg_get_function_identity_arguments(p.oid) as signature, ' +
               '        pg_catalog.pg_get_functiondef(p.oid) as source ' +
               ' from pg_catalog.pg_proc p ' +
               ' join pg_catalog.pg_namespace n on n.oid = p.pronamespace ' +
@@ -417,9 +418,12 @@ begin
     LProcedure := TProcedureMIK.Create(FCatalogMetadata);
     LProcedure.Name := Trim(VarToStr(LDBResultSet.GetFieldValue('name')));
     LProcedure.IsFunction := AIsFunction;
-    // pg_get_functiondef devolve o CREATE COMPLETO - repassado verbatim.
+    // Assinatura de identidade (ex.: "integer, text"): entra na chave e no DROP
+    // para NAO colapsar/ambiguar OVERLOADS. pg_get_functiondef = CREATE completo.
+    LProcedure.Signature := Trim(VarToStr(LDBResultSet.GetFieldValue('signature')));
     LProcedure.Script := VarToStr(LDBResultSet.GetFieldValue('source'));
-    FCatalogMetadata.Procedures.AddOrSetValue(UpperCase(LProcedure.Name), LProcedure);
+    // CatalogKey = nome + '(' + assinatura + ')': preserva sobrecargas distintas.
+    FCatalogMetadata.Procedures.AddOrSetValue(LProcedure.CatalogKey, LProcedure);
   end;
 end;
 
@@ -449,16 +453,21 @@ var
 
 begin
   inherited;
+  // Um dominio pode ter VARIOS CHECKs (pg_constraint c/ contypid): agrega-os com
+  // string_agg num unico texto (join por AND) em vez de deixar um LEFT JOIN
+  // multiplicar linhas e o AddOrSetValue manter so o ultimo. GROUP BY nos campos
+  // escalares do pg_type.
   FSQLText := ' select t.typname as name, ' +
               '        pg_catalog.format_type(t.typbasetype, t.typtypmod) as type_name, ' +
               '        t.typnotnull as not_null, ' +
               '        t.typdefault as field_default, ' +
-              '        pg_catalog.pg_get_constraintdef(c.oid, true) as field_check ' +
+              '        string_agg(pg_catalog.pg_get_constraintdef(c.oid, true), '' AND '') as field_check ' +
               ' from pg_catalog.pg_type t ' +
               ' join pg_catalog.pg_namespace n on n.oid = t.typnamespace ' +
               ' left join pg_catalog.pg_constraint c on c.contypid = t.oid ' +
               ' where t.typtype = ''d'' ' +
               '   and ' + _PgSchemaFilter('n', EffectiveSchema) +
+              ' group by t.typname, t.typbasetype, t.typtypmod, t.typnotnull, t.typdefault ' +
               ' order by t.typname ';
   LDBResultSet := Execute;
   while LDBResultSet.NotEof do

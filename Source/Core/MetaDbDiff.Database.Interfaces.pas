@@ -102,8 +102,16 @@ type
     /// </summary>
     property Policy: TComparePolicy read GetPolicy write SetPolicy;
     /// <summary>
-    ///   Relat�rio de auditoria: descri��o de cada opera��o que o diff QUERIA
-    ///   emitir mas foi bloqueada pela policy vigente.
+    ///   Relat�rio de auditoria. Carrega DOIS tipos de registro, distinguiveis
+    ///   pelo prefixo do texto:
+    ///     - SUPRESSAO POR POLICY: operacoes que o diff QUERIA emitir mas a policy
+    ///       vigente bloqueou (sufixo "... suppressed by policy" / "... denied by
+    ///       policy at execution").
+    ///     - DIAGNOSTICO (prefixo "DIAGNOSTIC:"): divergencias detectadas em que o
+    ///       diff, por escolha CONSERVADORA, deliberadamente NAO agiu (ex.: dominio
+    ///       divergente - nao dropa dominio em uso). Nao e um bloqueio de policy.
+    ///   Um canal separado para diagnosticos fica como evolucao; por ora ambos
+    ///   convivem nesta lista, diferenciados pelo prefixo.
     /// </summary>
     property SuppressedCommands: TArray<String> read GetSuppressedCommands;
     /// <summary>

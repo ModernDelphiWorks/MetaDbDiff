@@ -34,6 +34,7 @@ uses
   MetaDbDiff.DDL.Interfaces,
   MetaDbDiff.DDL.Register,
   MetaDbDiff.Metadata.Snapshot,
+  MetaDbDiff.Metadata.Normalize,
   MetaDbDiff.DDL.Generator.Firebird,
   MetaDbDiff.DDL.Generator.Firebird3,
   MetaDbDiff.DDL.Generator.PostgreSQL;
@@ -83,16 +84,27 @@ type
     procedure Firebird_DropDomain;
     [Test]
     procedure PostgreSQL_CreateDomain;
+    // COSTURA extractor->generator: fontes CRUAS do catalogo Firebird passam pela
+    // normalizacao (mesma que GetDomains usa) e produzem CREATE DOMAIN valido.
+    [Test]
+    procedure Firebird_DomainSeam_NormalizedSources_NoKeywordDuplication;
     [Test]
     procedure CreateProcedure_PassesScriptThrough;
     [Test]
     procedure DropProcedure_UsesProcedureKeyword;
     [Test]
     procedure DropFunction_UsesFunctionKeyword;
+    // PostgreSQL: DROP FUNCTION precisa da assinatura (overload).
+    [Test]
+    procedure PostgreSQL_DropFunction_WithSignature;
+    [Test]
+    procedure Procedure_CatalogKey_OverloadsDoNotCollapse;
     [Test]
     procedure SetComment_Table;
     [Test]
     procedure SetComment_Column;
+    [Test]
+    procedure SetComment_EmptyDescription_EmitsIsNull;
     // ---- policy record --------------------------------------------------
     [Test]
     procedure Policy_JanusOrm_DoesNotAllowNewOperations;
@@ -300,6 +312,33 @@ begin
   end;
 end;
 
+procedure TTestObjectTypes.Firebird_DomainSeam_NormalizedSources_NoKeywordDuplication;
+var
+  LCatalog: TCatalogMetadataMIK;
+  LDomain: TDomainMIK;
+begin
+  // Simula a saida CRUA do catalogo Firebird (rdb$default_source /
+  // rdb$validation_source): "DEFAULT 0" e "CHECK (VALUE >= 0)". A COSTURA passa
+  // pela MESMA normalizacao que TCatalogMetadataFirebird.GetDomains aplica.
+  LCatalog := TCatalogMetadataMIK.Create;
+  try
+    LDomain := TDomainMIK.Create(LCatalog);
+    LDomain.Name := 'D_QTD';
+    LDomain.TypeName := 'INTEGER';
+    LDomain.NotNull := True;
+    LDomain.DefaultValue := TMetadataNormalizer.StripDefaultKeyword('DEFAULT 0');
+    LDomain.CheckCondition := TMetadataNormalizer.CanonicalizeCheckCondition('CHECK (VALUE >= 0)');
+    LCatalog.Domains.Add('D_QTD', LDomain);
+    // O gerador re-adiciona DEFAULT/CHECK UMA vez - sem "DEFAULT DEFAULT" nem
+    // "CHECK (CHECK ...)".
+    Assert.AreEqual(
+      'CREATE DOMAIN D_QTD AS INTEGER DEFAULT 0 NOT NULL CHECK (VALUE >= 0);',
+      _Norm(_Firebird.GenerateCreateDomain(LDomain)));
+  finally
+    LCatalog.Free;
+  end;
+end;
+
 procedure TTestObjectTypes.CreateProcedure_PassesScriptThrough;
 var
   LCatalog: TCatalogMetadataMIK;
@@ -347,6 +386,51 @@ begin
   end;
 end;
 
+procedure TTestObjectTypes.PostgreSQL_DropFunction_WithSignature;
+var
+  LCatalog: TCatalogMetadataMIK;
+  LProc: TProcedureMIK;
+begin
+  LCatalog := TCatalogMetadataMIK.Create;
+  try
+    LProc := _AddProcedure(LCatalog, 'FN_SUM', 'x', True);
+    LProc.Signature := 'integer, integer';
+    // Sem a assinatura o PostgreSQL falharia com "function is not unique".
+    Assert.AreEqual('DROP FUNCTION FN_SUM(integer, integer);',
+      _Norm(_PostgreSQL.GenerateDropProcedure(LProc)));
+  finally
+    LCatalog.Free;
+  end;
+end;
+
+procedure TTestObjectTypes.Procedure_CatalogKey_OverloadsDoNotCollapse;
+var
+  LCatalog: TCatalogMetadataMIK;
+  LP1, LP2: TProcedureMIK;
+begin
+  // Duas functions homonimas com assinaturas diferentes: CatalogKey as mantem
+  // distintas (nao colapsa) - a chave inclui a assinatura.
+  LCatalog := TCatalogMetadataMIK.Create;
+  try
+    LP1 := TProcedureMIK.Create(LCatalog);
+    LP1.Name := 'F';
+    LP1.IsFunction := True;
+    LP1.Signature := 'integer';
+    LCatalog.Procedures.AddOrSetValue(LP1.CatalogKey, LP1);
+
+    LP2 := TProcedureMIK.Create(LCatalog);
+    LP2.Name := 'F';
+    LP2.IsFunction := True;
+    LP2.Signature := 'text';
+    LCatalog.Procedures.AddOrSetValue(LP2.CatalogKey, LP2);
+
+    Assert.AreEqual(2, LCatalog.Procedures.Count,
+      'overloads com assinaturas distintas nao devem colapsar');
+  finally
+    LCatalog.Free;
+  end;
+end;
+
 procedure TTestObjectTypes.SetComment_Table;
 var
   LCatalog: TCatalogMetadataMIK;
@@ -374,6 +458,22 @@ begin
     LColumn := _AddColumn(LTable, 'NOME', 0, 'Nome do cliente');
     Assert.AreEqual('COMMENT ON COLUMN CLIENTE.NOME IS ''Nome do cliente'';',
       _Norm(_PostgreSQL.GenerateSetComment(nil, LColumn)));
+  finally
+    LCatalog.Free;
+  end;
+end;
+
+procedure TTestObjectTypes.SetComment_EmptyDescription_EmitsIsNull;
+var
+  LCatalog: TCatalogMetadataMIK;
+  LTable: TTableMIK;
+begin
+  // Description vazia = remocao semantica: IS NULL (nao IS '').
+  LCatalog := TCatalogMetadataMIK.Create;
+  try
+    LTable := _AddTable(LCatalog, 'CLIENTE', '');
+    Assert.AreEqual('COMMENT ON TABLE CLIENTE IS NULL;',
+      _Norm(_Firebird.GenerateSetComment(LTable, nil)));
   finally
     LCatalog.Free;
   end;

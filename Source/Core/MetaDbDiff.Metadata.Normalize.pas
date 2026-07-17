@@ -58,6 +58,16 @@ type
     /// </summary>
     class function CanonicalizeCheckCondition(const ASource: String): String; static;
     /// <summary>
+    ///   Remove a palavra-chave DEFAULT (e um '=' opcional) do inicio de um
+    ///   default_source vindo do catalogo, deixando SO A EXPRESSAO. Compartilhada
+    ///   entre o extractor de COLUNAS (rdb$default_source ja embrulhava "DEFAULT x")
+    ///   e o de DOMINIOS (FRENTE 15): sem isto o gerador re-adicionaria a keyword,
+    ///   produzindo "DEFAULT DEFAULT 0". Mesma normalizacao (UpperCase + Trim) do
+    ///   caminho de colunas do Firebird, para consistencia de comparacao.
+    ///   Ex.: 'DEFAULT 0' -> '0'; 'DEFAULT = 0' -> '0'; '' -> ''.
+    /// </summary>
+    class function StripDefaultKeyword(const ASource: String): String; static;
+    /// <summary>
     ///   Normaliza um script (VIEW/TRIGGER) SO PARA FINS DE COMPARACAO: colapsa
     ///   qualquer sequencia de whitespace (espaco, TAB, CR, LF, form feed) num
     ///   unico espaco e faz Trim. NAO altera caixa (a comparacao usa CompareText,
@@ -135,6 +145,25 @@ begin
     LPrevious := Result;
     Result := Trim(StripOuterBalancedParens(Result));
   until Result = LPrevious;
+end;
+
+class function TMetadataNormalizer.StripDefaultKeyword(const ASource: String): String;
+var
+  LPos: Integer;
+begin
+  // Mesma logica do ExtractDefaultValue do extractor de colunas Firebird (que
+  // agora delega aqui): UpperCase + Trim, remove "DEFAULT" e "=" iniciais.
+  Result := UpperCase(Trim(ASource));
+  if Length(Result) > 0 then
+  begin
+    LPos := Pos('DEFAULT', Result);
+    if LPos = 1 then
+      Delete(Result, 1, 7);
+    LPos := Pos('=', Result);
+    if LPos = 1 then
+      Delete(Result, 1, 1);
+  end;
+  Result := Trim(Result);
 end;
 
 class function TMetadataNormalizer.NormalizeScript(const AScript: String): String;

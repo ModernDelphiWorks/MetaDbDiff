@@ -179,20 +179,9 @@ var
   LColumn: TColumnMIK;
 
   function ExtractDefaultValue(ADefaultValue: String): String;
-  var
-    iDefaultPos: Integer;
   begin
-    Result := UpperCase(Trim(ADefaultValue));
-    if Length(ADefaultValue) > 0 then
-    begin
-      iDefaultPos := Pos('DEFAULT', Result);
-      if iDefaultPos = 1 then
-        Delete(Result,1,7);
-      iDefaultPos := Pos('=', Result);
-      if iDefaultPos = 1 then
-        Delete(Result,1,1);
-    end;
-    Result := Trim(Result);
+    // Delega ao helper compartilhado (mesma logica); reutilizado por GetDomains.
+    Result := TMetadataNormalizer.StripDefaultKeyword(ADefaultValue);
   end;
 
   function ResolveIntegerNullValue(AValue: Variant): Integer;
@@ -375,8 +364,14 @@ begin
       ResolveIntNull(LDBResultSet.GetFieldValue('field_precision')),
       ResolveIntNull(LDBResultSet.GetFieldValue('field_scale')));
     LDomain.NotNull := ResolveIntNull(LDBResultSet.GetFieldValue('field_null')) = 1;
-    LDomain.DefaultValue := Trim(VarToStr(LDBResultSet.GetFieldValue('field_default')));
-    LDomain.CheckCondition := Trim(VarToStr(LDBResultSet.GetFieldValue('field_check')));
+    // rdb$default_source vem como "DEFAULT <x>" e rdb$validation_source como
+    // "CHECK (<cond>)": NORMALIZA os dois (remove as keywords) para que o gerador
+    // base as re-adicione UMA vez - senao sairia "DEFAULT DEFAULT 0" /
+    // "CHECK (CHECK (VALUE >= 0))" (invalido). Mesma costura do PostgreSQL.
+    LDomain.DefaultValue := TMetadataNormalizer.StripDefaultKeyword(
+      VarToStr(LDBResultSet.GetFieldValue('field_default')));
+    LDomain.CheckCondition := TMetadataNormalizer.CanonicalizeCheckCondition(
+      VarToStr(LDBResultSet.GetFieldValue('field_check')));
     LDomain.Description := VarToStr(LDBResultSet.GetFieldValue('description'));
     FCatalogMetadata.Domains.Add(UpperCase(LDomain.Name), LDomain);
   end;

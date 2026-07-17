@@ -121,6 +121,11 @@ type
     function BuilderIndexeDefinition(ATable: TTableMIK): String; virtual;
     function BuilderForeignKeyDefinition(ATable: TTableMIK): String; virtual;
     function BuilderCheckDefinition(ATable: TTableMIK): String; virtual;
+    /// <summary>
+    ///   Literal para COMMENT ON: QuotedStr da descricao, ou NULL quando vazia
+    ///   (remocao semantica do comentario, em vez de gravar uma string vazia).
+    /// </summary>
+    function _CommentLiteral(const ADescription: String): String;
   public
     function GenerateCreateTable(ATable: TTableMIK): String; override;
     function GenerateCreateColumn(AColumn: TColumnMIK): String; override;
@@ -556,11 +561,28 @@ begin
 end;
 
 function TDDLSQLGenerator.GenerateDropProcedure(AProcedure: TProcedureMIK): String;
+var
+  LName: String;
 begin
+  // PostgreSQL exige a assinatura no DROP quando ha OVERLOAD ("function is not
+  // unique" sem ela). Signature so e populada no PostgreSQL; vazia nos demais,
+  // o DROP sai sem parenteses (comportamento historico de FB/MSSQL/MySQL).
+  LName := AProcedure.Name;
+  if Trim(AProcedure.Signature) <> '' then
+    LName := LName + '(' + AProcedure.Signature + ')';
   if AProcedure.IsFunction then
-    Result := Format('DROP FUNCTION %s;', [AProcedure.Name])
+    Result := Format('DROP FUNCTION %s;', [LName])
   else
-    Result := Format('DROP PROCEDURE %s;', [AProcedure.Name]);
+    Result := Format('DROP PROCEDURE %s;', [LName]);
+end;
+
+function TDDLSQLGenerator._CommentLiteral(const ADescription: String): String;
+begin
+  // Description vazia = REMOCAO semantica do comentario -> IS NULL (nao IS '').
+  if Trim(ADescription) = '' then
+    Result := 'NULL'
+  else
+    Result := QuotedStr(ADescription);
 end;
 
 function TDDLSQLGenerator.GenerateSetComment(ATable: TTableMIK;
@@ -570,10 +592,10 @@ begin
   // argumentos e nao-nil (garantido pelo comando/factory).
   if AColumn <> nil then
     Result := Format('COMMENT ON COLUMN %s.%s IS %s;',
-      [_QualifyTable(AColumn.Table), AColumn.Name, QuotedStr(AColumn.Description)])
+      [_QualifyTable(AColumn.Table), AColumn.Name, _CommentLiteral(AColumn.Description)])
   else
     Result := Format('COMMENT ON TABLE %s IS %s;',
-      [_QualifyTable(ATable), QuotedStr(ATable.Description)]);
+      [_QualifyTable(ATable), _CommentLiteral(ATable.Description)]);
 end;
 
 function TDDLSQLGenerator.GetUniqueColumnDefinition(AUnique: Boolean): String;

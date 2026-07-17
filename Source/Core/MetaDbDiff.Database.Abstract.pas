@@ -186,6 +186,11 @@ type
     /// </summary>
     property CompareDescriptions: Boolean read GetCompareDescriptions write SetCompareDescriptions;
     property Policy: TComparePolicy read GetPolicy write SetPolicy;
+    /// <summary>
+    ///   Auditoria: supressoes por policy ("... suppressed by policy") E
+    ///   diagnosticos conservadores (prefixo "DIAGNOSTIC:", ex.: dominio
+    ///   divergente nao alterado). Distinga pelos prefixos. Ver IDatabaseCompare.
+    /// </summary>
     property SuppressedCommands: TArray<String> read GetSuppressedCommands;
     /// <summary>
     ///   Liga (default) o sequenciamento topol�gico por fase na gera��o. Quando

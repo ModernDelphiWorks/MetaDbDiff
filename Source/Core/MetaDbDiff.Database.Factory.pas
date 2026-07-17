@@ -932,7 +932,11 @@ begin
     begin
       LTarget := ATargetDB.Domains.Items[LDomainMaster.Key];
       if _DomainDiverges(LDomainMaster.Value, LTarget) then
-        AddSuppressed(Format('DOMAIN %s diverge (tipo/default/notnull/check) - ' +
+        // Prefixo "DIAGNOSTIC:" distingue esta divergencia AUDITAVEL (nenhuma
+        // acao tomada por escolha conservadora) das supressoes por POLICY (que
+        // usam "... suppressed by policy") no mesmo SuppressedCommands. Ver a doc
+        // da property SuppressedCommands.
+        AddSuppressed(Format('DIAGNOSTIC: DOMAIN %s diverge (tipo/default/notnull/check) - ' +
           'nao alterado automaticamente (dominio em uso nao dropa; ALTER DOMAIN ' +
           'fica como evolucao). Ajuste manual necessario.', [LTarget.Name]));
     end

@@ -505,6 +505,7 @@ begin
   Result.AddPair('Description', AProcedure.Description);
   Result.AddPair('Script', AProcedure.Script);
   Result.AddPair('IsFunction', AProcedure.IsFunction);
+  Result.AddPair('Signature', AProcedure.Signature);
 end;
 
 class function TMetadataSnapshot._CatalogToJson(ACatalog: TCatalogMetadataMIK): TJSONObject;
@@ -810,6 +811,8 @@ begin
     Result.Description := AJson.GetValue<String>('Description', '');
     Result.Script := AJson.GetValue<String>('Script', '');
     Result.IsFunction := AJson.GetValue<Boolean>('IsFunction', False);
+    // Signature ausente num snapshot v2 antigo (ou de dialeto sem overload) -> ''.
+    Result.Signature := AJson.GetValue<String>('Signature', '');
   except
     Result.Free;
     raise;
@@ -875,7 +878,9 @@ begin
     for LFor := 0 to LArr.Count - 1 do
     begin
       LProcedure := _JsonToProcedure(TJSONObject(LArr.Items[LFor]), ACatalog);
-      ACatalog.Procedures.AddOrSetValue(UpperCase(LProcedure.Name), LProcedure);
+      // CatalogKey (nome + assinatura) reproduz EXATAMENTE a convencao do extractor
+      // - sem isto, overloads PostgreSQL colapsariam ao recarregar o snapshot.
+      ACatalog.Procedures.AddOrSetValue(LProcedure.CatalogKey, LProcedure);
     end;
 end;
 

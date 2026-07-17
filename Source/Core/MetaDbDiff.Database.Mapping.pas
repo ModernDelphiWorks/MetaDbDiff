@@ -244,12 +244,27 @@ type
     FName: String;
     FScript: String;
     FIsFunction: Boolean;
+    FSignature: String;
   public
     constructor Create(ADatabase: TCatalogMetadataMIK);
+    /// <summary>
+    ///   Chave de catalogo estavel: Name + assinatura entre parenteses quando ha
+    ///   Signature (PostgreSQL suporta OVERLOAD por assinatura), senao so o Name.
+    ///   Usada como key do TObjectDictionary Procedures para NAO colapsar overloads.
+    /// </summary>
+    function CatalogKey: String;
     property Database: TCatalogMetadataMIK read FCatalog;
     property Name: String read FName write FName;
     property Script: String read FScript write FScript;
     property IsFunction: Boolean read FIsFunction write FIsFunction;
+    /// <summary>
+    ///   Assinatura de identidade dos argumentos (PostgreSQL:
+    ///   pg_get_function_identity_arguments -> "integer, text"). Vazia nos demais
+    ///   dialetos. Entra na chave de catalogo (evita colapso de overloads) e no
+    ///   DROP FUNCTION/PROCEDURE do PostgreSQL (que exige a assinatura para
+    ///   desambiguar - "function is not unique" sem ela).
+    /// </summary>
+    property Signature: String read FSignature write FSignature;
   end;
 
   TCatalogMetadataMIK = class(TMetaInfoKind)
@@ -599,6 +614,14 @@ constructor TProcedureMIK.Create(ADatabase: TCatalogMetadataMIK);
 begin
   FCatalog := ADatabase;
   FIsFunction := False;
+end;
+
+function TProcedureMIK.CatalogKey: String;
+begin
+  if Trim(FSignature) <> '' then
+    Result := UpperCase(FName + '(' + FSignature + ')')
+  else
+    Result := UpperCase(FName);
 end;
 
 end.
