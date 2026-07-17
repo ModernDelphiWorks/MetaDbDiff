@@ -29,6 +29,7 @@ uses
   Classes,
   TypInfo,
   SysUtils,
+  SyncObjs,
   Generics.Collections,
   /// DBCBr
   MetaDbDiff.RTTI.Helper,
@@ -42,6 +43,12 @@ type
   TMappingExplorer = class
   strict private
   class var
+    // Serializes every lazy getter below. The cache dictionaries are populated
+    // on demand (ContainsKey -> Add) and share a single TRttiContext; without
+    // this lock, concurrent readers race on the TOCTOU (both miss, both Add =>
+    // duplicate-key EListError) and on TDictionary Grow/Rehash and the RTL RTTI
+    // pool (nil-deref AV "Read of address 0x00000000"). See PR: thread-safety.
+    FLock: TCriticalSection;
     FContext: TRttiContext;
     FRepositoryMapping: TMappingRepository;
     FPopularMapping: TMappingPopular;
@@ -98,6 +105,7 @@ implementation
 
 class procedure TMappingExplorer.ExecuteCreate;
 begin
+  FLock := TCriticalSection.Create;
   FContext := TRttiContext.Create;
   FPopularMapping     := TMappingPopular.Create;
   FTableMapping       := TObjectDictionary<String, TTableMapping>.Create([doOwnsValues]);
@@ -148,6 +156,7 @@ begin
   FRESTAllowVerbs.Free;
   if Assigned(FRepositoryMapping) then
      FRepositoryMapping.Free;
+  FLock.Free;
 end;
 
 class function TMappingExplorer.GetMappingPrimaryKey(
@@ -155,13 +164,18 @@ class function TMappingExplorer.GetMappingPrimaryKey(
 var
   LRttiType: TRttiType;
 begin
-  if FPrimaryKeyMapping.ContainsKey(AClass.ClassName) then
-     Exit(FPrimaryKeyMapping[AClass.ClassName]);
+  FLock.Enter;
+  try
+    if FPrimaryKeyMapping.ContainsKey(AClass.ClassName) then
+       Exit(FPrimaryKeyMapping[AClass.ClassName]);
 
-  LRttiType := FContext.GetType(AClass);
-  Result    := FPopularMapping.PopularPrimaryKey(LRttiType);
-  // Add List
-  FPrimaryKeyMapping.Add(AClass.ClassName, Result);
+    LRttiType := FContext.GetType(AClass);
+    Result    := FPopularMapping.PopularPrimaryKey(LRttiType);
+    // Add List
+    FPrimaryKeyMapping.Add(AClass.ClassName, Result);
+  finally
+    FLock.Leave;
+  end;
 end;
 
 class function TMappingExplorer.GetMappingPrimaryKeyColumns(
@@ -169,13 +183,18 @@ class function TMappingExplorer.GetMappingPrimaryKeyColumns(
 var
   LRttiType: TRttiType;
 begin
-  if FPrimaryKeyColumnsMapping.ContainsKey(AClass.ClassName) then
-     Exit(FPrimaryKeyColumnsMapping[AClass.ClassName]);
+  FLock.Enter;
+  try
+    if FPrimaryKeyColumnsMapping.ContainsKey(AClass.ClassName) then
+       Exit(FPrimaryKeyColumnsMapping[AClass.ClassName]);
 
-  LRttiType := FContext.GetType(AClass);
-  Result    := FPopularMapping.PopularPrimaryKeyColumns(LRttiType, AClass);
-  // Add List
-  FPrimaryKeyColumnsMapping.Add(AClass.ClassName, Result);
+    LRttiType := FContext.GetType(AClass);
+    Result    := FPopularMapping.PopularPrimaryKeyColumns(LRttiType, AClass);
+    // Add List
+    FPrimaryKeyColumnsMapping.Add(AClass.ClassName, Result);
+  finally
+    FLock.Leave;
+  end;
 end;
 
 class function TMappingExplorer.GetMappingSequence(
@@ -183,13 +202,18 @@ class function TMappingExplorer.GetMappingSequence(
 var
   LRttiType: TRttiType;
 begin
-  if FSequenceMapping.ContainsKey(AClass.ClassName) then
-     Exit(FSequenceMapping[AClass.ClassName]);
+  FLock.Enter;
+  try
+    if FSequenceMapping.ContainsKey(AClass.ClassName) then
+       Exit(FSequenceMapping[AClass.ClassName]);
 
-  LRttiType := FContext.GetType(AClass);
-  Result    := FPopularMapping.PopularSequence(LRttiType);
-  // Add List
-  FSequenceMapping.Add(AClass.ClassName, Result);
+    LRttiType := FContext.GetType(AClass);
+    Result    := FPopularMapping.PopularSequence(LRttiType);
+    // Add List
+    FSequenceMapping.Add(AClass.ClassName, Result);
+  finally
+    FLock.Leave;
+  end;
 end;
 
 class function TMappingExplorer.GetMappingCalcField(
@@ -197,13 +221,18 @@ class function TMappingExplorer.GetMappingCalcField(
 var
   LRttiType: TRttiType;
 begin
-  if FCalcFieldMapping.ContainsKey(AClass.ClassName) then
-     Exit(FCalcFieldMapping[AClass.ClassName]);
+  FLock.Enter;
+  try
+    if FCalcFieldMapping.ContainsKey(AClass.ClassName) then
+       Exit(FCalcFieldMapping[AClass.ClassName]);
 
-  LRttiType := FContext.GetType(AClass);
-  Result    := FPopularMapping.PopularCalcField(LRttiType);
-  // Add List
-  FCalcFieldMapping.Add(AClass.ClassName, Result);
+    LRttiType := FContext.GetType(AClass);
+    Result    := FPopularMapping.PopularCalcField(LRttiType);
+    // Add List
+    FCalcFieldMapping.Add(AClass.ClassName, Result);
+  finally
+    FLock.Leave;
+  end;
 end;
 
 class function TMappingExplorer.GetMappingCheck(
@@ -211,26 +240,36 @@ class function TMappingExplorer.GetMappingCheck(
 var
   LRttiType: TRttiType;
 begin
-  if FCheckMapping.ContainsKey(AClass.ClassName) then
-     Exit(FCheckMapping[AClass.ClassName]);
+  FLock.Enter;
+  try
+    if FCheckMapping.ContainsKey(AClass.ClassName) then
+       Exit(FCheckMapping[AClass.ClassName]);
 
-  LRttiType := FContext.GetType(AClass);
-  Result    := FPopularMapping.PopularCheck(LRttiType);
-  // Add List
-  FCheckMapping.Add(AClass.ClassName, Result);
+    LRttiType := FContext.GetType(AClass);
+    Result    := FPopularMapping.PopularCheck(LRttiType);
+    // Add List
+    FCheckMapping.Add(AClass.ClassName, Result);
+  finally
+    FLock.Leave;
+  end;
 end;
 
 class function TMappingExplorer.GetMappingColumn(const AClass: TClass): TColumnMappingList;
 var
   LRttiType: TRttiType;
 begin
-  if FColumnMapping.ContainsKey(AClass.ClassName) then
-     Exit(FColumnMapping[AClass.ClassName]);
+  FLock.Enter;
+  try
+    if FColumnMapping.ContainsKey(AClass.ClassName) then
+       Exit(FColumnMapping[AClass.ClassName]);
 
-  LRttiType := FContext.GetType(AClass);
-  Result    := FPopularMapping.PopularColumn(LRttiType, AClass);
-  // Add List
-  FColumnMapping.Add(AClass.ClassName, Result);
+    LRttiType := FContext.GetType(AClass);
+    Result    := FPopularMapping.PopularColumn(LRttiType, AClass);
+    // Add List
+    FColumnMapping.Add(AClass.ClassName, Result);
+  finally
+    FLock.Leave;
+  end;
 end;
 
 class function TMappingExplorer.GetMappingEnumeration(
@@ -238,13 +277,18 @@ class function TMappingExplorer.GetMappingEnumeration(
 var
   LRttiType: TRttiType;
 begin
-  if FEnumerationMapping.ContainsKey(AClass.ClassName) then
-     Exit(FEnumerationMapping[AClass.ClassName]);
+  FLock.Enter;
+  try
+    if FEnumerationMapping.ContainsKey(AClass.ClassName) then
+       Exit(FEnumerationMapping[AClass.ClassName]);
 
-  LRttiType := FContext.GetType(AClass);
-  Result := FPopularMapping.PopularEnumeration(LRttiType);
-  // Add List
-  FEnumerationMapping.Add(AClass.ClassName, Result);
+    LRttiType := FContext.GetType(AClass);
+    Result := FPopularMapping.PopularEnumeration(LRttiType);
+    // Add List
+    FEnumerationMapping.Add(AClass.ClassName, Result);
+  finally
+    FLock.Leave;
+  end;
 end;
 
 class function TMappingExplorer.GetMappingFieldEvents(
@@ -252,13 +296,18 @@ class function TMappingExplorer.GetMappingFieldEvents(
 var
   LRttiType: TRttiType;
 begin
-  if FFieldEventsMapping.ContainsKey(AClass.ClassName) then
-     Exit(FFieldEventsMapping[AClass.ClassName]);
+  FLock.Enter;
+  try
+    if FFieldEventsMapping.ContainsKey(AClass.ClassName) then
+       Exit(FFieldEventsMapping[AClass.ClassName]);
 
-  LRttiType := FContext.GetType(AClass);
-  Result    := FPopularMapping.PopularFieldEvents(LRttiType);
-  // Add List
-  FFieldEventsMapping.Add(AClass.ClassName, Result);
+    LRttiType := FContext.GetType(AClass);
+    Result    := FPopularMapping.PopularFieldEvents(LRttiType);
+    // Add List
+    FFieldEventsMapping.Add(AClass.ClassName, Result);
+  finally
+    FLock.Leave;
+  end;
 end;
 
 class function TMappingExplorer.GetMappingForeignKey(
@@ -266,13 +315,18 @@ class function TMappingExplorer.GetMappingForeignKey(
 var
   LRttiType: TRttiType;
 begin
-  if FForeingnKeyMapping.ContainsKey(AClass.ClassName) then
-     Exit(FForeingnKeyMapping[AClass.ClassName]);
+  FLock.Enter;
+  try
+    if FForeingnKeyMapping.ContainsKey(AClass.ClassName) then
+       Exit(FForeingnKeyMapping[AClass.ClassName]);
 
-  LRttiType := FContext.GetType(AClass);
-  Result    := FPopularMapping.PopularForeignKey(LRttiType);
-  // Add List
-  FForeingnKeyMapping.Add(AClass.ClassName, Result);
+    LRttiType := FContext.GetType(AClass);
+    Result    := FPopularMapping.PopularForeignKey(LRttiType);
+    // Add List
+    FForeingnKeyMapping.Add(AClass.ClassName, Result);
+  finally
+    FLock.Leave;
+  end;
 end;
 
 class function TMappingExplorer.GetMappingIndexe(
@@ -280,13 +334,18 @@ class function TMappingExplorer.GetMappingIndexe(
 var
   LRttiType: TRttiType;
 begin
-  if FIndexeMapping.ContainsKey(AClass.ClassName) then
-     Exit(FIndexeMapping[AClass.ClassName]);
+  FLock.Enter;
+  try
+    if FIndexeMapping.ContainsKey(AClass.ClassName) then
+       Exit(FIndexeMapping[AClass.ClassName]);
 
-  LRttiType := FContext.GetType(AClass);
-  Result    := FPopularMapping.PopularIndexe(LRttiType);
-  // Add List
-  FIndexeMapping.Add(AClass.ClassName, Result);
+    LRttiType := FContext.GetType(AClass);
+    Result    := FPopularMapping.PopularIndexe(LRttiType);
+    // Add List
+    FIndexeMapping.Add(AClass.ClassName, Result);
+  finally
+    FLock.Leave;
+  end;
 end;
 
 class function TMappingExplorer.GetMappingJoinColumn(
@@ -294,13 +353,18 @@ class function TMappingExplorer.GetMappingJoinColumn(
 var
   LRttiType: TRttiType;
 begin
-  if FJoinColumnMapping.ContainsKey(AClass.ClassName) then
-     Exit(FJoinColumnMapping[AClass.ClassName]);
+  FLock.Enter;
+  try
+    if FJoinColumnMapping.ContainsKey(AClass.ClassName) then
+       Exit(FJoinColumnMapping[AClass.ClassName]);
 
-  LRttiType := FContext.GetType(AClass);
-  Result    := FPopularMapping.PopularJoinColumn(LRttiType);
-  // Add List
-  FJoinColumnMapping.Add(AClass.ClassName, Result);
+    LRttiType := FContext.GetType(AClass);
+    Result    := FPopularMapping.PopularJoinColumn(LRttiType);
+    // Add List
+    FJoinColumnMapping.Add(AClass.ClassName, Result);
+  finally
+    FLock.Leave;
+  end;
 end;
 
 //class procedure TMappingExplorer.GetMappingLazy(const AClass: TClass);
@@ -329,13 +393,18 @@ class function TMappingExplorer.GetMappingOrderBy(
 var
   LRttiType: TRttiType;
 begin
-  if FOrderByMapping.ContainsKey(AClass.ClassName) then
-     Exit(FOrderByMapping[AClass.ClassName]);
+  FLock.Enter;
+  try
+    if FOrderByMapping.ContainsKey(AClass.ClassName) then
+       Exit(FOrderByMapping[AClass.ClassName]);
 
-  LRttiType := FContext.GetType(AClass);
-  Result    := FPopularMapping.PopularOrderBy(LRttiType);
-  // Add List
-  FOrderByMapping.Add(AClass.ClassName, Result);
+    LRttiType := FContext.GetType(AClass);
+    Result    := FPopularMapping.PopularOrderBy(LRttiType);
+    // Add List
+    FOrderByMapping.Add(AClass.ClassName, Result);
+  finally
+    FLock.Leave;
+  end;
 end;
 
 class function TMappingExplorer.GetMappingAssociation(
@@ -343,13 +412,18 @@ class function TMappingExplorer.GetMappingAssociation(
 var
   LRttiType: TRttiType;
 begin
-  if FAssociationMapping.ContainsKey(AClass.ClassName) then
-     Exit(FAssociationMapping[AClass.ClassName]);
+  FLock.Enter;
+  try
+    if FAssociationMapping.ContainsKey(AClass.ClassName) then
+       Exit(FAssociationMapping[AClass.ClassName]);
 
-  LRttiType := FContext.GetType(AClass);
-  Result    := FPopularMapping.PopularAssociation(LRttiType);
-  // Add List
-  FAssociationMapping.Add(AClass.ClassName, Result);
+    LRttiType := FContext.GetType(AClass);
+    Result    := FPopularMapping.PopularAssociation(LRttiType);
+    // Add List
+    FAssociationMapping.Add(AClass.ClassName, Result);
+  finally
+    FLock.Leave;
+  end;
 end;
 
 class function TMappingExplorer.GetMappingTable(
@@ -357,13 +431,18 @@ class function TMappingExplorer.GetMappingTable(
 var
   LRttiType: TRttiType;
 begin
-  if FTableMapping.ContainsKey(AClass.ClassName) then
-     Exit(FTableMapping[AClass.ClassName]);
+  FLock.Enter;
+  try
+    if FTableMapping.ContainsKey(AClass.ClassName) then
+       Exit(FTableMapping[AClass.ClassName]);
 
-  LRttiType := FContext.GetType(AClass);
-  Result    := FPopularMapping.PopularTable(LRttiType);
-  // Add List
-  FTableMapping.Add(AClass.ClassName, Result);
+    LRttiType := FContext.GetType(AClass);
+    Result    := FPopularMapping.PopularTable(LRttiType);
+    // Add List
+    FTableMapping.Add(AClass.ClassName, Result);
+  finally
+    FLock.Leave;
+  end;
 end;
 
 class function TMappingExplorer.GetMappingTrigger(
@@ -371,13 +450,18 @@ class function TMappingExplorer.GetMappingTrigger(
 var
   LRttiType: TRttiType;
 begin
-  if FTriggerMapping.ContainsKey(AClass.ClassName) then
-     Exit(FTriggerMapping[AClass.ClassName]);
+  FLock.Enter;
+  try
+    if FTriggerMapping.ContainsKey(AClass.ClassName) then
+       Exit(FTriggerMapping[AClass.ClassName]);
 
-  LRttiType := FContext.GetType(AClass);
-  Result    := FPopularMapping.PopularTrigger(LRttiType);
-  // Add List
-  FTriggerMapping.Add(AClass.ClassName, Result);
+    LRttiType := FContext.GetType(AClass);
+    Result    := FPopularMapping.PopularTrigger(LRttiType);
+    // Add List
+    FTriggerMapping.Add(AClass.ClassName, Result);
+  finally
+    FLock.Leave;
+  end;
 end;
 
 class function TMappingExplorer.GetMappingView(
@@ -385,57 +469,82 @@ class function TMappingExplorer.GetMappingView(
 var
   LRttiType: TRttiType;
 begin
-  if FViewMapping.ContainsKey(AClass.ClassName) then
-     Exit(FViewMapping[AClass.ClassName]);
+  FLock.Enter;
+  try
+    if FViewMapping.ContainsKey(AClass.ClassName) then
+       Exit(FViewMapping[AClass.ClassName]);
 
-  LRttiType := FContext.GetType(AClass);
-  Result    := FPopularMapping.PopularView(LRttiType);
-  // Add List
-  FViewMapping.Add(AClass.ClassName, Result);
+    LRttiType := FContext.GetType(AClass);
+    Result    := FPopularMapping.PopularView(LRttiType);
+    // Add List
+    FViewMapping.Add(AClass.ClassName, Result);
+  finally
+    FLock.Leave;
+  end;
 end;
 
 class function TMappingExplorer.GetNotServerUse(const AClass: TClass): Boolean;
 var
   LRttiType: TRttiType;
 begin
-  if FNotServerUse.ContainsKey(AClass.ClassName) then
-     Exit(FNotServerUse[AClass.ClassName]);
+  FLock.Enter;
+  try
+    if FNotServerUse.ContainsKey(AClass.ClassName) then
+       Exit(FNotServerUse[AClass.ClassName]);
 
-  LRttiType := FContext.GetType(AClass);
-  Result    := FPopularMapping.PopularNotServerUse(LRttiType);
-  FNotServerUse.Add(AClass.ClassName, Result);
+    LRttiType := FContext.GetType(AClass);
+    Result    := FPopularMapping.PopularNotServerUse(LRttiType);
+    FNotServerUse.Add(AClass.ClassName, Result);
+  finally
+    FLock.Leave;
+  end;
 end;
 
 class function TMappingExplorer.GetRESTReadOnly(const AClass: TClass): Boolean;
 var
   LRttiType: TRttiType;
 begin
-  if FRESTReadOnly.ContainsKey(AClass.ClassName) then
-    Exit(FRESTReadOnly[AClass.ClassName]);
+  FLock.Enter;
+  try
+    if FRESTReadOnly.ContainsKey(AClass.ClassName) then
+      Exit(FRESTReadOnly[AClass.ClassName]);
 
-  LRttiType := FContext.GetType(AClass);
-  Result    := FPopularMapping.PopularRESTReadOnly(LRttiType);
-  FRESTReadOnly.Add(AClass.ClassName, Result);
+    LRttiType := FContext.GetType(AClass);
+    Result    := FPopularMapping.PopularRESTReadOnly(LRttiType);
+    FRESTReadOnly.Add(AClass.ClassName, Result);
+  finally
+    FLock.Leave;
+  end;
 end;
 
 class function TMappingExplorer.GetRESTAllowVerbs(const AClass: TClass): TRESTAllowVerbCache;
 var
   LRttiType: TRttiType;
 begin
-  if FRESTAllowVerbs.ContainsKey(AClass.ClassName) then
-    Exit(FRESTAllowVerbs[AClass.ClassName]);
+  FLock.Enter;
+  try
+    if FRESTAllowVerbs.ContainsKey(AClass.ClassName) then
+      Exit(FRESTAllowVerbs[AClass.ClassName]);
 
-  LRttiType := FContext.GetType(AClass);
-  Result    := FPopularMapping.PopularRESTAllowVerbs(LRttiType);
-  FRESTAllowVerbs.Add(AClass.ClassName, Result);
+    LRttiType := FContext.GetType(AClass);
+    Result    := FPopularMapping.PopularRESTAllowVerbs(LRttiType);
+    FRESTAllowVerbs.Add(AClass.ClassName, Result);
+  finally
+    FLock.Leave;
+  end;
 end;
 
 class function TMappingExplorer.GetRepositoryMapping: TMappingRepository;
 begin
-  if not Assigned(FRepositoryMapping) then
-    FRepositoryMapping := TMappingRepository.Create(TRegisterClass.GetAllEntityClass,
-                                                    TRegisterClass.GetAllViewClass);
-  Result := FRepositoryMapping;
+  FLock.Enter;
+  try
+    if not Assigned(FRepositoryMapping) then
+      FRepositoryMapping := TMappingRepository.Create(TRegisterClass.GetAllEntityClass,
+                                                      TRegisterClass.GetAllViewClass);
+    Result := FRepositoryMapping;
+  finally
+    FLock.Leave;
+  end;
 end;
 
 initialization
