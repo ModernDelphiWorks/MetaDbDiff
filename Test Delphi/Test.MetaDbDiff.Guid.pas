@@ -190,14 +190,14 @@ begin
 end;
 
 // ---------------------------------------------------------------------------
-// StoreGUIDAsOctet = False (Metadata.Extract.pas :440-444)
+// StoreGUIDAsOctet = False (Metadata.Extract.pas :445-449)
 // ---------------------------------------------------------------------------
 
 procedure TTestGuidDDL.Guid_PostgreSQL_NotOctet_EmitsCharWithSize;
 var
   LTypeName, LSQL: String;
 begin
-  // Metadata.Extract.pas:440
+  // Metadata.Extract.pas:445
   LSQL := _EmitGuidColumn(dnPostgreSQL, False, LTypeName);
   Assert.AreEqual('CHAR(%l)', LTypeName, False,
     'O placeholder de tamanho do PostgreSQL deve ser %l (o unico que o generator substitui)');
@@ -209,7 +209,7 @@ procedure TTestGuidDDL.Guid_Firebird_NotOctet_EmitsCharWithSize;
 var
   LTypeName, LSQL: String;
 begin
-  // Metadata.Extract.pas:441
+  // Metadata.Extract.pas:446
   LSQL := _EmitGuidColumn(dnFirebird, False, LTypeName);
   Assert.AreEqual('CHAR(%l)', LTypeName, False,
     'O placeholder de tamanho do Firebird deve ser %l');
@@ -221,7 +221,7 @@ procedure TTestGuidDDL.Guid_Interbase_NotOctet_EmitsCharWithSize;
 var
   LTypeName, LSQL: String;
 begin
-  // Metadata.Extract.pas:442
+  // Metadata.Extract.pas:447
   LSQL := _EmitGuidColumn(dnInterbase, False, LTypeName);
   Assert.AreEqual('CHAR(%l)', LTypeName, False,
     'O placeholder de tamanho do Interbase deve ser %l');
@@ -233,7 +233,7 @@ procedure TTestGuidDDL.Guid_MySQL_NotOctet_EmitsCharWithSize;
 var
   LTypeName, LSQL: String;
 begin
-  // Metadata.Extract.pas:443
+  // Metadata.Extract.pas:448
   LSQL := _EmitGuidColumn(dnMySQL, False, LTypeName);
   Assert.AreEqual('CHAR(%l)', LTypeName, False,
     'O placeholder de tamanho do MySQL deve ser %l');
@@ -245,7 +245,7 @@ procedure TTestGuidDDL.Guid_Oracle_NotOctet_EmitsNCharWithSize;
 var
   LTypeName, LSQL: String;
 begin
-  // Metadata.Extract.pas:444. NCHAR2 nao existe no Oracle; o analogo de tamanho
+  // Metadata.Extract.pas:449. NCHAR2 nao existe no Oracle; o analogo de tamanho
   // FIXO para GUID e NCHAR(n) (NVARCHAR2 e o tipo VARIAVEL, nao serve aqui).
   LSQL := _EmitGuidColumn(dnOracle, False, LTypeName);
   Assert.AreEqual('NCHAR(%l)', LTypeName, False,
@@ -256,14 +256,14 @@ begin
 end;
 
 // ---------------------------------------------------------------------------
-// StoreGUIDAsOctet = True (Metadata.Extract.pas :509-526, _SetGuidOrOctetos)
+// StoreGUIDAsOctet = True (Metadata.Extract.pas :514-540, _SetGuidOrOctetos)
 // ---------------------------------------------------------------------------
 
 procedure TTestGuidDDL.Guid_Firebird_Octet_EmitsChar16Octets;
 var
   LTypeName, LSQL: String;
 begin
-  // Metadata.Extract.pas:514-516 - unico ramo que ja escrevia %l corretamente.
+  // Metadata.Extract.pas:519-521 - unico ramo que ja escrevia %l corretamente.
   // Size e forcado a 16 (16 octetos), sobrepondo o C_SIZE_IN de entrada.
   LSQL := _EmitGuidColumn(dnFirebird, True, LTypeName);
   Assert.AreEqual('CHAR(%l)', LTypeName, False);
@@ -275,7 +275,7 @@ procedure TTestGuidDDL.Guid_PostgreSQL_Octet_SubstitutesSize;
 var
   LTypeName, LSQL: String;
 begin
-  // Metadata.Extract.pas:521-522.
+  // Metadata.Extract.pas:531-532.
   // ATENCAO: BYTE nao e tipo do PostgreSQL (o binario dele e bytea, e bytea NAO
   // e dimensionado). Este teste NAO afirma que BYTE(16) esta correto - afirma
   // apenas que o placeholder de tamanho passou a ser substituido nesta linha,
@@ -292,7 +292,7 @@ procedure TTestGuidDDL.Guid_Oracle_Octet_FallsBackToCharWithSize;
 var
   LTypeName, LSQL: String;
 begin
-  // Metadata.Extract.pas:525 - ramo "else" do modo octeto: NAO forca Size,
+  // Metadata.Extract.pas:539 - ramo "else" do modo octeto: NAO forca Size,
   // entao o tamanho de entrada e o que aparece no DDL.
   LSQL := _EmitGuidColumn(dnOracle, True, LTypeName);
   Assert.AreEqual('CHAR(%l)', LTypeName, False);
@@ -304,7 +304,7 @@ procedure TTestGuidDDL.Guid_MySQL_Octet_FallsBackToCharWithSize;
 var
   LTypeName, LSQL: String;
 begin
-  // Metadata.Extract.pas:525 (mesmo ramo else, outro dialeto).
+  // Metadata.Extract.pas:539 (mesmo ramo else, outro dialeto).
   LSQL := _EmitGuidColumn(dnMySQL, True, LTypeName);
   Assert.AreEqual('CHAR(%l)', LTypeName, False);
   Assert.AreEqual('ALTER TABLE CLIENTE ADD ID_GUID CHAR(38);', LSQL, False,
@@ -315,7 +315,7 @@ procedure TTestGuidDDL.Guid_MSSQL_Octet_FallsBackToCharWithSize;
 var
   LTypeName, LSQL: String;
 begin
-  // Metadata.Extract.pas:525 (mesmo ramo else, outro dialeto).
+  // Metadata.Extract.pas:539 (mesmo ramo else, outro dialeto).
   LSQL := _EmitGuidColumn(dnMSSQL, True, LTypeName);
   Assert.AreEqual('CHAR(%l)', LTypeName, False);
   Assert.AreEqual('ALTER TABLE CLIENTE ADD ID_GUID CHAR(38);', LSQL, False,
