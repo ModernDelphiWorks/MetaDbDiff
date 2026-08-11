@@ -437,11 +437,16 @@ begin
       begin
         _SetGuidOrOctetos(AColumn, LDriverName);
       end
-      else if LDriverName = dnPostgreSQL then AColumn.TypeName := 'CHAR(%1)'
-      else if LDriverName = dnFirebird   then AColumn.TypeName := 'CHAR(%1)'
-      else if LDriverName = dnInterbase  then AColumn.TypeName := 'CHAR(%1)'
-      else if LDriverName = dnMySQL      then AColumn.TypeName := 'CHAR(%1)'
-      else if LDriverName = dnOracle     then AColumn.TypeName := 'NCHAR2(%1)'
+      // O placeholder de tamanho e '%l' (letra ele minuscula): e o unico que
+      // TDDLSQLGenerator.GetFieldTypeDefinition substitui (DDL.Generator.pas).
+      // '%1' (o algarismo um) nunca foi substituido por ninguem e ia parar
+      // literal no DDL. Oracle: o tipo de tamanho FIXO e NCHAR(n) - 'NCHAR2'
+      // nao existe (existem NCHAR(n), fixo, e NVARCHAR2(n), variavel).
+      else if LDriverName = dnPostgreSQL then AColumn.TypeName := 'CHAR(%l)'
+      else if LDriverName = dnFirebird   then AColumn.TypeName := 'CHAR(%l)'
+      else if LDriverName = dnInterbase  then AColumn.TypeName := 'CHAR(%l)'
+      else if LDriverName = dnMySQL      then AColumn.TypeName := 'CHAR(%l)'
+      else if LDriverName = dnOracle     then AColumn.TypeName := 'NCHAR(%l)'
       else                                    AColumn.TypeName := 'GUID';
     end;
   else
@@ -518,11 +523,20 @@ begin
   else
   if ADriverName = dnPostgreSQL  then
   begin
-    AColumn.TypeName := 'BYTE(%1)';
+    // TODO (issue #19, em aberto): 'BYTE' NAO e tipo do PostgreSQL. O binario
+    // dele e 'bytea', que NAO e dimensionado - e isso poe em duvida tambem o
+    // Size := 16 abaixo. A escolha do tipo (e do Size) para o modo octeto no
+    // PostgreSQL nao foi medida contra banco vivo e por isso NAO foi alterada
+    // aqui; so o placeholder de tamanho foi corrigido para '%l'.
+    AColumn.TypeName := 'BYTE(%l)';
     AColumn.Size := 16;
   end
   else
-    AColumn.TypeName := 'CHAR(%1)';
+    // Ramo "else" do modo octeto (Oracle/MySQL/MSSQL/SQLite/...): mantem o
+    // CHAR(n) historico e NAO forca Size. Os tipos binarios por dialeto
+    // (Oracle RAW(16), MySQL BINARY(16), ...) seguem em aberto na issue #19 -
+    // nenhum foi medido contra banco vivo.
+    AColumn.TypeName := 'CHAR(%l)';
 end;
 
 end.
