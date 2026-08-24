@@ -182,6 +182,17 @@ type
 
 implementation
 
+const
+  /// <summary>
+  ///   Comprimento do literal canonico de GUID em modo TEXTO: a forma
+  ///   QuotedStr(TGUID.ToString) = '{8-4-4-4-12}', com chaves, hifens e hex -
+  ///   ver TDMLGeneratorAbstract.CanonicalGuidLiteral, em
+  ///   Janus.DML.Generator.pas, que e quem grava o valor que esta coluna tem
+  ///   de caber e quem o emite de volta no WHERE. Serve de default quando o
+  ///   mapeamento nao declara tamanho; nao substitui um tamanho declarado.
+  /// </summary>
+  C_GUID_TEXT_LITERAL_LENGTH = 38;
+
 { TCatalogMetadataAbstract }
 
 constructor TCatalogMetadataAbstract.Create;
@@ -437,17 +448,32 @@ begin
       begin
         _SetGuidOrOctetos(AColumn, LDriverName);
       end
-      // O placeholder de tamanho e '%l' (letra ele minuscula): e o unico que
-      // TDDLSQLGenerator.GetFieldTypeDefinition substitui (DDL.Generator.pas).
-      // '%1' (o algarismo um) nunca foi substituido por ninguem e ia parar
-      // literal no DDL. Oracle: o tipo de tamanho FIXO e NCHAR(n) - 'NCHAR2'
-      // nao existe (existem NCHAR(n), fixo, e NVARCHAR2(n), variavel).
-      else if LDriverName = dnPostgreSQL then AColumn.TypeName := 'CHAR(%l)'
-      else if LDriverName = dnFirebird   then AColumn.TypeName := 'CHAR(%l)'
-      else if LDriverName = dnInterbase  then AColumn.TypeName := 'CHAR(%l)'
-      else if LDriverName = dnMySQL      then AColumn.TypeName := 'CHAR(%l)'
-      else if LDriverName = dnOracle     then AColumn.TypeName := 'NCHAR(%l)'
-      else                                    AColumn.TypeName := 'GUID';
+      else
+      begin
+        // O placeholder de tamanho e '%l' (letra ele minuscula): e o unico que
+        // TDDLSQLGenerator.GetFieldTypeDefinition substitui (DDL.Generator.pas).
+        // '%1' (o algarismo um) nunca foi substituido por ninguem e ia parar
+        // literal no DDL. Oracle: o tipo de tamanho FIXO e NCHAR(n) - 'NCHAR2'
+        // nao existe (existem NCHAR(n), fixo, e NVARCHAR2(n), variavel).
+        //
+        // E o placeholder precisa de um tamanho para resolver: o atributo
+        // Column sem tamanho deixa Size em zero (Column.Create, em
+        // MetaDbDiff.Mapping.Attributes.pas), e ai o %l resolveria para uma
+        // coluna de tamanho ZERO - que nao guarda literal de GUID nenhum. O
+        // default e o comprimento do literal canonico que este ecossistema
+        // grava e compara (C_GUID_TEXT_LITERAL_LENGTH). Um tamanho que o
+        // mapeamento declarou - ou que a extracao leu do banco - continua
+        // mandando, porque so o valor nao-positivo cai no default.
+        if AColumn.Size <= 0 then
+          AColumn.Size := C_GUID_TEXT_LITERAL_LENGTH;
+
+        if      LDriverName = dnPostgreSQL then AColumn.TypeName := 'CHAR(%l)'
+        else if LDriverName = dnFirebird   then AColumn.TypeName := 'CHAR(%l)'
+        else if LDriverName = dnInterbase  then AColumn.TypeName := 'CHAR(%l)'
+        else if LDriverName = dnMySQL      then AColumn.TypeName := 'CHAR(%l)'
+        else if LDriverName = dnOracle     then AColumn.TypeName := 'NCHAR(%l)'
+        else                                    AColumn.TypeName := 'GUID';
+      end;
     end;
   else
     raise Exception.Create('Tipo da coluna definida [' + AColumn.Table.Name + '.' +
@@ -523,12 +549,14 @@ begin
   else
   if ADriverName = dnPostgreSQL  then
   begin
-    // TODO (issue #19, em aberto): 'BYTE' NAO e tipo do PostgreSQL. O binario
-    // dele e 'bytea', que NAO e dimensionado - e isso poe em duvida tambem o
-    // Size := 16 abaixo. A escolha do tipo (e do Size) para o modo octeto no
-    // PostgreSQL nao foi medida contra banco vivo e por isso NAO foi alterada
-    // aqui; so o placeholder de tamanho foi corrigido para '%l'.
-    AColumn.TypeName := 'BYTE(%l)';
+    // 'BYTE' nao e tipo do PostgreSQL. O tipo binario dele e BYTEA - o mesmo
+    // que esta unit ja emite para ftBlob/ftOraBlob neste dialeto -, e BYTEA
+    // NAO aceita modificador de comprimento: por isso o tipo sai sem
+    // parenteses e sem placeholder. Size continua registrando os octetos que
+    // o GUID ocupa, para quem compara metadado, mas nao entra no tipo.
+    // NAO MEDIDO contra banco vivo: se o round-trip de leitura do metadado
+    // devolve esse mesmo Size para uma coluna bytea.
+    AColumn.TypeName := 'BYTEA';
     AColumn.Size := 16;
   end
   else

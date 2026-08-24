@@ -70,6 +70,25 @@ type
       ///   nao um literal chumbado.
       /// </summary>
       C_SIZE_IN = 38;
+      /// <summary>
+      ///   Zero e o que o atributo Column deixa quando ninguem declara
+      ///   tamanho (Column.Create, MetaDbDiff.Mapping.Attributes.pas). E o
+      ///   caso em que o %l do ftGuid resolveria para uma coluna de tamanho
+      ///   zero se o ramo de texto nao tivesse default proprio.
+      /// </summary>
+      C_SIZE_UNDECLARED = 0;
+      /// <summary>
+      ///   Comprimento do literal canonico de GUID que este ecossistema grava
+      ///   e compara no WHERE: QuotedStr(TGUID.ToString) = '{8-4-4-4-12}',
+      ///   com chaves e hifens (TDMLGeneratorAbstract.CanonicalGuidLiteral,
+      ///   Janus.DML.Generator.pas).
+      /// </summary>
+      C_SIZE_CANONICAL = 38;
+      /// <summary>
+      ///   Tamanho declarado deliberadamente diferente do canonico: se ele
+      ///   sobreviver ate o DDL, o default nao atropela o mapeamento.
+      /// </summary>
+      C_SIZE_DECLARED = 64;
     function _NormalizeSQL(const ASQL: String): String;
     /// <summary>
     ///   Resolve o TypeName de uma coluna ftGuid pelo dialeto ADriver e devolve
@@ -93,11 +112,26 @@ type
     procedure Guid_MySQL_NotOctet_EmitsCharWithSize;
     [Test]
     procedure Guid_Oracle_NotOctet_EmitsNCharWithSize;
+    // ------------------------ StoreGUIDAsOctet = False, tamanho NAO declarado
+    [Test]
+    procedure Guid_PostgreSQL_NotOctet_UndeclaredSize_DefaultsToLiteralLength;
+    [Test]
+    procedure Guid_Firebird_NotOctet_UndeclaredSize_DefaultsToLiteralLength;
+    [Test]
+    procedure Guid_Interbase_NotOctet_UndeclaredSize_DefaultsToLiteralLength;
+    [Test]
+    procedure Guid_MySQL_NotOctet_UndeclaredSize_DefaultsToLiteralLength;
+    [Test]
+    procedure Guid_Oracle_NotOctet_UndeclaredSize_DefaultsToLiteralLength;
+    [Test]
+    procedure Guid_NotOctet_DeclaredSize_OverridesTheDefault;
+    [Test]
+    procedure Guid_NotOctet_UndeclaredSize_NeverEmitsZeroSizedColumn;
     // --------------------------------------------------- StoreGUIDAsOctet = True
     [Test]
     procedure Guid_Firebird_Octet_EmitsChar16Octets;
     [Test]
-    procedure Guid_PostgreSQL_Octet_SubstitutesSize;
+    procedure Guid_PostgreSQL_Octet_EmitsByteaWithoutSize;
     [Test]
     procedure Guid_Oracle_Octet_FallsBackToCharWithSize;
     [Test]
@@ -256,6 +290,103 @@ begin
 end;
 
 // ---------------------------------------------------------------------------
+// StoreGUIDAsOctet = False, com o tamanho NAO declarado pelo mapeamento.
+//
+// Os testes acima entram com um tamanho ja preenchido, entao medem apenas a
+// SUBSTITUICAO do placeholder. Estes aqui entram com zero - que e o que
+// Column.Create deixa quando a entidade declara [Column('ID', ftGuid)] sem
+// tamanho (MetaDbDiff.Mapping.Attributes.pas) - e medem de onde vem o NUMERO.
+// Sem default proprio no ramo de texto, o %l resolve para uma coluna de
+// tamanho zero, que nao guarda o literal canonico de GUID nenhum.
+// ---------------------------------------------------------------------------
+
+procedure TTestGuidDDL.Guid_PostgreSQL_NotOctet_UndeclaredSize_DefaultsToLiteralLength;
+var
+  LTypeName, LSQL: String;
+begin
+  LSQL := _EmitGuidColumn(dnPostgreSQL, False, LTypeName, C_SIZE_UNDECLARED);
+  Assert.AreEqual('CHAR(%l)', LTypeName, False);
+  Assert.AreEqual(Format('ALTER TABLE CLIENTE ADD ID_GUID CHAR(%d);',
+    [C_SIZE_CANONICAL]), LSQL, False,
+    'ftGuid sem tamanho declarado deve cair no comprimento do literal canonico: ' + LSQL);
+end;
+
+procedure TTestGuidDDL.Guid_Firebird_NotOctet_UndeclaredSize_DefaultsToLiteralLength;
+var
+  LTypeName, LSQL: String;
+begin
+  LSQL := _EmitGuidColumn(dnFirebird, False, LTypeName, C_SIZE_UNDECLARED);
+  Assert.AreEqual('CHAR(%l)', LTypeName, False);
+  Assert.AreEqual(Format('ALTER TABLE CLIENTE ADD ID_GUID CHAR(%d);',
+    [C_SIZE_CANONICAL]), LSQL, False,
+    'ftGuid sem tamanho declarado deve cair no comprimento do literal canonico: ' + LSQL);
+end;
+
+procedure TTestGuidDDL.Guid_Interbase_NotOctet_UndeclaredSize_DefaultsToLiteralLength;
+var
+  LTypeName, LSQL: String;
+begin
+  LSQL := _EmitGuidColumn(dnInterbase, False, LTypeName, C_SIZE_UNDECLARED);
+  Assert.AreEqual('CHAR(%l)', LTypeName, False);
+  Assert.AreEqual(Format('ALTER TABLE CLIENTE ADD ID_GUID CHAR(%d);',
+    [C_SIZE_CANONICAL]), LSQL, False,
+    'ftGuid sem tamanho declarado deve cair no comprimento do literal canonico: ' + LSQL);
+end;
+
+procedure TTestGuidDDL.Guid_MySQL_NotOctet_UndeclaredSize_DefaultsToLiteralLength;
+var
+  LTypeName, LSQL: String;
+begin
+  LSQL := _EmitGuidColumn(dnMySQL, False, LTypeName, C_SIZE_UNDECLARED);
+  Assert.AreEqual('CHAR(%l)', LTypeName, False);
+  Assert.AreEqual(Format('ALTER TABLE CLIENTE ADD ID_GUID CHAR(%d);',
+    [C_SIZE_CANONICAL]), LSQL, False,
+    'ftGuid sem tamanho declarado deve cair no comprimento do literal canonico: ' + LSQL);
+end;
+
+procedure TTestGuidDDL.Guid_Oracle_NotOctet_UndeclaredSize_DefaultsToLiteralLength;
+var
+  LTypeName, LSQL: String;
+begin
+  LSQL := _EmitGuidColumn(dnOracle, False, LTypeName, C_SIZE_UNDECLARED);
+  Assert.AreEqual('NCHAR(%l)', LTypeName, False);
+  Assert.AreEqual(Format('ALTER TABLE CLIENTE ADD ID_GUID NCHAR(%d);',
+    [C_SIZE_CANONICAL]), LSQL, False,
+    'ftGuid sem tamanho declarado deve cair no comprimento do literal canonico: ' + LSQL);
+end;
+
+procedure TTestGuidDDL.Guid_NotOctet_DeclaredSize_OverridesTheDefault;
+var
+  LTypeName, LSQL: String;
+begin
+  // O default so entra quando o mapeamento (ou a extracao do banco) nao trouxe
+  // tamanho. Um tamanho declarado tem que chegar intacto ao DDL.
+  LSQL := _EmitGuidColumn(dnFirebird, False, LTypeName, C_SIZE_DECLARED);
+  Assert.AreEqual(Format('ALTER TABLE CLIENTE ADD ID_GUID CHAR(%d);',
+    [C_SIZE_DECLARED]), LSQL, False,
+    'Um tamanho declarado nao pode ser atropelado pelo default: ' + LSQL);
+end;
+
+procedure TTestGuidDDL.Guid_NotOctet_UndeclaredSize_NeverEmitsZeroSizedColumn;
+const
+  C_DRIVERS: array[0..7] of TDriverName =
+    (dnMSSQL, dnMySQL, dnFirebird, dnSQLite, dnInterbase, dnOracle,
+     dnPostgreSQL, dnFirebird3);
+var
+  LTypeName, LSQL: String;
+  LIndex: Integer;
+begin
+  for LIndex := Low(C_DRIVERS) to High(C_DRIVERS) do
+  begin
+    LSQL := _EmitGuidColumn(C_DRIVERS[LIndex], False, LTypeName,
+                            C_SIZE_UNDECLARED);
+    Assert.IsFalse(Pos('(0)', LSQL) > 0,
+      Format('ftGuid sem tamanho declarado saiu com coluna de tamanho zero ' +
+             '(driver ord=%d): %s', [Ord(C_DRIVERS[LIndex]), LSQL]));
+  end;
+end;
+
+// ---------------------------------------------------------------------------
 // StoreGUIDAsOctet = True (Metadata.Extract.pas :514-540, _SetGuidOrOctetos)
 // ---------------------------------------------------------------------------
 
@@ -271,21 +402,21 @@ begin
     LSQL, False, 'DDL Firebird/ftGuid octeto: ' + LSQL);
 end;
 
-procedure TTestGuidDDL.Guid_PostgreSQL_Octet_SubstitutesSize;
+procedure TTestGuidDDL.Guid_PostgreSQL_Octet_EmitsByteaWithoutSize;
 var
   LTypeName, LSQL: String;
 begin
-  // Metadata.Extract.pas:531-532.
-  // ATENCAO: BYTE nao e tipo do PostgreSQL (o binario dele e bytea, e bytea NAO
-  // e dimensionado). Este teste NAO afirma que BYTE(16) esta correto - afirma
-  // apenas que o placeholder de tamanho passou a ser substituido nesta linha,
-  // que e o que a issue #19 fecha. A escolha do tipo do modo octeto no
-  // PostgreSQL (e o Size := 16 que a acompanha) segue EM ABERTO na issue por
-  // falta de medicao contra banco vivo.
+  // 'BYTE' nao e tipo do PostgreSQL. O tipo binario dele e BYTEA, que a propria
+  // unit ja emite para ftBlob no mesmo dialeto (Metadata.Extract.pas, ramo
+  // ftBlob/ftOraBlob) - e BYTEA nao aceita modificador de comprimento, entao o
+  // tipo sai sem parenteses e sem placeholder algum.
   LSQL := _EmitGuidColumn(dnPostgreSQL, True, LTypeName);
-  Assert.AreEqual('BYTE(%l)', LTypeName, False);
-  Assert.AreEqual('ALTER TABLE CLIENTE ADD ID_GUID BYTE(16);', LSQL, False,
+  Assert.AreEqual('BYTEA', LTypeName, False,
+    'PostgreSQL nao tem o tipo BYTE; o binario dele e BYTEA');
+  Assert.AreEqual('ALTER TABLE CLIENTE ADD ID_GUID BYTEA;', LSQL, False,
     'DDL PostgreSQL/ftGuid octeto: ' + LSQL);
+  Assert.IsFalse(Pos('BYTE(', LSQL) > 0,
+    'BYTE(n) nao existe no PostgreSQL: ' + LSQL);
 end;
 
 procedure TTestGuidDDL.Guid_Oracle_Octet_FallsBackToCharWithSize;
