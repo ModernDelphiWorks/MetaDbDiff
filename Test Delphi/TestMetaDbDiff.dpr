@@ -21,6 +21,7 @@ uses
   Test.MetaDbDiff.Concurrency in 'Test.MetaDbDiff.Concurrency.pas',
   Test.MetaDbDiff.Schema in 'Test.MetaDbDiff.Schema.pas',
   Test.MetaDbDiff.Guid in 'Test.MetaDbDiff.Guid.pas',
+  Test.MetaDbDiff.Nullable in 'Test.MetaDbDiff.Nullable.pas',
   MetaDbDiff.DDL.Generator.Interbase in '..\Source\Drivers\MetaDbDiff.DDL.Generator.Interbase.pas',
   MetaDbDiff.Metadata.Snapshot in '..\Source\Core\MetaDbDiff.Metadata.Snapshot.pas',
   MetaDbDiff.Metadata.Snapshot.Factory in '..\Source\Core\MetaDbDiff.Metadata.Snapshot.Factory.pas',

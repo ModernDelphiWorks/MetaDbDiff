@@ -105,6 +105,7 @@
         <DCCReference Include="Test.MetaDbDiff.ObjectTypes.pas"/>
         <DCCReference Include="Test.MetaDbDiff.Schema.pas"/>
         <DCCReference Include="Test.MetaDbDiff.Guid.pas"/>
+        <DCCReference Include="Test.MetaDbDiff.Nullable.pas"/>
         <DCCReference Include="..\Source\Drivers\MetaDbDiff.DDL.Generator.Interbase.pas"/>
         <DCCReference Include="..\Source\Core\MetaDbDiff.Metadata.Snapshot.pas"/>
         <DCCReference Include="..\Source\Core\MetaDbDiff.Metadata.Snapshot.Factory.pas"/>
