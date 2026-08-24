@@ -69,7 +69,8 @@ type
 
   TRttiPropertyHelper = class helper for TRttiProperty
   private
-    function _ResolveNullableValue(AObject: TObject): Boolean;
+    function _ResolveNullableValue(AObject: TObject;
+      const ADefaultValueIsNull: Boolean): Boolean;
   public
     function  IsNoUpdate: Boolean;
     function  IsNoInsert: Boolean;
@@ -640,7 +641,18 @@ begin
    Exit(False);
 end;
 
-function TRttiPropertyHelper._ResolveNullableValue(AObject: TObject): Boolean;
+/// <summary>
+///   Resolves the nullity of one property value.
+/// </summary>
+/// <param name="ADefaultValueIsNull">
+///   When False, the only thing that answers True is the absence of a value -
+///   GetNullableValue yields Null exactly when the Nullable record carries
+///   FHasValue = False. When True, the default of the type ('', zero, a zero
+///   date) is ALSO reported as null; that is the [NullIfEmpty] opt-in and
+///   nothing else turns it on.
+/// </param>
+function TRttiPropertyHelper._ResolveNullableValue(AObject: TObject;
+  const ADefaultValueIsNull: Boolean): Boolean;
 var
   LValue: TValue;
 begin
@@ -648,6 +660,9 @@ begin
   LValue := GetNullableValue(AObject);
   if LValue.AsVariant = Null then
     Exit(True);
+
+  if not ADefaultValueIsNull then
+    Exit(False);
 
   if LVAlue.Kind in [tkString, tkUString, tkLString, tkWString
                     {$IFDEF DELPHI22_UP}
@@ -693,6 +708,44 @@ begin
   end;
 end;
 
+/// <summary>
+///   Answers whether the consumer must write NULL for this property instead
+///   of writing its value.
+/// </summary>
+/// <remarks>
+///   The three rules, in this order:
+///   <para>
+///   1. [Restrictions([TRestriction.NotNull])] exempts the property - the
+///      answer is False before anything is read off the instance.
+///   </para>
+///   <para>
+///   2. For a bare Nullable&lt;T&gt;, nullity is HasValue and nothing else.
+///      A property nobody assigned resolves to NULL; a property assigned the
+///      default of its type (0, an empty string, a zero date) resolves to
+///      that VALUE. Zero is zero, null is null - the default of the type is
+///      never assumed to mean "nothing was given".
+///   </para>
+///   <para>
+///   3. [NullIfEmpty] is the opt-in that maps the default of the type onto
+///      NULL, on a Nullable&lt;T&gt; property or on a plain one. It is the
+///      only switch for that behaviour.
+///   </para>
+///   <para>
+///   CONDITION - the consumer's INSERT and UPDATE paths do not agree on what
+///   this True means. An INSERT that reacts to it by OMITTING the column lets
+///   the database apply the column DEFAULT, which need not be NULL, while an
+///   UPDATE binds an explicit NULL parameter. The same property can therefore
+///   land two different values in the same column depending on which path
+///   ran.
+///   </para>
+///   <para>
+///   CONDITION - on a NOT NULL column with no default, answering False where
+///   this once answered True swaps the failure mode: the column stops being
+///   omitted, so the database stops refusing the statement and the default of
+///   the type is written silently instead. Whoever leaned on that refusal as
+///   a guard no longer has it.
+///   </para>
+/// </remarks>
 function TRttiPropertyHelper.IsNullValue(AObject: TObject): Boolean;
 begin
   Result := False;
@@ -703,7 +756,7 @@ begin
     Exit(False);
 
   if (Self.IsNullable) or (Self.IsNullIfEmpty) then
-    Exit(_ResolveNullableValue(AObject));
+    Exit(_ResolveNullableValue(AObject, Self.IsNullIfEmpty));
 end;
 
 function TRttiPropertyHelper.IsPrimaryKey(AClass: TClass): Boolean;
